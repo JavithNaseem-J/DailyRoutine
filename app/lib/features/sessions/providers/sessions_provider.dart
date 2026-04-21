@@ -49,23 +49,21 @@ class SessionsState {
       pillState(sessionId) == SessionPillState.complete;
 
   int get completionPct {
-    final allIds = SessionData.taskIdsForToday(
-      isFriday: DayChecker.isFriday(),
-      isSunday: DayChecker.isSunday(),
-    );
+    final allIds = sessions.expand((s) => s.tasks).map((t) => t.id).toList();
     if (allIds.isEmpty) return 0;
     final doneCount = allIds.where((id) => taskStates[id] == true).length;
     return ((doneCount / allIds.length) * 100).round();
   }
 
   Session? get activeSession => sessions.firstWhere(
-        (s) => s.id == (activeSessionId ?? ''),
-        orElse: () => sessions.isNotEmpty ? sessions.first : sessions.first,
-      );
+    (s) => s.id == (activeSessionId ?? ''),
+    orElse: () => sessions.isNotEmpty ? sessions.first : sessions.first,
+  );
 
-  SessionsState copyWith({DailyState? dailyState}) => SessionsState(
+  SessionsState copyWith({DailyState? dailyState, List<Session>? sessions}) =>
+      SessionsState(
         dailyState: dailyState ?? this.dailyState,
-        sessions: sessions,
+        sessions: sessions ?? this.sessions,
         activeSessionId: activeSessionId,
       );
 }
@@ -79,13 +77,32 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
 
   @override
   Future<SessionsState> build() async {
-    final sessions = SessionData.sessionsForToday(
+    final defaultSessions = SessionData.sessionsForToday(
       isFriday: DayChecker.isFriday(),
       isSunday: DayChecker.isSunday(),
     );
 
     // 1. Load from Hive instantly
     final daily = hiveService.readDailyState(_todayKey);
+    final customTasks = hiveService.readCustomTasks();
+
+    final sessions = defaultSessions.map((s) {
+      final relevantTasks = customTasks
+          .where((t) => t.sessionId == s.id)
+          .toList();
+      relevantTasks.sort(
+        (a, b) => _parseTime(a.time).compareTo(_parseTime(b.time)),
+      );
+      return Session(
+        id: s.id,
+        name: s.name,
+        timeRange: s.timeRange,
+        accentColor: s.accentColor,
+        tasks: [...s.tasks, ...relevantTasks],
+        isFridayOnly: s.isFridayOnly,
+        isSundayOnly: s.isSundayOnly,
+      );
+    }).toList();
 
     // 2. Refresh from Supabase in the background
     _refreshFromSupabase(daily, sessions);
@@ -98,7 +115,9 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
   }
 
   Future<void> _refreshFromSupabase(
-      DailyState localState, List<Session> sessions) async {
+    DailyState localState,
+    List<Session> sessions,
+  ) async {
     final remote = await supabaseService.fetchDailyState(_todayKey, deviceId);
     if (remote == null) return;
 
@@ -139,6 +158,7 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     int h = int.parse(p[0]);
     final m = p.length > 1 ? int.parse(p[1]) : 0;
     if (isPm && h != 12) h += 12;
+    if (!isPm && h == 12) h = 0;
     return h * 60 + m;
   }
 
@@ -171,10 +191,12 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
   }
 
   bool _areAllTasksDone(DailyState daily) {
-    final allIds = SessionData.taskIdsForToday(
-      isFriday: DayChecker.isFriday(),
-      isSunday: DayChecker.isSunday(),
-    );
+    final current = state.value;
+    if (current == null) return false;
+    final allIds = current.sessions
+        .expand((s) => s.tasks)
+        .map((t) => t.id)
+        .toList();
     return allIds.isNotEmpty &&
         allIds.every((id) => daily.taskStates[id] == true);
   }
@@ -186,7 +208,10 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     if (current == null) return;
 
     final newDaily = current.dailyState.copyWith(
-      bonusStates: {...current.bonusStates, taskId: !(current.bonusStates[taskId] ?? false)},
+      bonusStates: {
+        ...current.bonusStates,
+        taskId: !(current.bonusStates[taskId] ?? false),
+      },
     );
 
     state = AsyncData(current.copyWith(dailyState: newDaily));
@@ -205,11 +230,156 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
       taskStates: current.dailyState.taskStates,
       bonusStates: current.dailyState.bonusStates,
       mood: mood,
+      focusMinutes: current.dailyState.focusMinutes,
     );
 
     state = AsyncData(current.copyWith(dailyState: newDaily));
     await hiveService.writeDailyState(newDaily);
     supabaseService.upsertDailyState(newDaily, deviceId).catchError((_) {});
+  }
+
+  // ── Focus Tracking ─────────────────────────────────────────────────
+
+  Future<void> addFocusMinutes(int minutes, {String? tag}) async {
+    final current = state.value;
+    if (current == null) return;
+
+    final updatedProject = Map<String, int>.from(
+      current.dailyState.projectMinutes,
+    );
+    if (tag != null && tag.isNotEmpty) {
+      updatedProject[tag] = (updatedProject[tag] ?? 0) + minutes;
+    }
+
+    final newDaily = current.dailyState.copyWith(
+      focusMinutes: current.dailyState.focusMinutes + minutes,
+      projectMinutes: updatedProject,
+    );
+
+    state = AsyncData(current.copyWith(dailyState: newDaily));
+    await hiveService.writeDailyState(newDaily);
+    supabaseService.upsertDailyState(newDaily, deviceId).catchError((_) {});
+  }
+
+  // ── Custom Tasks ───────────────────────────────────────────────────
+
+  Future<void> addCustomTask(Task task) async {
+    final currentTasks = hiveService.readCustomTasks();
+    currentTasks.add(task);
+    await hiveService.writeCustomTasks(currentTasks);
+
+    final current = state.value;
+    if (current == null) return;
+
+    final updatedSessions = current.sessions.map((s) {
+      if (s.id == task.sessionId) {
+        final mergedTasks = [...s.tasks, task];
+        mergedTasks.sort(
+          (a, b) => _parseTime(a.time).compareTo(_parseTime(b.time)),
+        );
+        return Session(
+          id: s.id,
+          name: s.name,
+          timeRange: s.timeRange,
+          accentColor: s.accentColor,
+          tasks: mergedTasks,
+          isFridayOnly: s.isFridayOnly,
+          isSundayOnly: s.isSundayOnly,
+        );
+      }
+      return s;
+    }).toList();
+
+    state = AsyncData(current.copyWith(sessions: updatedSessions));
+  }
+
+  Future<void> editCustomTask(Task updatedTask, String oldSessionId) async {
+    final customTasks = hiveService.readCustomTasks();
+    final idx = customTasks.indexWhere((t) => t.id == updatedTask.id);
+    if (idx != -1) {
+      customTasks[idx] = updatedTask;
+      await hiveService.writeCustomTasks(customTasks);
+    }
+
+    final current = state.value;
+    if (current == null) return;
+
+    final updatedSessions = current.sessions.map((s) {
+      if (s.id == oldSessionId && s.id == updatedTask.sessionId) {
+        final mergedTasks = s.tasks
+            .map((t) => t.id == updatedTask.id ? updatedTask : t)
+            .toList();
+        mergedTasks.sort(
+          (a, b) => _parseTime(a.time).compareTo(_parseTime(b.time)),
+        );
+        return Session(
+          id: s.id,
+          name: s.name,
+          timeRange: s.timeRange,
+          accentColor: s.accentColor,
+          tasks: mergedTasks,
+          isFridayOnly: s.isFridayOnly,
+          isSundayOnly: s.isSundayOnly,
+        );
+      } else if (s.id == oldSessionId) {
+        final mergedTasks = s.tasks
+            .where((t) => t.id != updatedTask.id)
+            .toList();
+        return Session(
+          id: s.id,
+          name: s.name,
+          timeRange: s.timeRange,
+          accentColor: s.accentColor,
+          tasks: mergedTasks,
+          isFridayOnly: s.isFridayOnly,
+          isSundayOnly: s.isSundayOnly,
+        );
+      } else if (s.id == updatedTask.sessionId) {
+        final mergedTasks = [...s.tasks, updatedTask];
+        mergedTasks.sort(
+          (a, b) => _parseTime(a.time).compareTo(_parseTime(b.time)),
+        );
+        return Session(
+          id: s.id,
+          name: s.name,
+          timeRange: s.timeRange,
+          accentColor: s.accentColor,
+          tasks: mergedTasks,
+          isFridayOnly: s.isFridayOnly,
+          isSundayOnly: s.isSundayOnly,
+        );
+      }
+      return s;
+    }).toList();
+
+    state = AsyncData(current.copyWith(sessions: updatedSessions));
+  }
+
+  Future<void> deleteCustomTask(String taskId, String sessionId) async {
+    final customTasks = hiveService.readCustomTasks();
+    customTasks.removeWhere((t) => t.id == taskId);
+    await hiveService.writeCustomTasks(customTasks);
+
+    final current = state.value;
+    if (current == null) return;
+
+    final updatedSessions = current.sessions.map((s) {
+      if (s.id == sessionId) {
+        final mergedTasks = s.tasks.where((t) => t.id != taskId).toList();
+        return Session(
+          id: s.id,
+          name: s.name,
+          timeRange: s.timeRange,
+          accentColor: s.accentColor,
+          tasks: mergedTasks,
+          isFridayOnly: s.isFridayOnly,
+          isSundayOnly: s.isSundayOnly,
+        );
+      }
+      return s;
+    }).toList();
+
+    state = AsyncData(current.copyWith(sessions: updatedSessions));
   }
 }
 
@@ -217,9 +387,9 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
 // Providers
 // ─────────────────────────────────────────────────────────────────────────────
 
-final sessionsProvider =
-    AsyncNotifierProvider<SessionsNotifier, SessionsState>(
-        SessionsNotifier.new);
+final sessionsProvider = AsyncNotifierProvider<SessionsNotifier, SessionsState>(
+  SessionsNotifier.new,
+);
 
 final completionPctProvider = Provider<int>((ref) {
   return ref.watch(sessionsProvider).value?.completionPct ?? 0;

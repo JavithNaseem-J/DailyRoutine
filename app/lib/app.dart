@@ -2,10 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/app_colors.dart';
+
 import 'features/home/home_screen.dart';
 import 'features/sessions/sessions_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/stats/stats_screen.dart';
+import 'features/quran/quran_screen.dart';
+import 'features/focus/focus_screen.dart';
+import 'features/auth/auth_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DailyRoutineApp extends StatelessWidget {
   const DailyRoutineApp({super.key});
@@ -13,8 +18,8 @@ class DailyRoutineApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'Daily Routine',
-      theme: AppTheme.light,
+      title: 'Yawmi',
+      theme: AppTheme.theme(),
       debugShowCheckedModeBanner: false,
       routerConfig: _router,
     );
@@ -27,26 +32,44 @@ class DailyRoutineApp extends StatelessWidget {
 
 final _router = GoRouter(
   initialLocation: '/home',
+  redirect: (context, state) {
+    final session = Supabase.instance.client.auth.currentSession;
+    final isAuthRoute = state.matchedLocation == '/auth';
+
+    if (session == null && !isAuthRoute) return '/auth';
+    if (session != null && isAuthRoute) return '/home';
+    return null;
+  },
   routes: [
+    GoRoute(
+      path: '/auth',
+      builder: (context, state) => const AuthScreen(),
+    ),
     ShellRoute(
       builder: (context, state, child) => _AppShell(child: child),
       routes: [
         GoRoute(
           path: '/home',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: HomeScreen(),
+          pageBuilder: (context, state) => CustomTransitionPage(
+            child: const HomeScreen(),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+                FadeTransition(opacity: animation, child: child),
           ),
         ),
         GoRoute(
           path: '/sessions',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: SessionsScreen(),
+          pageBuilder: (context, state) => CustomTransitionPage(
+            child: const SessionsScreen(),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+                FadeTransition(opacity: animation, child: child),
           ),
         ),
         GoRoute(
           path: '/stats',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: StatsScreen(),
+          pageBuilder: (context, state) => CustomTransitionPage(
+            child: const StatsScreen(),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+                FadeTransition(opacity: animation, child: child),
           ),
         ),
       ],
@@ -55,6 +78,19 @@ final _router = GoRouter(
     GoRoute(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),
+    ),
+    // Quran — full-screen, no bottom nav
+    GoRoute(path: '/quran', builder: (context, state) => const QuranScreen()),
+    // Focus Mode — full-screen, no bottom nav
+    GoRoute(
+      path: '/focus',
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>?;
+        return FocusScreen(
+          taskTitle: extra?['taskTitle'] as String? ?? 'Focus Session',
+          durationMinutes: extra?['durationMinutes'] as int? ?? 25,
+        );
+      },
     ),
   ],
 );
@@ -77,9 +113,15 @@ class _AppShell extends StatelessWidget {
 
   void _onTabTap(BuildContext context, int index) {
     switch (index) {
-      case 0: context.go('/home'); break;
-      case 1: context.go('/sessions'); break;
-      case 2: context.go('/stats'); break;
+      case 0:
+        context.go('/home');
+        break;
+      case 1:
+        context.go('/sessions');
+        break;
+      case 2:
+        context.go('/stats');
+        break;
     }
   }
 
@@ -100,7 +142,7 @@ class _AppShell extends StatelessWidget {
                 color: Colors.black.withValues(alpha: 0.2),
                 blurRadius: 15,
                 offset: const Offset(0, 8),
-              )
+              ),
             ],
           ),
           child: Padding(
@@ -108,9 +150,27 @@ class _AppShell extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildNavItem(0, Icons.home_outlined, Icons.home, index, context),
-                _buildNavItem(1, Icons.access_time_outlined, Icons.access_time_filled, index, context),
-                _buildNavItem(2, Icons.bar_chart_outlined, Icons.bar_chart, index, context),
+                _buildNavItem(
+                  0,
+                  Icons.home_outlined,
+                  Icons.home,
+                  index,
+                  context,
+                ),
+                _buildNavItem(
+                  1,
+                  Icons.access_time_outlined,
+                  Icons.access_time_filled,
+                  index,
+                  context,
+                ),
+                _buildNavItem(
+                  2,
+                  Icons.bar_chart_outlined,
+                  Icons.bar_chart,
+                  index,
+                  context,
+                ),
               ],
             ),
           ),
@@ -119,7 +179,13 @@ class _AppShell extends StatelessWidget {
     );
   }
 
-  Widget _buildNavItem(int i, IconData out, IconData fill, int currentIndex, BuildContext context) {
+  Widget _buildNavItem(
+    int i,
+    IconData out,
+    IconData fill,
+    int currentIndex,
+    BuildContext context,
+  ) {
     final active = currentIndex == i;
     return GestureDetector(
       onTap: () => _onTabTap(context, i),
@@ -128,10 +194,16 @@ class _AppShell extends StatelessWidget {
         duration: const Duration(milliseconds: 250),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
-          color: active ? Colors.white.withValues(alpha: 0.15) : Colors.transparent,
+          color: active
+              ? Colors.white.withValues(alpha: 0.15)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
         ),
-        child: Icon(active ? fill : out, color: active ? Colors.white : AppColors.navInactive, size: 26),
+        child: Icon(
+          active ? fill : out,
+          color: active ? Colors.white : AppColors.navInactive,
+          size: 26,
+        ),
       ),
     );
   }

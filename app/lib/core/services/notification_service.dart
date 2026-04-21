@@ -60,7 +60,8 @@ class NotificationService {
     if (!kIsWeb) {
       await _plugin
           .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
+            AndroidFlutterLocalNotificationsPlugin
+          >()
           ?.requestNotificationsPermission();
     }
 
@@ -69,42 +70,45 @@ class NotificationService {
 
   // ── Schedule all reminders for today ──────────────────────────────
   Future<void> scheduleSessionNotifications({
-    required bool notificationsEnabled,
+    required bool sessionRemindersEnabled,
+    required bool prayerAlertsEnabled,
     Set<String> disabledSessionIds = const {},
   }) async {
-    if (!notificationsEnabled) return;
     await _plugin.cancelAll();
-
     final now = DateTime.now();
     int notifId = 100;
 
     // Session reminders — 15 min before each session
-    for (final s in _sessionSchedule) {
-      if (disabledSessionIds.contains(s.id)) continue;
-      final start = _parseTime(s.startStr, now);
-      if (start == null) continue;
-      final remind = start.subtract(const Duration(minutes: 15));
-      if (remind.isAfter(now)) {
-        await _zoned(
-          id: notifId++,
-          title: '${s.name} starts in 15 min',
-          body: s.body,
-          when: remind,
-        );
+    if (sessionRemindersEnabled) {
+      for (final s in _sessionSchedule) {
+        if (disabledSessionIds.contains(s.id)) continue;
+        final start = _parseTime(s.startStr, now);
+        if (start == null) continue;
+        final remind = start.subtract(const Duration(minutes: 15));
+        if (remind.isAfter(now)) {
+          await _zoned(
+            id: notifId++,
+            title: '${s.name} starts in 15 min',
+            body: s.body,
+            when: remind,
+          );
+        }
       }
     }
 
     // Prayer alerts — 10 min before Fajr + Asr
-    final prayers = prayerService.getTodayPrayerTimes();
-    for (final p in [('Fajr', prayers.fajr), ('Asr', prayers.asr)]) {
-      final alertTime = p.$2.subtract(const Duration(minutes: 10));
-      if (alertTime.isAfter(now)) {
-        await _zoned(
-          id: notifId++,
-          title: '${p.$1} in 10 minutes',
-          body: 'Prepare for prayer.',
-          when: alertTime,
-        );
+    if (prayerAlertsEnabled) {
+      final prayers = prayerService.getTodayPrayerTimes();
+      for (final p in [('Fajr', prayers.fajr), ('Asr', prayers.asr)]) {
+        final alertTime = p.$2.subtract(const Duration(minutes: 10));
+        if (alertTime.isAfter(now)) {
+          await _zoned(
+            id: notifId++,
+            title: '${p.$1} in 10 minutes',
+            body: 'Prepare for prayer.',
+            when: alertTime,
+          );
+        }
       }
     }
   }

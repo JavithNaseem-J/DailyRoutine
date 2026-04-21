@@ -5,7 +5,7 @@ import 'app_colors.dart';
 
 /// Assembles the app-wide ThemeData from AppColors tokens.
 abstract final class AppTheme {
-  static ThemeData get light {
+  static ThemeData theme() {
     final base = ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
@@ -21,7 +21,7 @@ abstract final class AppTheme {
         onSurface: AppColors.textPrimary,
       ),
       textTheme: GoogleFonts.plusJakartaSansTextTheme(),
-      cardTheme: const CardThemeData(
+      cardTheme: CardThemeData(
         color: AppColors.cardSurface,
         shadowColor: Color(0x14000000),
         elevation: 2,
@@ -30,7 +30,7 @@ abstract final class AppTheme {
         ),
         margin: EdgeInsets.zero,
       ),
-      dividerTheme: const DividerThemeData(
+      dividerTheme: DividerThemeData(
         color: AppColors.border,
         thickness: 1,
         space: 0,
@@ -48,11 +48,14 @@ abstract final class AppTheme {
           color: AppColors.primary,
         ),
       ),
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: AppColors.navBackground,
         selectedItemColor: AppColors.navActive,
         unselectedItemColor: AppColors.navInactive,
-        selectedLabelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+        selectedLabelStyle: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
         unselectedLabelStyle: TextStyle(fontSize: 11),
         type: BottomNavigationBarType.fixed,
         elevation: 0,
@@ -60,20 +63,23 @@ abstract final class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.cardSurface,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: AppColors.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide: BorderSide(color: AppColors.primary, width: 1.5),
         ),
-        hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 14),
+        hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 14),
       ),
       checkboxTheme: CheckboxThemeData(
         fillColor: WidgetStateProperty.resolveWith<Color>((states) {
@@ -82,7 +88,7 @@ abstract final class AppTheme {
         }),
         checkColor: WidgetStateProperty.all(Colors.white),
         shape: const CircleBorder(),
-        side: const BorderSide(color: AppColors.border, width: 1.5),
+        side: BorderSide(color: AppColors.border, width: 1.5),
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith<Color>((states) {

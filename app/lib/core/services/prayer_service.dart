@@ -14,7 +14,7 @@ class PrayerService {
   PrayerTimes getPrayerTimesForDate(DateTime date) {
     final coords = adhan.Coordinates(_lat, _lng);
     final params = adhan.CalculationMethod.dubai.getParameters();
-    params.madhab = adhan.Madhab.hanafi;
+    params.madhab = adhan.Madhab.shafi;
 
     final adhanTimes = adhan.PrayerTimes(
       coords,
@@ -40,8 +40,13 @@ class PrayerService {
     final now = DateTime.now();
     DateTime applyOverride(DateTime calculated, DateTime? override) {
       if (override == null) return calculated;
-      return DateTime(now.year, now.month, now.day,
-          override.hour, override.minute);
+      return DateTime(
+        now.year,
+        now.month,
+        now.day,
+        override.hour,
+        override.minute,
+      );
     }
 
     return PrayerTimes(
@@ -57,7 +62,9 @@ class PrayerService {
   /// Returns adhaan time + prayer start time for the next prayer.
   /// Offsets: Fajr/Dhuhr/Asr/Isha = +20 min | Maghrib = +5 min.
   ({String name, DateTime adhaan, DateTime prayerStart}) getPrayerData(
-      DateTime now, {PrayerTimes? overrides}) {
+    DateTime now, {
+    PrayerTimes? overrides,
+  }) {
     final times = getTodayPrayerTimes(overrides: overrides);
     final prayers = times.asOrderedList();
 

@@ -11,13 +11,15 @@ abstract final class Quotes {
       attribution: '— Quran 65:3',
     ),
     (
-      text: '"Take benefit of five before five: your youth before old age, '
+      text:
+          '"Take benefit of five before five: your youth before old age, '
           'your health before sickness, your wealth before poverty, '
           'your free time before busyness, and your life before death."',
       attribution: '— Prophet Muhammad ﷺ',
     ),
     (
-      text: '"The strong person is not the one who can wrestle someone else down. '
+      text:
+          '"The strong person is not the one who can wrestle someone else down. '
           'The strong person is the one who can control himself when he is angry."',
       attribution: '— Prophet Muhammad ﷺ',
     ),
@@ -26,12 +28,14 @@ abstract final class Quotes {
       attribution: '— Quran 13:28',
     ),
     (
-      text: '"Friday is the best of days. It was on this day that Adam was created, '
+      text:
+          '"Friday is the best of days. It was on this day that Adam was created, '
           'and it is on this day that the Hour will be established."',
       attribution: '— Prophet Muhammad ﷺ',
     ),
     (
-      text: '"Make things easy and do not make them difficult. '
+      text:
+          '"Make things easy and do not make them difficult. '
           'Cheer people up and do not drive them away."',
       attribution: '— Prophet Muhammad ﷺ',
     ),
