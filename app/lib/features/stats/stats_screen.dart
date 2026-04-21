@@ -11,6 +11,15 @@ import '../../core/theme/app_typography.dart';
 import '../../core/utils/day_checker.dart';
 import '../../main.dart' show deviceId;
 import '../sessions/providers/sessions_provider.dart';
+import '../../core/services/hive_service.dart';
+
+Color _getStageColor(int pct) {
+  if (pct >= 100) return AppColors.complete;
+  if (pct >= 67) return Color(0xFF3B82F6);
+  if (pct >= 34) return Color(0xFF93C5FD);
+  if (pct > 0) return Color(0xFFDBEAFE);
+  return AppColors.surfaceRaised;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Stats Screen
@@ -24,13 +33,15 @@ class StatsScreen extends ConsumerStatefulWidget {
 }
 
 class _StatsScreenState extends ConsumerState<StatsScreen> {
-  List<int> _heatmap = List.filled(28, 0);
+  List<int> _heatmap = List.filled(DateTime(DateTime.now().year, DateTime.now().month + 1, 0).day, 0);
   int _chartRange = 0;
 
-  // Real data loaded async
   List<double> _weeklyData = List.filled(7, 0);
+  List<Map<String, dynamic>> _taskHistory = [];
   int _currentStreak = 0;
   int _bestStreak = 0;
+  int _totalFocusMinutes = 0;
+  Map<String, int> _projectMinutesData = {};
   bool _statsLoading = true;
 
   @override
@@ -44,8 +55,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     final streak = await streakService.fetchStreak();
     // 2. Fetch 7-day stats history for bar chart
     final history = await supabaseService.fetchStatsHistory(7, deviceId);
-    // 3. Build heatmap from 28-day history
-    final history28 = await supabaseService.fetchStatsHistory(28, deviceId);
+    // 3. Build heatmap from 30-day history
+    final history30 = await supabaseService.fetchStatsHistory(30, deviceId);
+    // 4. Fetch real task history for performance calculations
+    final taskHistory = await supabaseService.fetch30DayTaskHistory(deviceId);
 
     if (!mounted) return;
 
@@ -61,20 +74,40 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       } catch (_) {}
     }
 
-    // Map 28-day history → heatmap (0=none,1=partial,2=complete)
-    final heatmap = List<int>.filled(28, 0);
-    for (int i = 0; i < history28.length && i < 28; i++) {
+    // Map history to current month calendar
+    final today = DateTime.now();
+    final daysInMonth = DateTime(today.year, today.month + 1, 0).day;
+    final heatmap = List<int>.filled(daysInMonth, 0);
+
+    for (int i = 0; i < history30.length; i++) {
       try {
-        final pct = (history28[history28.length - 1 - i]['completion_pct'] as num).toInt();
-        heatmap[27 - i] = pct >= 100 ? 2 : pct > 0 ? 1 : 0;
+        final row = history30[i];
+        final dt = DateTime.parse(row['date'] as String);
+        if (dt.month == today.month && dt.year == today.year) {
+          final pct = (row['completion_pct'] as num).toInt();
+          heatmap[dt.day - 1] = pct;
+        }
       } catch (_) {}
+    }
+
+    final localStates = hiveService.readAllDailyStates();
+    int focusMin = 0;
+    Map<String, int> tagMins = {};
+    for (final s in localStates) {
+      focusMin += s.focusMinutes;
+      s.projectMinutes.forEach((k, v) {
+        tagMins[k] = (tagMins[k] ?? 0) + v;
+      });
     }
 
     setState(() {
       _weeklyData = weekly;
       _heatmap = heatmap;
+      _taskHistory = taskHistory;
       _currentStreak = streak?.currentStreak ?? 0;
       _bestStreak = streak?.bestStreak ?? 0;
+      _totalFocusMinutes = focusMin;
+      _projectMinutesData = tagMins;
       _statsLoading = false;
     });
   }
@@ -83,11 +116,24 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   Widget build(BuildContext context) {
     final sessionsAsync = ref.watch(sessionsProvider);
     final completionPct = ref.watch(completionPctProvider);
-    final mood = sessionsAsync.value?.dailyState.mood;
-    final totalTasks = SessionData.taskIdsForToday(
-      isFriday: DayChecker.isFriday(),
-      isSunday: DayChecker.isSunday(),
-    ).length;
+    final sessionsList = sessionsAsync.value?.sessions ?? [];
+    int totalTasks = 0;
+    for (var s in sessionsList) {
+      totalTasks += s.tasks.length;
+    }
+
+    final dayIdx = DateTime.now().weekday - 1;
+    final liveHeatmap = List<int>.from(_heatmap);
+    final liveWeekly = List<double>.from(_weeklyData);
+    if (!_statsLoading) {
+      if (liveHeatmap.isNotEmpty) {
+        int todayIdx = DateTime.now().day - 1;
+        if (todayIdx < liveHeatmap.length) liveHeatmap[todayIdx] = completionPct;
+      }
+      if (liveWeekly.isNotEmpty && dayIdx >= 0 && dayIdx < 7) {
+        liveWeekly[dayIdx] = completionPct.toDouble();
+      }
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -95,86 +141,113 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           children: [
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
 
             // ── Header ──────────────────────────────────────────────
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Statistics',
-                    style: AppTypography.screenTitle(
-                        color: AppColors.textPrimary)),
+                Text(
+                  'Stats',
+                  style: AppTypography.screenTitle(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
                 IconButton(
-                  icon: const Icon(Icons.settings_outlined,
-                      color: AppColors.textSecondary),
+                  icon: Icon(
+                    Icons.settings_outlined,
+                    color: AppColors.textSecondary,
+                  ),
                   onPressed: () => context.push('/settings'),
                 ),
               ],
             ),
 
-            const SizedBox(height: 20),
+            SizedBox(height: 16),
+            if (!_statsLoading && _taskHistory.isNotEmpty)
+              _InsightsBadge(history: _taskHistory),
+            if (!_statsLoading && _taskHistory.isNotEmpty)
+              SizedBox(height: 16),
 
             // ── Completion ring + streak side by side ────────────────
-            Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: _CompletionRingCard(
-                    completionPct: completionPct,
-                    totalTasks: totalTasks,
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: _CompletionRingCard(
+                      completionPct: completionPct,
+                      totalTasks: totalTasks,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: _StreakCard(
-                    currentStreak: _currentStreak,
-                    bestStreak: _bestStreak,
-                    isLoading: _statsLoading,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: _StreakCard(
+                      currentStreak: _currentStreak,
+                      bestStreak: _bestStreak,
+                      isLoading: _statsLoading,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
 
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
 
-            // ── Mood selector ──────────────────────────────────────────
-            _MoodSelector(
-              selected: mood,
-              onSelect: (m) => ref.read(sessionsProvider.notifier).setMood(m),
-            ),
+            // ── Complete Hours in Focus Card ────────────────────────
+            _FocusCard(totalMinutes: _totalFocusMinutes),
 
-            const SizedBox(height: 16),
-
-            // ── Weekly progress bar chart ────────────────────────────
+            const SizedBox(
+              height: 16,
+            ), // ── Weekly progress bar chart ────────────────────────────
             _WeeklyChart(
-              data: _weeklyData,
+              data: liveWeekly,
               rangeIndex: _chartRange,
               onRangeChanged: (i) => setState(() => _chartRange = i),
             ),
 
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
 
             // ── Habit performance list ───────────────────────────────
             _HabitPerformanceCard(
-              taskStates: sessionsAsync.value?.dailyState.taskStates ?? {},
+              history: _taskHistory,
               isFriday: DayChecker.isFriday(),
               isSunday: DayChecker.isSunday(),
             ),
 
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
+
+            // ── Focus Allocation ─────────────────────────────────────
+            _FocusAllocationCard(
+              projectMinutes: _projectMinutesData,
+              totalMinutes: _totalFocusMinutes,
+            ),
+
+            SizedBox(height: 16),
 
             // ── Heatmap grid ─────────────────────────────────────────
             _HeatmapGrid(
-              values: _heatmap,
+              values: liveHeatmap,
               onTap: (i) async {
-                final newVal = (_heatmap[i] + 1) % 3;
+                int newVal = 0;
+                if (_heatmap[i] == 0) {
+                  newVal = 33;
+                } else if (_heatmap[i] < 67) {
+                  newVal = 67;
+                } else if (_heatmap[i] < 100) {
+                  newVal = 100;
+                } else {
+                  newVal = 0;
+                }
+
                 setState(() {
                   _heatmap = List.from(_heatmap)..[i] = newVal;
                 });
-                // Compute date for cell i (today = cell 27)
-                final cellDate = DateTime.now()
-                    .subtract(Duration(days: 27 - i));
+                // Compute date for cell i (day i+1 of current month)
+                final today = DateTime.now();
+                final cellDate = DateTime(today.year, today.month, i + 1);
                 final dateKey = dateService.keyFor(cellDate);
                 supabaseService
                     .upsertHeatmap(dateKey, newVal, deviceId)
@@ -182,7 +255,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               },
             ),
 
-            const SizedBox(height: 32),
+            SizedBox(height: 32),
           ],
         ),
       ),
@@ -213,12 +286,11 @@ class _CompletionRingCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text('Today',
-              style: AppTypography.label(color: AppColors.textMuted)),
-          const SizedBox(height: 12),
+          Text('Today', style: AppTypography.label(color: AppColors.textMuted)),
+          SizedBox(height: 12),
           SizedBox(
-            width: 100,
-            height: 100,
+            width: 70,
+            height: 70,
             child: TweenAnimationBuilder<double>(
               tween: Tween(begin: 0, end: completionPct / 100),
               duration: const Duration(milliseconds: 800),
@@ -228,21 +300,24 @@ class _CompletionRingCard extends StatelessWidget {
                   fraction: value,
                   ringColor: AppColors.complete,
                   trackColor: AppColors.surfaceRaised,
-                  strokeWidth: 10,
+                  strokeWidth: 8,
                 ),
                 child: Center(
                   child: Text(
                     '$completionPct%',
                     style: AppTypography.ringPercent(
-                        color: AppColors.textPrimary),
+                      color: AppColors.textPrimary,
+                    ).copyWith(fontSize: 18),
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 10),
-          Text('$totalTasks tasks today',
-              style: AppTypography.label(color: AppColors.textMuted)),
+          SizedBox(height: 10),
+          Text(
+            '$totalTasks tasks today',
+            style: AppTypography.label(color: AppColors.textMuted),
+          ),
         ],
       ),
     );
@@ -327,92 +402,90 @@ class _StreakCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        children: [
-          Text('Streak',
-              style: AppTypography.label(color: Colors.white60)),
-          const SizedBox(height: 8),
-          Text(
-            isLoading ? '–' : '$currentStreak',
-            style: AppTypography.streakNumber(color: Colors.white),
-          ),
-          Text('days',
-              style: AppTypography.label(color: Colors.white60)),
-          const SizedBox(height: 12),
-          const Divider(color: Colors.white24, height: 1),
-          const SizedBox(height: 10),
-          Text('Best',
-              style: AppTypography.label(color: Colors.white60)),
-          Text(
-            isLoading ? '–' : '$bestStreak',
-            style: AppTypography.mono(
-                size: 16, weight: FontWeight.w700, color: Colors.white),
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF0F172A), // Black background
+            Color(0xFF020617), // Deeper black
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.4),
+            blurRadius: 15,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Mood Selector
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _MoodSelector extends StatelessWidget {
-  const _MoodSelector({required this.selected, required this.onSelect});
-
-  final String? selected;
-  final ValueChanged<String> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    const moods = [
-      (key: 'low', emoji: '😔', label: 'Low'),
-      (key: 'mid', emoji: '😐', label: 'Okay'),
-      (key: 'high', emoji: '😊', label: 'Great'),
-    ];
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.cardSurface,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text("Today's Mood",
-              style: AppTypography.body(
-                  size: 13,
-                  weight: FontWeight.w500,
-                  color: AppColors.textPrimary)),
-          const Spacer(),
           Row(
-            children: moods.map((m) {
-              final isSelected = selected == m.key;
-              return GestureDetector(
-                onTap: () => onSelect(m.key),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  margin: const EdgeInsets.only(left: 8),
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isSelected ? AppColors.primary : Colors.transparent,
-                    border: Border.all(
-                      color: isSelected ? AppColors.primary : AppColors.border,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Text(
-                    m.emoji,
-                    style: TextStyle(fontSize: isSelected ? 20 : 18),
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.whatshot_rounded,
+                  size: 16,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'STREAK',
+                style: AppTypography.mono(
+                  size: 11,
+                  weight: FontWeight.w800,
+                  color: Colors.white60,
+                ),
+              ),
+            ],
+          ),
+
+          Text(
+            isLoading ? '–' : '$currentStreak',
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 48,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -2,
+              color: Colors.white,
+              height: 1.1,
+            ),
+          ),
+
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.emoji_events_rounded,
+                  color: Colors.amber,
+                  size: 14,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Best: $bestStreak',
+                  style: AppTypography.body(
+                    size: 11,
+                    weight: FontWeight.w600,
+                    color: Colors.white70,
                   ),
                 ),
-              );
-            }).toList(),
+              ],
+            ),
           ),
         ],
       ),
@@ -453,11 +526,14 @@ class _WeeklyChart extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Weekly Progress',
-                  style: AppTypography.body(
-                      size: 14,
-                      weight: FontWeight.w600,
-                      color: AppColors.textPrimary)),
+              Text(
+                'Weekly Progress',
+                style: AppTypography.body(
+                  size: 14,
+                  weight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
               // Range toggle
               Row(
                 children: List.generate(3, (i) {
@@ -469,7 +545,9 @@ class _WeeklyChart extends StatelessWidget {
                       duration: const Duration(milliseconds: 150),
                       margin: const EdgeInsets.only(left: 6),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: active ? AppColors.primary : Colors.transparent,
                         borderRadius: BorderRadius.circular(20),
@@ -492,7 +570,7 @@ class _WeeklyChart extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
 
           // Bar chart
           SizedBox(
@@ -577,12 +655,12 @@ class _WeeklyChart extends StatelessWidget {
 
 class _HabitPerformanceCard extends StatelessWidget {
   const _HabitPerformanceCard({
-    required this.taskStates,
+    required this.history,
     required this.isFriday,
     required this.isSunday,
   });
 
-  final Map<String, bool> taskStates;
+  final List<Map<String, dynamic>> history;
   final bool isFriday;
   final bool isSunday;
 
@@ -593,116 +671,33 @@ class _HabitPerformanceCard extends StatelessWidget {
       isSunday: isSunday,
     );
 
-    // Compute today's per-session completion %
+    final taskCompleteCount = <String, int>{};
+    for (final row in history) {
+      final states = row['task_states'] as Map<String, dynamic>? ?? {};
+      for (final entry in states.entries) {
+        if (entry.value == true) {
+          taskCompleteCount[entry.key] =
+              (taskCompleteCount[entry.key] ?? 0) + 1;
+        }
+      }
+    }
+
+    final totalDays = history.isEmpty ? 1 : history.length;
+
     final sessions = todaySessions.map((s) {
-      final total = s.tasks.length;
-      final done = total == 0
-          ? 0
-          : s.tasks.where((t) => taskStates[t.id] == true).length;
-      final pct = total == 0 ? 0 : (done * 100) ~/ total;
-      return (name: s.name, pct: pct, color: s.accentColor);
+      if (s.tasks.isEmpty) {
+        return (name: s.name, pct: 0, color: _getStageColor(0));
+      }
+
+      int done = 0;
+      for (var t in s.tasks) {
+        done += taskCompleteCount[t.id] ?? 0;
+      }
+      final potential = s.tasks.length * totalDays;
+      final pct = (done * 100) ~/ potential;
+
+      return (name: s.name, pct: pct, color: _getStageColor(pct));
     }).toList();
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.cardSurface,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Habit Performance',
-              style: AppTypography.body(
-                  size: 14,
-                  weight: FontWeight.w600,
-                  color: AppColors.textPrimary)),
-          const SizedBox(height: 4),
-          Text('Last 30 days',
-              style: AppTypography.label(color: AppColors.textMuted)),
-          const SizedBox(height: 14),
-          ...sessions.map((s) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Row(
-                  children: [
-                    // Accent dot
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: s.color,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(s.name,
-                          style: AppTypography.body(
-                              size: 13, color: AppColors.textPrimary)),
-                    ),
-                    // Mini bar
-                    SizedBox(
-                      width: 80,
-                      child: Stack(
-                        children: [
-                          Container(
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceRaised,
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                          ),
-                          FractionallySizedBox(
-                            widthFactor: s.pct / 100,
-                            child: Container(
-                              height: 6,
-                              decoration: BoxDecoration(
-                                color: s.color,
-                                borderRadius: BorderRadius.circular(3),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 34,
-                      child: Text(
-                        '${s.pct}%',
-                        textAlign: TextAlign.right,
-                        style: AppTypography.mono(
-                            size: 11,
-                            weight: FontWeight.w600,
-                            color: AppColors.textSecondary),
-                      ),
-                    ),
-                  ],
-                ),
-              )),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Heatmap Grid  (4 rows × 7 cols = 28 days)
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _HeatmapGrid extends StatelessWidget {
-  const _HeatmapGrid({required this.values, required this.onTap});
-
-  final List<int> values;
-  final ValueChanged<int> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    const cellColors = [
-      AppColors.surfaceRaised, // 0 = none
-      Color(0xFFBBF7D0), // 1 = partial (light green)
-      AppColors.complete, // 2 = complete
-    ];
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -716,44 +711,86 @@ class _HeatmapGrid extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('28-Day Heatmap',
-                  style: AppTypography.body(
-                      size: 14,
-                      weight: FontWeight.w600,
-                      color: AppColors.textPrimary)),
-              Row(
-                children: [
-                  _HeatmapLegend(color: AppColors.surfaceRaised, label: 'None'),
-                  const SizedBox(width: 8),
-                  _HeatmapLegend(color: const Color(0xFFBBF7D0), label: 'Partial'),
-                  const SizedBox(width: 8),
-                  _HeatmapLegend(color: AppColors.complete, label: 'Done'),
-                ],
+              Text(
+                'Habit Performance',
+                style: AppTypography.body(
+                  size: 14,
+                  weight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              Text(
+                'Last 30 Days',
+                style: AppTypography.label(color: AppColors.textSecondary),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7,
-              crossAxisSpacing: 6,
-              mainAxisSpacing: 6,
-            ),
-            itemCount: 28,
-            itemBuilder: (_, i) {
-              return GestureDetector(
-                onTap: () => onTap(i),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  decoration: BoxDecoration(
-                    color: cellColors[values[i]],
-                    borderRadius: BorderRadius.circular(6),
+          SizedBox(height: 16),
+          ...sessions.map(
+            (s) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  // Accent dot
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: s.color,
+                      shape: BoxShape.circle,
+                    ),
                   ),
-                ),
-              );
-            },
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      s.name,
+                      style: AppTypography.body(
+                        size: 13,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  // Mini bar
+                  SizedBox(
+                    width: 80,
+                    child: Stack(
+                      children: [
+                        Container(
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceRaised,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                        FractionallySizedBox(
+                          widthFactor: s.pct / 100,
+                          child: Container(
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: s.color,
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 34,
+                    child: Text(
+                      '${s.pct}%',
+                      textAlign: TextAlign.right,
+                      style: AppTypography.mono(
+                        size: 11,
+                        weight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -761,29 +798,403 @@ class _HeatmapGrid extends StatelessWidget {
   }
 }
 
-class _HeatmapLegend extends StatelessWidget {
-  const _HeatmapLegend({required this.color, required this.label});
+// ─────────────────────────────────────────────────────────────────────────────
+// Heatmap Grid  (30 days view)
+// ─────────────────────────────────────────────────────────────────────────────
 
-  final Color color;
-  final String label;
+class _HeatmapGrid extends StatelessWidget {
+  const _HeatmapGrid({required this.values, required this.onTap});
+
+  final List<int> values;
+  final ValueChanged<int> onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(2),
-            border: Border.all(color: AppColors.border, width: 0.5),
+    final DateTime today = DateTime.now();
+    final int daysInMonth = DateTime(today.year, today.month + 1, 0).day;
+    final DateTime startDate = DateTime(today.year, today.month, 1);
+    final int startWeekday = startDate.weekday - 1; // 0=Mon, 6=Sun
+
+    final List<Widget> cells = [];
+    for (int i = 0; i < startWeekday; i++) {
+      cells.add(const SizedBox()); // empty padding
+    }
+
+    for (int i = 0; i < daysInMonth && i < values.length; i++) {
+      final color = _getStageColor(values[i]);
+      final isLightBg = values[i] <= 2;
+      
+      cells.add(
+        GestureDetector(
+          onTap: () => onTap(i),
+          child: Container(
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(4),
+              border: values[i] == 0 ? Border.all(color: AppColors.border) : null,
+            ),
+            child: Text(
+              '${i + 1}',
+              style: AppTypography.mono(
+                size: 10,
+                weight: FontWeight.w700,
+                color: isLightBg ? AppColors.textMuted : Colors.white,
+              ),
+            ),
           ),
         ),
-        const SizedBox(width: 3),
-        Text(label,
-            style: AppTypography.label(color: AppColors.textMuted)),
-      ],
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cardSurface,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'HeatMap',
+            style: AppTypography.body(
+              size: 14,
+              weight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+                .map(
+                  (l) => SizedBox(
+                    width: 20,
+                    child: Text(
+                      l,
+                      textAlign: TextAlign.center,
+                      style: AppTypography.mono(
+                        size: 10,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+          SizedBox(height: 8),
+          GridView.count(
+            crossAxisCount: 7,
+            crossAxisSpacing: 6,
+            mainAxisSpacing: 6,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            children: cells,
+          ),
+        ],
+      ),
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Insights Badge
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _InsightsBadge extends StatelessWidget {
+  const _InsightsBadge({required this.history});
+  final List<Map<String, dynamic>> history;
+
+  @override
+  Widget build(BuildContext context) {
+    if (history.isEmpty) return const SizedBox();
+
+    String insight = "🔥 You're building solid momentum!";
+    final map = <int, int>{};
+    for (final row in history) {
+      final dt = DateTime.parse(row['date'] as String);
+      final states = row['task_states'] as Map<String, dynamic>? ?? {};
+      int done = states.values.where((v) => v == true).length;
+      map[dt.weekday] = (map[dt.weekday] ?? 0) + done;
+    }
+    if (map.isNotEmpty) {
+      final best = map.entries.reduce((a, b) => a.value > b.value ? a : b);
+      final days = [
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday',
+        'Sunday',
+      ];
+      insight = "💡 Your most productive day is ${days[best.key - 1]}.";
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.auto_awesome_rounded,
+            color: Colors.white,
+            size: 18,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              insight,
+              style: AppTypography.body(
+                size: 13,
+                weight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Focus Card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _FocusCard extends StatelessWidget {
+  const _FocusCard({required this.totalMinutes});
+  final int totalMinutes;
+
+  @override
+  Widget build(BuildContext context) {
+    final hours = totalMinutes ~/ 60;
+    final mins = totalMinutes % 60;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF0F172A),
+            Color(0xFF020617),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.timelapse_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Total Focus Time',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          RichText(
+            text: TextSpan(
+              style: const TextStyle(
+                fontFamily: 'SF Pro Display',
+                color: Colors.white,
+              ),
+              children: [
+                TextSpan(
+                  text: '$hours',
+                  style: const TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -1,
+                  ),
+                ),
+                const TextSpan(
+                  text: ' hr ',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white54,
+                  ),
+                ),
+                TextSpan(
+                  text: '$mins',
+                  style: const TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -1,
+                  ),
+                ),
+                const TextSpan(
+                  text: ' min',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Focus Allocation Card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _FocusAllocationCard extends StatelessWidget {
+  const _FocusAllocationCard({
+    required this.projectMinutes,
+    required this.totalMinutes,
+  });
+
+  final Map<String, int> projectMinutes;
+  final int totalMinutes;
+
+  @override
+  Widget build(BuildContext context) {
+    if (projectMinutes.isEmpty) return const SizedBox.shrink();
+
+    // Sort by descending minutes
+    final sortedEntries = projectMinutes.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    // Limit to top 5 projects
+    final displayEntries = sortedEntries.take(5).toList();
+    final chartTotal = displayEntries.fold<int>(0, (sum, e) => sum + e.value);
+    
+    // Assign specific colors to common tags or cycle colors
+    final colors = [
+      AppColors.primary,
+      AppColors.worship,
+      AppColors.midday,
+      AppColors.evening,
+      AppColors.textMuted,
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Focus Allocation',
+            style: AppTypography.screenTitle(color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Based on logged tag time',
+            style: AppTypography.body(size: 13, color: AppColors.textMuted),
+          ),
+          const SizedBox(height: 20),
+
+          // Horizontal Stacked Bar Chart
+          if (chartTotal > 0)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox(
+                height: 16,
+                child: Row(
+                  children: List.generate(displayEntries.length, (i) {
+                    final isEnd = i == displayEntries.length - 1;
+                    return Expanded(
+                      flex: displayEntries[i].value,
+                      child: Container(
+                        margin: EdgeInsets.only(right: isEnd ? 0 : 2),
+                        color: colors[i % colors.length],
+                      ),
+                    );
+                  }),
+                ),
+              ),
+            ),
+          const SizedBox(height: 20),
+
+          // Legend
+          if (chartTotal > 0)
+            Wrap(
+              spacing: 16,
+              runSpacing: 12,
+              children: List.generate(displayEntries.length, (i) {
+                final entry = displayEntries[i];
+                final entryKey = entry.key;
+                final pct = (entry.value / chartTotal * 100).toStringAsFixed(1);
+                
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: colors[i % colors.length],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '$entryKey ($pct%)',
+                      style: AppTypography.body(
+                        size: 13,
+                        weight: FontWeight.w500,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                );
+              }),
+            ),
+        ],
+      ),
+    );
+  }
+}
+

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/daily_state.dart';
@@ -24,15 +25,16 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  bool _notificationsEnabled = true;
+  bool _sessionReminders = true;
+  bool _prayerAlerts = true;
   bool _isResetting = false;
   final TextEditingController _resetController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _notificationsEnabled =
-        sharedPrefs.getBool('notificationsEnabled') ?? true;
+    _sessionReminders = sharedPrefs.getBool('sessionReminders') ?? true;
+    _prayerAlerts = sharedPrefs.getBool('prayerAlerts') ?? true;
   }
 
   @override
@@ -41,24 +43,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     super.dispose();
   }
 
-  // ── Toggle notifications ───────────────────────────────────────────
-  Future<void> _toggleNotifications(bool value) async {
-    setState(() => _notificationsEnabled = value);
-    await sharedPrefs.setBool('notificationsEnabled', value);
-    if (value) {
-      await notificationService.scheduleSessionNotifications(
-          notificationsEnabled: true);
-    } else {
-      await notificationService.cancelAll();
-    }
+  Future<void> _toggleSessionReminders(bool value) async {
+    setState(() => _sessionReminders = value);
+    await sharedPrefs.setBool('sessionReminders', value);
+    await notificationService.scheduleSessionNotifications(
+      sessionRemindersEnabled: _sessionReminders,
+      prayerAlertsEnabled: _prayerAlerts,
+    );
+  }
+
+  Future<void> _togglePrayerAlerts(bool value) async {
+    setState(() => _prayerAlerts = value);
+    await sharedPrefs.setBool('prayerAlerts', value);
+    await notificationService.scheduleSessionNotifications(
+      sessionRemindersEnabled: _sessionReminders,
+      prayerAlertsEnabled: _prayerAlerts,
+    );
   }
 
   // ── Reset today ────────────────────────────────────────────────────
   Future<void> _resetToday() async {
     final confirm = await _showConfirm(
       title: 'Reset Today',
-      message:
-          'This will clear all task completions for today. Continue?',
+      message: 'This will clear all task completions for today. Continue?',
     );
     if (!confirm) return;
 
@@ -68,9 +75,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     supabaseService.upsertDailyState(empty, deviceId).catchError((_) {});
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Today reset.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Today reset.')));
     }
   }
 
@@ -84,9 +91,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     await streakService.onTaskToggled(allTasksDone: false);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Streak reset.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Streak reset.')));
     }
   }
 
@@ -98,11 +105,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) => AlertDialog(
           backgroundColor: AppColors.cardSurface,
-          title: Text('Reset Everything',
-              style: AppTypography.body(
-                  size: 16,
-                  weight: FontWeight.w600,
-                  color: AppColors.textPrimary)),
+          title: Text(
+            'Reset Everything',
+            style: AppTypography.body(
+              size: 16,
+              weight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -111,25 +121,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 'This clears ALL task history, streak, focus, and quick '
                 'tasks.\nType RESET to confirm.',
                 style: AppTypography.body(
-                    size: 13, color: AppColors.textSecondary),
+                  size: 13,
+                  color: AppColors.textSecondary,
+                ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               TextField(
                 controller: _resetController,
                 autofocus: true,
                 onChanged: (_) => setDlg(() {}),
                 style: AppTypography.mono(
-                    size: 14,
-                    weight: FontWeight.w600,
-                    color: const Color(0xFFD44060)),
+                  size: 14,
+                  weight: FontWeight.w600,
+                  color: Color(0xFFD44060),
+                ),
                 decoration: InputDecoration(
                   hintText: 'Type RESET',
                   hintStyle: AppTypography.body(
-                      size: 13, color: AppColors.textMuted),
+                    size: 13,
+                    color: AppColors.textMuted,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide:
-                        const BorderSide(color: AppColors.border),
+                    borderSide: BorderSide(color: AppColors.border),
                   ),
                 ),
               ),
@@ -138,9 +152,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text('Cancel',
-                  style: AppTypography.body(
-                      size: 13, color: AppColors.textSecondary)),
+              child: Text(
+                'Cancel',
+                style: AppTypography.body(
+                  size: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
             ),
             TextButton(
               onPressed: _resetController.text == 'RESET'
@@ -149,13 +167,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       await _performResetAll();
                     }
                   : null,
-              child: Text('Reset',
-                  style: AppTypography.body(
-                      size: 13,
-                      weight: FontWeight.w600,
-                      color: _resetController.text == 'RESET'
-                          ? const Color(0xFFD44060)
-                          : AppColors.textMuted)),
+              child: Text(
+                'Reset',
+                style: AppTypography.body(
+                  size: 13,
+                  weight: FontWeight.w600,
+                  color: _resetController.text == 'RESET'
+                      ? Color(0xFFD44060)
+                      : AppColors.textMuted,
+                ),
+              ),
             ),
           ],
         ),
@@ -178,40 +199,53 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     setState(() => _isResetting = false);
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All data reset.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('All data reset.')));
     }
   }
 
-  Future<bool> _showConfirm(
-      {required String title, required String message}) async {
+  Future<bool> _showConfirm({
+    required String title,
+    required String message,
+  }) async {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.cardSurface,
-        title: Text(title,
-            style: AppTypography.body(
-                size: 16,
-                weight: FontWeight.w600,
-                color: AppColors.textPrimary)),
-        content: Text(message,
-            style: AppTypography.body(
-                size: 13, color: AppColors.textSecondary)),
+        title: Text(
+          title,
+          style: AppTypography.body(
+            size: 16,
+            weight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        content: Text(
+          message,
+          style: AppTypography.body(size: 13, color: AppColors.textSecondary),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel',
-                style: AppTypography.body(
-                    size: 13, color: AppColors.textSecondary)),
+            child: Text(
+              'Cancel',
+              style: AppTypography.body(
+                size: 13,
+                color: AppColors.textSecondary,
+              ),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Confirm',
-                style: AppTypography.body(
-                    size: 13,
-                    weight: FontWeight.w600,
-                    color: AppColors.primary)),
+            child: Text(
+              'Confirm',
+              style: AppTypography.body(
+                size: 13,
+                weight: FontWeight.w600,
+                color: AppColors.primary,
+              ),
+            ),
           ),
         ],
       ),
@@ -227,131 +261,135 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         leading: const BackButton(),
-        title: Text('Settings',
-            style:
-                AppTypography.screenTitle(color: AppColors.textPrimary)),
-        iconTheme:
-            const IconThemeData(color: AppColors.textPrimary),
+        title: Text(
+          'Settings',
+          style: AppTypography.screenTitle(color: AppColors.textPrimary),
+        ),
+        iconTheme: IconThemeData(color: AppColors.textPrimary),
       ),
       body: _isResetting
-          ? const Center(
+          ? Center(
               child: CircularProgressIndicator(
-                  strokeWidth: 2, color: AppColors.primary))
+                strokeWidth: 2,
+                color: AppColors.primary,
+              ),
+            )
           : ListView(
               padding: const EdgeInsets.all(20),
               children: [
+
+
                 // ── Notifications ──────────────────────────────────
                 const _SectionHeader(title: 'Notifications'),
                 _SettingsTile(
                   icon: Icons.notifications_active_outlined,
                   title: 'Session reminders',
                   subtitle: '15 min before each session',
-                  trailing: Switch(
-                    value: _notificationsEnabled,
-                    activeThumbColor: AppColors.complete,
-                    onChanged: _toggleNotifications,
+                  trailing: CupertinoSwitch(
+                    value: _sessionReminders,
+                    activeTrackColor: AppColors.complete,
+                    onChanged: _toggleSessionReminders,
                   ),
                 ),
                 _SettingsTile(
                   icon: Icons.mosque_outlined,
                   title: 'Prayer alerts',
                   subtitle: 'Fajr + Asr — 10 min warning',
-                  trailing: Switch(
-                    value: _notificationsEnabled,
-                    activeThumbColor: AppColors.complete,
-                    onChanged: _toggleNotifications,
+                  trailing: CupertinoSwitch(
+                    value: _prayerAlerts,
+                    activeTrackColor: AppColors.complete,
+                    onChanged: _togglePrayerAlerts,
                   ),
                 ),
 
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
 
                 // ── Prayer Times ───────────────────────────────────
                 const _SectionHeader(title: 'Prayer Times'),
-                const _SettingsTile(
+                _SettingsTile(
                   icon: Icons.my_location_outlined,
                   title: 'Location',
                   subtitle: 'Dubai — 25.2048°N, 55.2708°E',
-                  trailing: Icon(Icons.lock_outline,
-                      size: 16, color: AppColors.textMuted),
+                  trailing: Icon(
+                    Icons.lock_outline,
+                    size: 16,
+                    color: AppColors.textMuted,
+                  ),
                 ),
-                const _SettingsTile(
+                _SettingsTile(
                   icon: Icons.calculate_outlined,
                   title: 'Calculation method',
                   subtitle: 'Karachi (UAE-equivalent)',
-                  trailing: Icon(Icons.lock_outline,
-                      size: 16, color: AppColors.textMuted),
+                  trailing: Icon(
+                    Icons.lock_outline,
+                    size: 16,
+                    color: AppColors.textMuted,
+                  ),
                 ),
 
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
 
                 // ── Data & Reset ───────────────────────────────────
                 const _SectionHeader(title: 'Data & Reset'),
                 _SettingsTile(
                   icon: Icons.refresh_rounded,
                   title: 'Reset today',
-                  subtitle: 'Clear all task completions for today',
                   onTap: _resetToday,
                 ),
                 _SettingsTile(
                   icon: Icons.local_fire_department_outlined,
                   title: 'Reset streak',
-                  subtitle: 'Set streak back to 0',
                   onTap: _resetStreak,
                 ),
                 _SettingsTile(
                   icon: Icons.delete_outline,
                   title: 'Reset everything',
-                  subtitle: 'Requires typing "RESET"',
-                  titleColor: const Color(0xFFD44060),
+                  titleColor: Color(0xFFD44060),
                   onTap: _showResetAllDialog,
                 ),
 
-                const SizedBox(height: 24),
+                SizedBox(height: 52),
 
-                // ── Skip Recovery ──────────────────────────────────
-                const _SectionHeader(title: 'Skip Recovery Rules'),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardSurface,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _RuleRow(
-                        label: 'Missed 1 task',
-                        value: 'Do it in the next free slot',
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Yawmi',
+                      style: AppTypography.body(
+                        size: 15,
+                        weight: FontWeight.w700,
+                        color: AppColors.textPrimary,
                       ),
-                      _RuleRow(
-                        label: 'Missed full session',
-                        value:
-                            'Add "catch-up" tasks in next session',
-                      ),
-                      _RuleRow(
-                        label: 'Missed full day',
-                        value:
-                            'Streak resets — start fresh tomorrow',
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 40),
-
-                Center(
-                  child: Text('Daily Routine v1.0.0',
-                      style: AppTypography.label(
-                          color: AppColors.textMuted)),
-                ),
-                const SizedBox(height: 4),
-                Center(
-                  child: Text('Built for Naseem · Dubai',
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Version 1.0.0',
                       style: AppTypography.mono(
-                          size: 10, color: AppColors.textMuted)),
+                        size: 11,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                    SizedBox(height: 32),
+                    Text(
+                      'Designed & Engineered by Naseem',
+                      style: AppTypography.body(
+                        size: 12,
+                        weight: FontWeight.w500,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      '© 2026 Naseem. All rights reserved.',
+                      style: AppTypography.body(
+                        size: 11,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ],
                 ),
 
-                const SizedBox(height: 20),
+                SizedBox(height: 32),
               ],
             ),
     );
@@ -373,9 +411,10 @@ class _SectionHeader extends StatelessWidget {
       child: Text(
         title.toUpperCase(),
         style: AppTypography.mono(
-            size: 10,
-            weight: FontWeight.w600,
-            color: AppColors.textMuted),
+          size: 10,
+          weight: FontWeight.w600,
+          color: AppColors.textMuted,
+        ),
       ),
     );
   }
@@ -389,7 +428,7 @@ class _SettingsTile extends StatelessWidget {
   const _SettingsTile({
     required this.icon,
     required this.title,
-    required this.subtitle,
+    this.subtitle,
     this.trailing,
     this.onTap,
     this.titleColor,
@@ -397,7 +436,7 @@ class _SettingsTile extends StatelessWidget {
 
   final IconData icon;
   final String title;
-  final String subtitle;
+  final String? subtitle;
   final Widget? trailing;
   final VoidCallback? onTap;
   final Color? titleColor;
@@ -421,16 +460,21 @@ class _SettingsTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: AppTypography.body(
-                        size: 14,
-                        weight: FontWeight.w500,
-                        color: titleColor ?? AppColors.textPrimary,
-                      )),
-                  const SizedBox(height: 2),
-                  Text(subtitle,
-                      style: AppTypography.label(
-                          color: AppColors.textMuted)),
+                  Text(
+                    title,
+                    style: AppTypography.body(
+                      size: 14,
+                      weight: FontWeight.w500,
+                      color: titleColor ?? AppColors.textPrimary,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      style: AppTypography.label(color: AppColors.textMuted),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -438,8 +482,11 @@ class _SettingsTile extends StatelessWidget {
               const SizedBox(width: 8),
               trailing!,
             ] else if (onTap != null)
-              const Icon(Icons.chevron_right,
-                  size: 18, color: AppColors.textMuted),
+              Icon(
+                Icons.chevron_right,
+                size: 18,
+                color: AppColors.textMuted,
+              ),
           ],
         ),
       ),
@@ -447,47 +494,3 @@ class _SettingsTile extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Rule Row
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _RuleRow extends StatelessWidget {
-  const _RuleRow({required this.label, required this.value});
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.arrow_right_rounded,
-              size: 18, color: AppColors.textMuted),
-          const SizedBox(width: 4),
-          Expanded(
-            child: RichText(
-              text: TextSpan(
-                children: [
-                  TextSpan(
-                    text: '$label: ',
-                    style: AppTypography.body(
-                        size: 12,
-                        weight: FontWeight.w600,
-                        color: AppColors.textPrimary),
-                  ),
-                  TextSpan(
-                    text: value,
-                    style: AppTypography.body(
-                        size: 12, color: AppColors.textSecondary),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
