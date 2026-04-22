@@ -49,10 +49,16 @@ jobs:
         working-directory: ./app
         run: flutter build apk --release --dart-define=ENV=.env.prod
 
+      - name: Rename output files to yawmi
+        working-directory: ./app
+        run: |
+          cp build/app/outputs/bundle/release/app-release.aab yawmi.aab
+          cp build/app/outputs/flutter-apk/app-release.apk yawmi.apk
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: android-release-artifacts
           path: |
-            app/build/app/outputs/bundle/release/app-release.aab
-            app/build/app/outputs/flutter-apk/app-release.apk
+            app/yawmi.aab
+            app/yawmi.apk
