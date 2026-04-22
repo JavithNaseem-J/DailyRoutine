@@ -24,34 +24,33 @@ class QuickTask {
     String? time,
     bool? done,
     bool? archived,
-  }) =>
-      QuickTask(
-        id: id,
-        date: date,
-        title: title ?? this.title,
-        time: time ?? this.time,
-        done: done ?? this.done,
-        archived: archived ?? this.archived,
-        createdAt: createdAt,
-      );
+  }) => QuickTask(
+    id: id,
+    date: date,
+    title: title ?? this.title,
+    time: time ?? this.time,
+    done: done ?? this.done,
+    archived: archived ?? this.archived,
+    createdAt: createdAt,
+  );
 
   factory QuickTask.fromJson(Map<String, dynamic> json) => QuickTask(
-        id: json['id'] as String,
-        date: json['date'] as String,
-        title: json['title'] as String,
-        time: json['time'] as String?,
-        done: json['done'] as bool? ?? false,
-        archived: json['archived'] as bool? ?? false,
-        createdAt: DateTime.parse(json['created_at'] as String),
-      );
+    id: json['id'] as String,
+    date: json['date'] as String,
+    title: json['title'] as String,
+    time: json['time'] as String?,
+    done: json['done'] as bool? ?? false,
+    archived: json['archived'] as bool? ?? false,
+    createdAt: DateTime.parse(json['created_at'] as String),
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'date': date,
-        'title': title,
-        if (time != null) 'time': time,
-        'done': done,
-        'archived': archived,
-        'created_at': createdAt.toIso8601String(),
-      };
+    'id': id,
+    'date': date,
+    'title': title,
+    if (time != null) 'time': time,
+    'done': done,
+    'archived': archived,
+    'created_at': createdAt.toIso8601String(),
+  };
 }

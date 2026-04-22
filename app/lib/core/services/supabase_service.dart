@@ -98,7 +98,10 @@ class SupabaseService {
     await _db.from('quick_tasks').delete().eq('id', taskId);
   }
 
-  Future<List<QuickTask>> fetchQuickTasks(String dateKey, String deviceId) async {
+  Future<List<QuickTask>> fetchQuickTasks(
+    String dateKey,
+    String deviceId,
+  ) async {
     try {
       final res = await _db
           .from('quick_tasks')
@@ -127,7 +130,10 @@ class SupabaseService {
   // ── StatsHistory ───────────────────────────────────────────────────
 
   Future<void> upsertStatsHistory(
-      String dateKey, int completionPct, String deviceId) async {
+    String dateKey,
+    int completionPct,
+    String deviceId,
+  ) async {
     await _db.from('stats_history').upsert({
       'device_id': deviceId,
       'date': dateKey,
@@ -136,7 +142,9 @@ class SupabaseService {
   }
 
   Future<List<Map<String, dynamic>>> fetchStatsHistory(
-      int days, String deviceId) async {
+    int days,
+    String deviceId,
+  ) async {
     try {
       final from = DateTime.now().subtract(Duration(days: days));
       final res = await _db
@@ -151,10 +159,26 @@ class SupabaseService {
     }
   }
 
+  Future<List<Map<String, dynamic>>> fetch30DayTaskHistory(
+    String deviceId,
+  ) async {
+    try {
+      final from = DateTime.now().subtract(const Duration(days: 30));
+      final res = await _db
+          .from('daily_state')
+          .select('date, task_states')
+          .eq('device_id', deviceId)
+          .gte('date', from.toIso8601String().split('T').first)
+          .order('date');
+      return List<Map<String, dynamic>>.from(res);
+    } catch (_) {
+      return [];
+    }
+  }
+
   // ── Heatmap ────────────────────────────────────────────────────────
 
-  Future<void> upsertHeatmap(
-      String dateKey, int value, String deviceId) async {
+  Future<void> upsertHeatmap(String dateKey, int value, String deviceId) async {
     await _db.from('heatmap').upsert({
       'device_id': deviceId,
       'date': dateKey,

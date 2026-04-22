@@ -14,15 +14,14 @@ abstract final class AppTypography {
     FontStyle style = FontStyle.normal,
     double? height,
     double? letterSpacing,
-  }) =>
-      GoogleFonts.plusJakartaSans(
-        fontSize: size,
-        fontWeight: weight,
-        color: color,
-        fontStyle: style,
-        height: height,
-        letterSpacing: letterSpacing,
-      );
+  }) => GoogleFonts.plusJakartaSans(
+    fontSize: size,
+    fontWeight: weight,
+    color: color,
+    fontStyle: style,
+    height: height,
+    letterSpacing: letterSpacing,
+  );
 
   // ── Monospace — JetBrains Mono ───────────────────────────────────
   static TextStyle mono({
@@ -30,13 +29,12 @@ abstract final class AppTypography {
     FontWeight weight = FontWeight.w400,
     Color? color,
     double? height,
-  }) =>
-      GoogleFonts.jetBrainsMono(
-        fontSize: size,
-        fontWeight: weight,
-        color: color,
-        height: height,
-      );
+  }) => GoogleFonts.jetBrainsMono(
+    fontSize: size,
+    fontWeight: weight,
+    color: color,
+    height: height,
+  );
 
   // ── Semantic shortcuts ────────────────────────────────────────────
   /// Large screen title — "Good Morning!"

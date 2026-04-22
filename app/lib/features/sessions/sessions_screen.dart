@@ -1,11 +1,16 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:confetti/confetti.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/constants/session_data.dart';
 import '../../core/models/session.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../core/utils/day_checker.dart';
-import '../../core/utils/duration_formatter.dart';
+import 'add_task_sheet.dart';
 import 'providers/sessions_provider.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -22,6 +27,7 @@ class SessionsScreen extends ConsumerStatefulWidget {
 class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   late final PageController _pageController;
   late final ScrollController _pillScrollController;
+  late final ConfettiController _confettiController;
   int _currentIndex = 0;
 
   List<Session> get _sessions =>
@@ -34,6 +40,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   @override
   void initState() {
     super.initState();
+    _confettiController = ConfettiController(
+      duration: const Duration(seconds: 2),
+    );
     final sessions = SessionData.sessionsForToday(
       isFriday: DayChecker.isFriday(),
       isSunday: DayChecker.isSunday(),
@@ -41,12 +50,14 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     _currentIndex = _findActiveSessionIndex(sessions);
     _pageController = PageController(initialPage: _currentIndex);
     _pillScrollController = ScrollController();
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _scrollPillToIndex(_currentIndex));
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _scrollPillToIndex(_currentIndex),
+    );
   }
 
   @override
   void dispose() {
+    _confettiController.dispose();
     _pageController.dispose();
     _pillScrollController.dispose();
     super.dispose();
@@ -57,7 +68,10 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     final now = TimeOfDay.now();
     final nowMin = now.hour * 60 + now.minute;
     for (int i = 0; i < sessions.length; i++) {
-      final range = sessions[i].timeRange.split('–').map((p) => p.trim()).toList();
+      final range = sessions[i].timeRange
+          .split('–')
+          .map((p) => p.trim())
+          .toList();
       if (range.length != 2) continue;
       if (nowMin >= _parseTime(range[0]) && nowMin < _parseTime(range[1])) {
         return i;
@@ -80,8 +94,11 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   // ── Navigation ─────────────────────────────────────────────────────
   void _onPillTap(int index) {
     setState(() => _currentIndex = index);
-    _pageController.animateToPage(index,
-        duration: const Duration(milliseconds: 320), curve: Curves.easeInOut);
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeInOut,
+    );
     _scrollPillToIndex(index);
   }
 
@@ -102,14 +119,86 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   }
 
   // ── Delegate toggles to provider ───────────────────────────────────
-  void _toggleTask(String taskId) =>
-      ref.read(sessionsProvider.notifier).toggleTask(taskId);
+  void _toggleTask(String taskId) {
+    HapticFeedback.lightImpact();
+    ref.read(sessionsProvider.notifier).toggleTask(taskId);
+  }
 
-  void _toggleBonus(String taskId) =>
-      ref.read(sessionsProvider.notifier).toggleBonus(taskId);
+  void _toggleBonus(String taskId) {
+    HapticFeedback.lightImpact();
+    ref.read(sessionsProvider.notifier).toggleBonus(taskId);
+  }
+
+  void _editTask(Task task, Session session) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) =>
+          AddTaskSheet(defaultSession: session, existingTask: task),
+    );
+  }
+
+  void _showTaskOptions(Task task, Session session) {
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (BuildContext context) => CupertinoActionSheet(
+        title: const Text('Manage Task'),
+        message: Text(task.title),
+        actions: <CupertinoActionSheetAction>[
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              context.push(
+                '/focus',
+                extra: {
+                  'taskTitle': task.title,
+                  'durationMinutes': task.durationMinutes,
+                },
+              );
+            },
+            child: const Text('Start Focus Timer'),
+          ),
+          if (task.id.startsWith('custom_'))
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.pop(context);
+                _editTask(task, session);
+              },
+              child: const Text('Edit Task'),
+            ),
+          if (task.id.startsWith('custom_'))
+            CupertinoActionSheetAction(
+              isDestructiveAction: true,
+              onPressed: () {
+                Navigator.pop(context);
+                ref
+                    .read(sessionsProvider.notifier)
+                    .deleteCustomTask(task.id, session.id);
+              },
+              child: const Text('Delete Task'),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          isDefaultAction: true,
+          onPressed: () {
+            Navigator.pop(context);
+          },
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(completionPctProvider, (previous, next) {
+      if (previous != null && previous != 100 && next == 100) {
+        _confettiController.play();
+        HapticFeedback.heavyImpact();
+      }
+    });
+
     final sessionsAsync = ref.watch(sessionsProvider);
     final sessions = sessionsAsync.value?.sessions ?? _sessions;
     final safeIndex = _currentIndex.clamp(0, sessions.length - 1);
@@ -117,105 +206,156 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     final taskStates = sessionsAsync.value?.taskStates ?? {};
     final bonusStates = sessionsAsync.value?.bonusStates ?? {};
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Header ──────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: AppColors.background,
+          body: SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── Header ──────────────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Task',
-                          style: AppTypography.screenTitle(
-                              color: AppColors.textPrimary)),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Sessions',
+                            style: AppTypography.screenTitle(
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          Icons.add,
+                          color: AppColors.textPrimary,
+                          size: 28,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (context) =>
+                                AddTaskSheet(defaultSession: session),
+                          );
+                        },
+                      ),
                     ],
                   ),
-                  const Icon(Icons.more_horiz, color: AppColors.textSecondary),
-                ],
-              ),
-            ),
+                ),
 
-            const SizedBox(height: 16),
+                SizedBox(height: 16),
 
-            // ── Pill row ─────────────────────────────────────────────
-            SizedBox(
-              height: 38,
-              child: ListView.separated(
-                controller: _pillScrollController,
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: sessions.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (context, i) {
-                  final s = sessions[i];
-                  final doneCount = s.tasks.where((t) => taskStates[t.id] == true).length;
-                  final total = s.tasks.length;
-                  final percent = total == 0 ? 0.0 : doneCount / total;
-                  
-                  final now = TimeOfDay.now();
-                  final nowMin = now.hour * 60 + now.minute;
-                  bool isFuture = false;
-                  final range = s.timeRange.split('–').map((p) => p.trim()).toList();
-                  if (range.isNotEmpty) {
-                    final startMin = _parseTime(range[0]);
-                    isFuture = nowMin < startMin;
-                  }
+                // ── Pill row ─────────────────────────────────────────────
+                SizedBox(
+                  height: 38,
+                  child: ListView.separated(
+                    controller: _pillScrollController,
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount: sessions.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, i) {
+                      final s = sessions[i];
+                      final doneCount = s.tasks
+                          .where((t) => taskStates[t.id] == true)
+                          .length;
+                      final total = s.tasks.length;
+                      final percent = total == 0 ? 0.0 : doneCount / total;
 
-                  return _SessionPill(
-                    session: s,
-                    isSelected: i == safeIndex,
-                    percent: percent,
-                    isFuture: isFuture,
-                    onTap: () => _onPillTap(i),
-                  );
-                },
-              ),
-            ),
+                      final now = TimeOfDay.now();
+                      final nowMin = now.hour * 60 + now.minute;
+                      bool isFuture = false;
+                      final range = s.timeRange
+                          .split('–')
+                          .map((p) => p.trim())
+                          .toList();
+                      if (range.isNotEmpty) {
+                        final startMin = _parseTime(range[0]);
+                        isFuture = nowMin < startMin;
+                      }
 
-            const SizedBox(height: 4),
-            const Divider(height: 1, color: AppColors.border),
-
-            // ── Session pages ────────────────────────────────────────
-            Expanded(
-              child: sessionsAsync.when(
-                loading: () => const Center(
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.primary,
+                      return _SessionPill(
+                        session: s,
+                        isSelected: i == safeIndex,
+                        percent: percent,
+                        isFuture: isFuture,
+                        onTap: () => _onPillTap(i),
+                      );
+                    },
                   ),
                 ),
-                error: (e, _) => Center(
-                  child: Text('Error loading sessions',
-                      style: AppTypography.body(color: AppColors.textMuted)),
-                ),
-                data: (_) => PageView.builder(
-                  controller: _pageController,
-                  onPageChanged: _onPageChanged,
-                  itemCount: sessions.length,
-                  itemBuilder: (context, i) => _SessionPage(
-                    session: sessions[i],
-                    taskStates: taskStates,
-                    bonusStates: bonusStates,
-                    onToggleTask: _toggleTask,
-                    onToggleBonus: _toggleBonus,
+
+                SizedBox(height: 4),
+                Divider(height: 1, color: AppColors.border),
+
+                // ── Session pages ────────────────────────────────────────
+                Expanded(
+                  child: sessionsAsync.when(
+                    loading: () => Center(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    error: (e, _) => Center(
+                      child: Text(
+                        'Error loading sessions',
+                        style: AppTypography.body(color: AppColors.textMuted),
+                      ),
+                    ),
+                    data: (_) => PageView.builder(
+                      controller: _pageController,
+                      onPageChanged: _onPageChanged,
+                      itemCount: sessions.length,
+                      itemBuilder: (context, i) => _SessionPage(
+                        session: sessions[i],
+                        taskStates: taskStates,
+                        bonusStates: bonusStates,
+                        onToggleTask: _toggleTask,
+                        onToggleBonus: _toggleBonus,
+                        onLongPressTask: (task) =>
+                            _showTaskOptions(task, sessions[i]),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
+        Align(
+          alignment: Alignment.topCenter,
+          child: ConfettiWidget(
+            confettiController: _confettiController,
+            blastDirectionality: BlastDirectionality.explosive,
+            emissionFrequency: 0.05,
+            numberOfParticles: 20,
+            maxBlastForce: 20,
+            minBlastForce: 8,
+            gravity: 0.3,
+            colors: [
+              AppColors.complete,
+              Colors.blue,
+              Colors.orange,
+              Colors.purple,
+              Colors.pink,
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Session Pill
@@ -242,39 +382,42 @@ class _SessionPill extends StatelessWidget {
     Color textColor;
     Color borderColor;
 
-    if (isSelected) {
-      bgColor = AppColors.primary;
-      textColor = Colors.white;
-      borderColor = AppColors.primary;
-    } else if (isFuture) {
+    if (isFuture) {
       bgColor = Colors.white;
       textColor = AppColors.textSecondary;
-      borderColor = AppColors.border;
+      borderColor = isSelected ? AppColors.primary : AppColors.border;
     } else {
-      if (percent == 0.0) {
-        bgColor = const Color(0xFFF3F4F6); // Stage 1 (0%)
-        textColor = AppColors.textPrimary;
-        borderColor = const Color(0xFFE5E7EB);
-      } else if (percent <= 0.33) {
-        bgColor = const Color(0xFFFEF9C3); // Stage 2
-        textColor = const Color(0xFF854D0E);
-        borderColor = const Color(0xFFFEF08A);
-      } else if (percent <= 0.66) {
-        bgColor = const Color(0xFFFEF08A); // Stage 3
-        textColor = const Color(0xFF854D0E);
-        borderColor = const Color(0xFFFDE047);
-      } else if (percent < 1.0) {
-        bgColor = const Color(0xFFDCFCE7); // Stage 4
-        textColor = const Color(0xFF166534);
-        borderColor = const Color(0xFF86EFAC);
-      } else {
-        bgColor = AppColors.complete;      // Stage 5 (100%)
+      if (percent >= 1.0) {
+        bgColor = AppColors.complete; // Stage 5
         textColor = Colors.white;
-        borderColor = AppColors.complete;
+        borderColor = isSelected ? AppColors.textPrimary : AppColors.complete;
+      } else if (percent >= 0.67) {
+        bgColor = Color(0xFF3B82F6); // Stage 4
+        textColor = Colors.white;
+        borderColor = isSelected
+            ? AppColors.textPrimary
+            : Color(0xFF3B82F6);
+      } else if (percent >= 0.34) {
+        bgColor = Color(0xFF93C5FD); // Stage 3
+        textColor = AppColors.textPrimary;
+        borderColor = isSelected
+            ? AppColors.textPrimary
+            : Color(0xFF93C5FD);
+      } else if (percent > 0.0) {
+        bgColor = Color(0xFFDBEAFE); // Stage 2
+        textColor = AppColors.textPrimary;
+        borderColor = isSelected
+            ? AppColors.textPrimary
+            : Color(0xFFDBEAFE);
+      } else {
+        bgColor = AppColors.surfaceRaised; // Stage 1
+        textColor = AppColors.textPrimary;
+        borderColor = isSelected ? AppColors.textPrimary : AppColors.border;
       }
     }
 
     final is100 = percent == 1.0;
+    final displayName = is100 ? 'Completed' : session.name;
 
     return GestureDetector(
       onTap: onTap,
@@ -285,7 +428,7 @@ class _SessionPill extends StatelessWidget {
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: borderColor, width: 1.5),
+          border: Border.all(color: borderColor, width: isSelected ? 2.0 : 1.5),
         ),
         child: Center(
           child: Row(
@@ -297,10 +440,10 @@ class _SessionPill extends StatelessWidget {
                   child: Icon(Icons.check, size: 12, color: Colors.white),
                 ),
               Text(
-                session.name,
+                displayName,
                 style: AppTypography.body(
                   size: 12,
-                  weight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  weight: isSelected ? FontWeight.w700 : FontWeight.w500,
                   color: textColor,
                 ),
               ),
@@ -323,6 +466,7 @@ class _SessionPage extends StatelessWidget {
     required this.bonusStates,
     required this.onToggleTask,
     required this.onToggleBonus,
+    required this.onLongPressTask,
   });
 
   final Session session;
@@ -330,11 +474,13 @@ class _SessionPage extends StatelessWidget {
   final Map<String, bool> bonusStates;
   final ValueChanged<String> onToggleTask;
   final ValueChanged<String> onToggleBonus;
+  final ValueChanged<Task> onLongPressTask;
 
   @override
   Widget build(BuildContext context) {
-    final doneCount =
-        session.tasks.where((t) => taskStates[t.id] == true).length;
+    final doneCount = session.tasks
+        .where((t) => taskStates[t.id] == true)
+        .length;
     final isAllDone = doneCount == session.tasks.length;
 
     return ListView(
@@ -342,7 +488,7 @@ class _SessionPage extends StatelessWidget {
       children: [
         if (isAllDone) ...[
           _SessionCompleteBanner(sessionName: session.name),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
         ],
         ...session.tasks.asMap().entries.map((entry) {
           final index = entry.key;
@@ -352,6 +498,7 @@ class _SessionPage extends StatelessWidget {
             isDone: taskStates[task.id] ?? false,
             isLast: index == session.tasks.length - 1,
             onToggle: () => onToggleTask(task.id),
+            onLongPress: () => onLongPressTask(task),
           );
         }),
       ],
@@ -365,18 +512,18 @@ class _SessionPage extends StatelessWidget {
 
 class _TimelinePainter extends CustomPainter {
   final bool isLast;
-  
+
   _TimelinePainter({this.isLast = false});
 
   @override
   void paint(Canvas canvas, Size size) {
     if (isLast) return;
-    
+
     final paint = Paint()
-      ..color = const Color(0xFFE5E7EB)
+      ..color = Color(0xFFE5E7EB)
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
-      
+
     final double dashWidth = 4, dashSpace = 4;
     double startY = 32; // Start line slightly below the circle
     while (startY < size.height) {
@@ -390,7 +537,7 @@ class _TimelinePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _TimelinePainter oldDelegate) => 
+  bool shouldRepaint(covariant _TimelinePainter oldDelegate) =>
       oldDelegate.isLast != isLast;
 }
 
@@ -404,12 +551,14 @@ class _TaskCard extends StatelessWidget {
     required this.isDone,
     required this.isLast,
     required this.onToggle,
+    required this.onLongPress,
   });
 
   final Task task;
   final bool isDone;
   final bool isLast;
   final VoidCallback onToggle;
+  final VoidCallback onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -428,18 +577,26 @@ class _TaskCard extends StatelessWidget {
                   alignment: Alignment.topCenter,
                   child: GestureDetector(
                     onTap: onToggle,
+                    onLongPress: onLongPress,
                     child: Container(
                       width: 20,
                       height: 20,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: isDone ? const Color(0xFF4ade80) : Colors.white,
-                        border: isDone 
-                            ? null 
-                            : Border.all(color: const Color(0xFFD1D5DB), width: 1.5),
+                        color: isDone ? Color(0xFF4ade80) : Colors.white,
+                        border: isDone
+                            ? null
+                            : Border.all(
+                                color: Color(0xFFD1D5DB),
+                                width: 1.5,
+                              ),
                       ),
                       child: isDone
-                          ? const Icon(Icons.check, size: 12, color: Colors.white)
+                          ? Icon(
+                              Icons.check,
+                              size: 12,
+                              color: Colors.white,
+                            )
                           : null,
                     ),
                   ),
@@ -447,56 +604,97 @@ class _TaskCard extends StatelessWidget {
               ),
             ),
           ),
-          
+
           const SizedBox(width: 12),
-          
+
           // Content Column
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 14, bottom: 28),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            child: Slidable(
+              endActionPane: ActionPane(
+                motion: const BehindMotion(),
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          task.title,
-                          style: AppTypography.body(
-                            size: 15,
-                            weight: FontWeight.w600,
-                            color: isDone ? const Color(0xFF9CA3AF) : AppColors.textPrimary,
-                          ).copyWith(
-                            decoration: isDone ? TextDecoration.lineThrough : TextDecoration.none,
-                          ),
-                        ),
-                      ],
-                    ),
+                  SlidableAction(
+                    onPressed: (_) => onLongPress(),
+                    backgroundColor: AppColors.primary,
+                    icon: Icons.more_horiz_rounded,
+                    label: 'Options',
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                ],
+              ),
+              startActionPane: ActionPane(
+                motion: const BehindMotion(),
+                children: [
+                  SlidableAction(
+                    onPressed: (_) {
+                      HapticFeedback.lightImpact();
+                      onToggle();
+                    },
+                    backgroundColor: isDone
+                        ? Colors.orange
+                        : AppColors.complete,
+                    icon: isDone ? Icons.undo_rounded : Icons.check_rounded,
+                    label: isDone ? 'Undo' : 'Complete',
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ],
+              ),
+              child: GestureDetector(
+                onTap: onToggle,
+                onLongPress: onLongPress,
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 14, bottom: 28),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        task.time,
-                        style: AppTypography.mono(
-                          size: 12, 
-                          color: const Color(0xFF9CA3AF),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              task.title,
+                              style:
+                                  AppTypography.body(
+                                    size: 15,
+                                    weight: FontWeight.w600,
+                                    color: isDone
+                                        ? Color(0xFF9CA3AF)
+                                        : AppColors.textPrimary,
+                                  ).copyWith(
+                                    decoration: isDone
+                                        ? TextDecoration.lineThrough
+                                        : TextDecoration.none,
+                                  ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${task.durationMinutes} min',
-                        style: AppTypography.body(
-                          size: 11, 
-                          weight: FontWeight.w600,
-                          color: const Color(0xFFD1D5DB),
-                        ),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            task.time,
+                            style: AppTypography.mono(
+                              size: 12,
+                              color: Color(0xFF9CA3AF),
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            '${task.durationMinutes} min',
+                            style: AppTypography.body(
+                              size: 11,
+                              weight: FontWeight.w600,
+                              color: Color(0xFFD1D5DB),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -527,26 +725,29 @@ class _SessionCompleteBanner extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.completeFill,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-              color: AppColors.complete.withValues(alpha: 0.4)),
+          border: Border.all(color: AppColors.complete.withValues(alpha: 0.4)),
         ),
         child: Row(
           children: [
-            const Icon(Icons.check_circle_rounded,
-                color: AppColors.complete, size: 24),
+            Icon(
+              Icons.check_circle_rounded,
+              color: AppColors.complete,
+              size: 24,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('$sessionName complete!',
-                      style: AppTypography.body(
-                          size: 14,
-                          weight: FontWeight.w600,
-                          color: const Color(0xFF166634))),
-                  Text('بارك الله فيك',
-                      style: AppTypography.body(
-                          size: 12, color: const Color(0xFF166634))),
+                  Text(
+                    'Complete!',
+                    style: AppTypography.body(
+                      size: 14,
+                      weight: FontWeight.w600,
+                      color: Color(0xFF166634),
+                    ),
+                  ),
                 ],
               ),
             ),

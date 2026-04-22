@@ -1,0 +1,17 @@
+# Implementation plans and notes
+implementation_plan*.md
+
+# Temporary fix files
+fix_*.dart
+fix_*.py
+fix.py
+
+# Other standalone loose dart scripts
+innovative_card.dart
+minimalist_update.dart
+modernize_card.dart
+refinements.dart
+feedback_fix.dart
+
+# Output text files
+analyze_output.txt

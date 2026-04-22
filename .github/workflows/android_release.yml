@@ -1,0 +1,55 @@
+name: Android Release Build
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Allows you to manually trigger the build from GitHub UI
+
+jobs:
+  build:
+    name: Build Android App Bundle & APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Create Production .env file
+        working-directory: ./app
+        run: |
+          echo "ENV=prod" > .env.prod
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env.prod
+          echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env.prod
+          echo "SENTRY_DSN=${{ secrets.SENTRY_DSN }}" >> .env.prod
+
+      - name: Install Dependencies
+        working-directory: ./app
+        run: flutter pub get
+
+      - name: Build Android App Bundle (AAB for Play Store)
+        working-directory: ./app
+        run: flutter build appbundle --release --dart-define=ENV=.env.prod
+
+      - name: Build Android APK (For testing)
+        working-directory: ./app
+        run: flutter build apk --release --dart-define=ENV=.env.prod
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-artifacts
+          path: |
+            app/build/app/outputs/bundle/release/app-release.aab
+            app/build/app/outputs/flutter-apk/app-release.apk

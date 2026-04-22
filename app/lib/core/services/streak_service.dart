@@ -87,10 +87,7 @@ class StreakService {
 
   Future<void> _upsertStreak(Streak streak) async {
     try {
-      await _db.from('streak').upsert(
-        streak.toJson(),
-        onConflict: 'device_id',
-      );
+      await _db.from('streak').upsert(streak.toJson(), onConflict: 'device_id');
     } catch (_) {}
   }
 }
