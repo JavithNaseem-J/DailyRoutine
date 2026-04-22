@@ -54,5 +54,5 @@ jobs:
         with:
           name: android-release-artifacts
           path: |
-            app/build/app/outputs/bundle/release/app-release.aab
-            app/build/app/outputs/flutter-apk/app-release.apk
+            app/build/app/outputs/bundle/release/yawmi.aab
+            app/build/app/outputs/flutter-apk/yawmi.apk
