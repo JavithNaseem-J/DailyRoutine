@@ -7,7 +7,7 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch: # Allows you to manually trigger the build from GitHub UI
+  workflow_dispatch: # Allows you to manually trigger the build from GitHub UI...
 
 jobs:
   build:
