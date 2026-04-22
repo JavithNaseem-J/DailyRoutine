@@ -1,4 +1,4 @@
-package com.naseem.daily_routine
+package com.naseem.yawmi
 
 import io.flutter.embedding.android.FlutterActivity
 

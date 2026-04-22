@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.naseem.daily_routine"
+    namespace = "com.naseem.yawmi"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -20,7 +20,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.naseem.daily_routine"
+        applicationId = "com.naseem.yawmi"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
