@@ -41,6 +41,10 @@ class NotificationService {
   // ── Init ───────────────────────────────────────────────────────────
   Future<void> init() async {
     if (_initialized) return;
+    if (kIsWeb) {
+      _initialized = true;
+      return; // flutter_local_notifications doesn't support web natively or throws errors
+    }
 
     tz_data.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('Asia/Dubai'));
@@ -74,6 +78,7 @@ class NotificationService {
     required bool prayerAlertsEnabled,
     Set<String> disabledSessionIds = const {},
   }) async {
+    if (kIsWeb) return; // Prevent crashes on web
     await _plugin.cancelAll();
     final now = DateTime.now();
     int notifId = 100;
