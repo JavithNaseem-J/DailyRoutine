@@ -125,6 +125,7 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
       date: _todayKey,
       taskStates: {...localState.taskStates, ...remote.taskStates},
       bonusStates: {...localState.bonusStates, ...remote.bonusStates},
+      prayerStates: {...localState.prayerStates, ...remote.prayerStates},
       mood: remote.mood ?? localState.mood,
     );
 
@@ -211,6 +212,25 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
       bonusStates: {
         ...current.bonusStates,
         taskId: !(current.bonusStates[taskId] ?? false),
+      },
+    );
+
+    state = AsyncData(current.copyWith(dailyState: newDaily));
+    await hiveService.writeDailyState(newDaily);
+    supabaseService.upsertDailyState(newDaily, deviceId).catchError((_) {});
+  }
+
+  // ── Toggle prayer ──────────────────────────────────────────────────
+
+  Future<void> togglePrayer(String prayerName) async {
+    final current = state.value;
+    if (current == null) return;
+
+    final key = prayerName.toLowerCase();
+    final newDaily = current.dailyState.copyWith(
+      prayerStates: {
+        ...current.dailyState.prayerStates,
+        key: !(current.dailyState.prayerStates[key] ?? false),
       },
     );
 

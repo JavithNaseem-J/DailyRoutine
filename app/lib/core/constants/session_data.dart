@@ -7,87 +7,50 @@ import '../theme/app_colors.dart';
 
 abstract final class SessionData {
   static List<Session> get allSessions => [
-    _fajr,
-    _earlyMorning,
-    _lateMorning,
-    _dhuhr,
-    _asr,
-    _maghrib,
-    _isha,
-    _fridayReview,
+    _morning,
+    _afternoon,
+    _evening,
+    _night,
     _sundayPlanning,
   ];
 
-  static final _fajr = Session(
-    id: 'fajr',
-    name: 'Dawn',
-    timeRange: '5:00 – 7:00am',
-    accentColor: AppColors.worship,
-    tasks: [],
-  );
-
-  static final _earlyMorning = Session(
-    id: 'early_morning',
-    name: 'Early Morning',
-    timeRange: '7:00 – 9:30am',
-    accentColor: AppColors.build,
-    tasks: [],
-  );
-
-  static final _lateMorning = Session(
-    id: 'late_morning',
-    name: 'Late Morning',
-    timeRange: '9:30am – 12:15pm',
+  static final _morning = Session(
+    id: 'morning',
+    name: 'Morning',
+    timeRange: '5:30 AM – 12:00 PM',
     accentColor: AppColors.morning,
     tasks: [],
   );
 
-  static final _dhuhr = Session(
-    id: 'dhuhr',
-    name: 'Noon',
-    timeRange: '12:15 – 3:45pm',
+  static final _afternoon = Session(
+    id: 'afternoon',
+    name: 'Afternoon',
+    timeRange: '12:00 PM – 4:00 PM',
     accentColor: AppColors.midday,
     tasks: [],
   );
 
-  static final _asr = Session(
-    id: 'asr',
-    name: 'Afternoon',
-    timeRange: '3:45 – 6:15pm',
-    accentColor: AppColors.afternoon,
-    tasks: [],
-  );
-
-  static final _maghrib = Session(
-    id: 'maghrib',
+  static final _evening = Session(
+    id: 'evening',
     name: 'Evening',
-    timeRange: '6:15 – 7:45pm',
+    timeRange: '4:00 PM – 7:00 PM',
     accentColor: AppColors.sunset,
     tasks: [],
   );
 
-  static final _isha = Session(
-    id: 'isha',
+  static final _night = Session(
+    id: 'night',
     name: 'Night',
-    timeRange: '7:45 – 10:30pm',
+    timeRange: '7:00 PM – 10:30 PM',
     accentColor: AppColors.evening,
-    tasks: [],
-  );
-
-  static final _fridayReview = Session(
-    id: 'friday_review',
-    name: 'Friday Review',
-    timeRange: '2:00 – 3:30pm',
-    accentColor: AppColors.worship,
-    isFridayOnly: true,
     tasks: [],
   );
 
   static final _sundayPlanning = Session(
     id: 'sunday_planning',
     name: 'Sunday Planning',
-    timeRange: '9:00 – 10:30am',
-    accentColor: AppColors.worship,
+    timeRange: 'All Day',
+    accentColor: AppColors.primary,
     isSundayOnly: true,
     tasks: [],
   );

@@ -52,13 +52,7 @@ class LifecycleService extends WidgetsBindingObserver {
   }
 
   Future<void> _rollover({required String oldDateKey}) async {
-    // 1. Archive quick tasks locally
-    await hiveService.archiveQuickTasks(oldDateKey);
-
-    // 2. Archive on Supabase
-    supabaseService
-        .archiveOldQuickTasks(oldDateKey, deviceId)
-        .catchError((_) {});
+    // Quick tasks are now global, so we don't archive them.
 
     // 3. Prune Hive boxes older than 30 days
     await hiveService.pruneOldKeys(dateService.todayKey());

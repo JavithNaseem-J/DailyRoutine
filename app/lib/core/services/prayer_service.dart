@@ -1,21 +1,27 @@
 import 'package:adhan/adhan.dart' as adhan;
 import '../models/prayer_times.dart';
+import '../../main.dart' show sharedPrefs;
+import 'package:flutter/material.dart';
 
-/// PrayerService — wraps the adhan package for Dubai prayer times.
-///
-/// Coordinates: 25.2048° N, 55.2708° E (Dubai)
-/// Method: UAE (CalculationMethod.uae)
-/// Works fully offline — no API required.
 class PrayerService {
-  static const double _lat = 25.2048;
-  static const double _lng = 55.2708;
-
-  /// Calculate prayer times for [date] using Dubai coordinates + UAE method.
   PrayerTimes getPrayerTimesForDate(DateTime date) {
-    final coords = adhan.Coordinates(_lat, _lng);
-    final params = adhan.CalculationMethod.dubai.getParameters();
+    bool isManual = (sharedPrefs.getString('prayer_mode') ?? 'auto') == 'manual';
+    
+    if (isManual) {
+      return _getManualPrayerTimes(date);
+    } else {
+      return _getAutomaticPrayerTimes(date);
+    }
+  }
+
+  PrayerTimes _getAutomaticPrayerTimes(DateTime date) {
+    double lat = sharedPrefs.getDouble('prayer_lat') ?? 25.2048;
+    double lng = sharedPrefs.getDouble('prayer_lng') ?? 55.2708;
+    
+    adhan.CalculationParameters params = adhan.CalculationMethod.muslim_world_league.getParameters();
     params.madhab = adhan.Madhab.shafi;
 
+    final coords = adhan.Coordinates(lat, lng);
     final adhanTimes = adhan.PrayerTimes(
       coords,
       adhan.DateComponents.from(date),
@@ -32,35 +38,29 @@ class PrayerService {
     );
   }
 
-  /// Returns today's prayer times (with optional user overrides applied).
-  PrayerTimes getTodayPrayerTimes({PrayerTimes? overrides}) {
-    final calculated = getPrayerTimesForDate(DateTime.now());
-    if (overrides == null) return calculated;
-
-    final now = DateTime.now();
-    DateTime applyOverride(DateTime calculated, DateTime? override) {
-      if (override == null) return calculated;
-      return DateTime(
-        now.year,
-        now.month,
-        now.day,
-        override.hour,
-        override.minute,
-      );
+  PrayerTimes _getManualPrayerTimes(DateTime date) {
+    DateTime parseTime(String key, String defaultTime) {
+      final timeStr = sharedPrefs.getString(key) ?? defaultTime;
+      final parts = timeStr.split(':');
+      int h = int.tryParse(parts[0]) ?? 0;
+      int m = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+      return DateTime(date.year, date.month, date.day, h, m);
     }
 
     return PrayerTimes(
-      fajr: applyOverride(calculated.fajr, overrides.fajr),
-      dhuhr: applyOverride(calculated.dhuhr, overrides.dhuhr),
-      asr: applyOverride(calculated.asr, overrides.asr),
-      maghrib: applyOverride(calculated.maghrib, overrides.maghrib),
-      isha: applyOverride(calculated.isha, overrides.isha),
+      fajr: parseTime('manual_fajr', '05:00'),
+      dhuhr: parseTime('manual_dhuhr', '12:30'),
+      asr: parseTime('manual_asr', '15:45'),
+      maghrib: parseTime('manual_maghrib', '18:15'),
+      isha: parseTime('manual_isha', '19:30'),
       isOverride: true,
     );
   }
 
-  /// Returns adhaan time + prayer start time for the next prayer.
-  /// Offsets: Fajr/Dhuhr/Asr/Isha = +20 min | Maghrib = +5 min.
+  PrayerTimes getTodayPrayerTimes({PrayerTimes? overrides}) {
+    return getPrayerTimesForDate(DateTime.now());
+  }
+
   ({String name, DateTime adhaan, DateTime prayerStart}) getPrayerData(
     DateTime now, {
     PrayerTimes? overrides,
@@ -83,7 +83,6 @@ class PrayerService {
       }
     }
 
-    // All prayers passed — use tomorrow's Fajr
     final tomorrow = getPrayerTimesForDate(now.add(const Duration(days: 1)));
     return (
       name: 'Fajr',
@@ -93,5 +92,4 @@ class PrayerService {
   }
 }
 
-/// Singleton instance for use across the app.
 final prayerService = PrayerService();

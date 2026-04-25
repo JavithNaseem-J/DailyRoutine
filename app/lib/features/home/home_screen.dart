@@ -369,14 +369,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // Ã¢â€â‚¬Ã¢â€â‚¬ Task Board Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   void _loadQuickTasks() {
     setState(() {
-      _quickTasks = hiveService.readQuickTasks(dateService.todayKey());
+      _quickTasks = hiveService.readQuickTasks('global');
     });
-    supabaseService.fetchQuickTasks(dateService.todayKey(), deviceId).then((
+    supabaseService.fetchQuickTasks('global', deviceId).then((
       remote,
     ) {
       if (!mounted) return;
       setState(() => _quickTasks = remote);
-      hiveService.writeQuickTasks(dateService.todayKey(), remote);
+      hiveService.writeQuickTasks('global', remote);
     });
   }
 
@@ -385,28 +385,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (text.isEmpty || _quickTasks.length >= 5) return;
     final task = QuickTask(
       id: const Uuid().v4(),
-      date: dateService.todayKey(),
+      date: 'global',
       title: text,
     );
     setState(() {
       _quickTasks = [..._quickTasks, task];
       _quickController.clear();
     });
-    hiveService.writeQuickTasks(dateService.todayKey(), _quickTasks);
+    hiveService.writeQuickTasks('global', _quickTasks);
     supabaseService.upsertQuickTask(task, deviceId).catchError((_) {});
   }
 
   void _toggleQuickTask(int i) {
     final updated = _quickTasks[i].copyWith(done: !_quickTasks[i].done);
     setState(() => _quickTasks = [..._quickTasks]..[i] = updated);
-    hiveService.writeQuickTasks(dateService.todayKey(), _quickTasks);
+    hiveService.writeQuickTasks('global', _quickTasks);
     supabaseService.upsertQuickTask(updated, deviceId).catchError((_) {});
   }
 
   void _deleteQuickTask(int i) {
     final task = _quickTasks[i];
     setState(() => _quickTasks = [..._quickTasks]..removeAt(i));
-    hiveService.writeQuickTasks(dateService.todayKey(), _quickTasks);
+    hiveService.writeQuickTasks('global', _quickTasks);
     supabaseService.deleteQuickTask(task.id).catchError((_) {});
   }
 
@@ -832,7 +832,7 @@ class _QuoteCard extends StatelessWidget {
 // Prayer Card Ã¢â‚¬â€ top-aligned + full schedule at bottom
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
-class _PrayerCard extends StatelessWidget {
+class _PrayerCard extends ConsumerWidget {
   const _PrayerCard({required this.prayer, required this.todayPrayers});
   final ({String name, DateTime adhaan, DateTime prayerStart}) prayer;
   final PrayerTimes todayPrayers;
@@ -851,9 +851,10 @@ class _PrayerCard extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final prayerList = todayPrayers.asOrderedList();
     final now = DateTime.now();
+    final prayerStates = ref.watch(sessionsProvider).value?.dailyState.prayerStates ?? {};
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -970,7 +971,7 @@ class _PrayerCard extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          Icons.accessibility_new_rounded,
+                          Icons.person_outline,
                           size: 10,
                           color: AppColors.complete,
                         ),
@@ -1031,16 +1032,28 @@ class _PrayerCard extends StatelessWidget {
                     ),
                   ),
                   SizedBox(height: 5),
-                  Container(
-                    width: 5,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isNext
-                          ? AppColors.complete
-                          : isPast
-                          ? Colors.white12
-                          : Colors.white24,
+                  GestureDetector(
+                    onTap: () {
+                      ref.read(sessionsProvider.notifier).togglePrayer(p.name);
+                    },
+                    child: Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: (prayerStates[p.name.toLowerCase()] == true)
+                              ? AppColors.complete
+                              : Colors.white24,
+                          width: 2,
+                        ),
+                        color: (prayerStates[p.name.toLowerCase()] == true)
+                            ? AppColors.complete.withValues(alpha: 0.2)
+                            : Colors.transparent,
+                      ),
+                      child: (prayerStates[p.name.toLowerCase()] == true)
+                          ? Icon(Icons.check, size: 14, color: AppColors.complete)
+                          : null,
                     ),
                   ),
                 ],
@@ -1075,24 +1088,24 @@ class _InProgressSection extends StatelessWidget {
   onUpdate;
   final ValueChanged<int> onDelete;
 
-  static final _bgColors = [
-    AppColors.surfaceRaised,
-    AppColors.surfaceRaised,
-    AppColors.surfaceRaised,
-  ];
-  static final _accents = [
-    AppColors.primary,
-    AppColors.primary,
-    AppColors.primary,
-  ];
-  static const _icons = [
-    Icons.local_fire_department_rounded,
-    Icons.bolt_rounded,
-    Icons.diamond_rounded,
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final bgColors = [
+      AppColors.surfaceRaised,
+      AppColors.surfaceRaised,
+      AppColors.surfaceRaised,
+    ];
+    final accents = [
+      AppColors.primary,
+      AppColors.primary,
+      AppColors.primary,
+    ];
+    const icons = [
+      Icons.local_fire_department_rounded,
+      Icons.bolt_rounded,
+      Icons.diamond_rounded,
+    ];
+
     final atLimit = items.length >= 3;
     final cardWidth = MediaQuery.of(context).size.width * 0.55;
 
@@ -1182,9 +1195,9 @@ class _InProgressSection extends StatelessWidget {
                 item: items[i],
                 index: i,
                 width: cardWidth,
-                bgColor: _bgColors[i % _bgColors.length],
-                accent: _accents[i % _accents.length],
-                cardIcon: _icons[i % _icons.length],
+                bgColor: bgColors[i % bgColors.length],
+                accent: accents[i % accents.length],
+                cardIcon: icons[i % icons.length],
                 onNameChanged: (v) => onUpdate(i, name: v),
                 onProgressChanged: (v) => onUpdate(i, progress: v),
                 onNoteChanged: (v) => onUpdate(i, note: v),

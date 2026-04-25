@@ -9,9 +9,11 @@ class DailyState {
     this.mood,
     this.focusMinutes = 0,
     Map<String, int>? projectMinutes,
+    Map<String, bool>? prayerStates,
   }) : taskStates = taskStates ?? {},
        bonusStates = bonusStates ?? {},
-       projectMinutes = projectMinutes ?? {};
+       projectMinutes = projectMinutes ?? {},
+       prayerStates = prayerStates ?? {};
 
   final String date;
   Map<String, bool> taskStates; // taskId → done
@@ -19,6 +21,7 @@ class DailyState {
   String? mood; // "low" | "mid" | "high"
   int focusMinutes; // Total focus timer minutes logged today
   Map<String, int> projectMinutes; // tagId → minutes
+  Map<String, bool> prayerStates; // prayerName → done
 
   DailyState copyWith({
     Map<String, bool>? taskStates,
@@ -26,6 +29,7 @@ class DailyState {
     String? mood,
     int? focusMinutes,
     Map<String, int>? projectMinutes,
+    Map<String, bool>? prayerStates,
   }) => DailyState(
     date: date,
     taskStates: taskStates ?? Map.from(this.taskStates),
@@ -33,10 +37,11 @@ class DailyState {
     mood: mood ?? this.mood,
     focusMinutes: focusMinutes ?? this.focusMinutes,
     projectMinutes: projectMinutes ?? Map.from(this.projectMinutes),
+    prayerStates: prayerStates ?? Map.from(this.prayerStates),
   );
 
   factory DailyState.empty(String date) =>
-      DailyState(date: date, taskStates: {}, bonusStates: {});
+      DailyState(date: date, taskStates: {}, bonusStates: {}, prayerStates: {});
 
   factory DailyState.fromJson(Map<String, dynamic> json) => DailyState(
     date: json['date'] as String,
@@ -51,6 +56,9 @@ class DailyState {
     projectMinutes: (json['project_minutes'] as Map<String, dynamic>? ?? {}).map(
       (k, v) => MapEntry(k, (v as num).toInt()),
     ),
+    prayerStates: (json['prayer_states'] as Map<String, dynamic>? ?? {}).map(
+      (k, v) => MapEntry(k, v as bool),
+    ),
   );
 
   Map<String, dynamic> toJson() => {
@@ -60,5 +68,6 @@ class DailyState {
     if (mood != null) 'mood': mood,
     'focus_minutes': focusMinutes,
     'project_minutes': projectMinutes,
+    'prayer_states': prayerStates,
   };
 }

@@ -15,9 +15,9 @@ import '../../core/services/hive_service.dart';
 
 Color _getStageColor(int pct) {
   if (pct >= 100) return AppColors.complete;
-  if (pct >= 67) return Color(0xFF3B82F6);
-  if (pct >= 34) return Color(0xFF93C5FD);
-  if (pct > 0) return Color(0xFFDBEAFE);
+  if (pct >= 67) return AppColors.complete.withValues(alpha: 0.75);
+  if (pct >= 34) return AppColors.complete.withValues(alpha: 0.50);
+  if (pct > 0) return AppColors.complete.withValues(alpha: 0.25);
   return AppColors.surfaceRaised;
 }
 
@@ -42,6 +42,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   int _bestStreak = 0;
   int _totalFocusMinutes = 0;
   Map<String, int> _projectMinutesData = {};
+  Map<String, int> _prayerCounts = {'fajr': 0, 'dhuhr': 0, 'asr': 0, 'maghrib': 0, 'isha': 0};
   bool _statsLoading = true;
 
   @override
@@ -93,11 +94,24 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     final localStates = hiveService.readAllDailyStates();
     int focusMin = 0;
     Map<String, int> tagMins = {};
+    Map<String, int> pCounts = {'fajr': 0, 'dhuhr': 0, 'asr': 0, 'maghrib': 0, 'isha': 0};
+
     for (final s in localStates) {
-      focusMin += s.focusMinutes;
-      s.projectMinutes.forEach((k, v) {
-        tagMins[k] = (tagMins[k] ?? 0) + v;
-      });
+      try {
+        final dt = DateTime.parse(s.date);
+        if (dt.month == today.month && dt.year == today.year) {
+          focusMin += s.focusMinutes;
+          s.projectMinutes.forEach((k, v) {
+            tagMins[k] = (tagMins[k] ?? 0) + v;
+          });
+          
+          s.prayerStates.forEach((k, v) {
+            if (v == true) {
+              pCounts[k] = (pCounts[k] ?? 0) + 1;
+            }
+          });
+        }
+      } catch (_) {}
     }
 
     setState(() {
@@ -108,6 +122,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       _bestStreak = streak?.bestStreak ?? 0;
       _totalFocusMinutes = focusMin;
       _projectMinutesData = tagMins;
+      _prayerCounts = pCounts;
       _statsLoading = false;
     });
   }
@@ -175,7 +190,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(
-                    flex: 3,
                     child: _CompletionRingCard(
                       completionPct: completionPct,
                       totalTasks: totalTasks,
@@ -183,7 +197,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    flex: 2,
                     child: _StreakCard(
                       currentStreak: _currentStreak,
                       bestStreak: _bestStreak,
@@ -196,6 +209,11 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
             SizedBox(height: 16),
 
+            // ── Prayer Consistency ──────────────────────────────────
+            _PrayerConsistencyCard(prayerCounts: _prayerCounts),
+
+            SizedBox(height: 16),
+
             // ── Complete Hours in Focus Card ────────────────────────
             _FocusCard(totalMinutes: _totalFocusMinutes),
 
@@ -204,17 +222,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             ), // ── Weekly progress bar chart ────────────────────────────
             _WeeklyChart(
               data: liveWeekly,
-              rangeIndex: _chartRange,
-              onRangeChanged: (i) => setState(() => _chartRange = i),
-            ),
-
-            SizedBox(height: 16),
-
-            // ── Habit performance list ───────────────────────────────
-            _HabitPerformanceCard(
-              history: _taskHistory,
-              isFriday: DayChecker.isFriday(),
-              isSunday: DayChecker.isSunday(),
             ),
 
             SizedBox(height: 16),
@@ -230,34 +237,92 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             // ── Heatmap grid ─────────────────────────────────────────
             _HeatmapGrid(
               values: liveHeatmap,
-              onTap: (i) async {
-                int newVal = 0;
-                if (_heatmap[i] == 0) {
-                  newVal = 33;
-                } else if (_heatmap[i] < 67) {
-                  newVal = 67;
-                } else if (_heatmap[i] < 100) {
-                  newVal = 100;
-                } else {
-                  newVal = 0;
-                }
-
-                setState(() {
-                  _heatmap = List.from(_heatmap)..[i] = newVal;
-                });
-                // Compute date for cell i (day i+1 of current month)
-                final today = DateTime.now();
-                final cellDate = DateTime(today.year, today.month, i + 1);
-                final dateKey = dateService.keyFor(cellDate);
-                supabaseService
-                    .upsertHeatmap(dateKey, newVal, deviceId)
-                    .catchError((_) {});
-              },
             ),
 
             SizedBox(height: 32),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Prayer Consistency Card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PrayerConsistencyCard extends StatelessWidget {
+  const _PrayerConsistencyCard({required this.prayerCounts});
+  final Map<String, int> prayerCounts;
+
+  @override
+  Widget build(BuildContext context) {
+    const prayers = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'];
+    const labels = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      decoration: BoxDecoration(
+        color: AppColors.cardSurface,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.self_improvement_rounded, size: 18, color: AppColors.textSecondary),
+              const SizedBox(width: 8),
+              Text(
+                'Salah Performance',
+                style: AppTypography.body(size: 14, weight: FontWeight.w600, color: AppColors.textPrimary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(5, (i) {
+               final count = prayerCounts[prayers[i]] ?? 0;
+               final intensity = (count / DateTime.now().day).clamp(0.0, 1.0);
+               final pct = (intensity * 100).round();
+               return Column(
+                 mainAxisSize: MainAxisSize.min,
+                 children: [
+                   Container(
+                     width: 36,
+                     height: 36,
+                     decoration: BoxDecoration(
+                       shape: BoxShape.circle,
+                       color: intensity == 0 
+                          ? AppColors.surfaceRaised 
+                          : AppColors.complete.withValues(alpha: 0.2 + (0.8 * intensity)),
+                     ),
+                     child: Center(
+                       child: Text(
+                         '$pct%',
+                         style: AppTypography.mono(
+                           size: 10,
+                           weight: FontWeight.w700,
+                           color: intensity == 0 ? AppColors.textMuted : (intensity > 0.5 ? Colors.white : AppColors.complete),
+                         ),
+                       ),
+                     ),
+                   ),
+                   SizedBox(height: 8),
+                   Text(
+                     labels[i],
+                     style: AppTypography.mono(
+                       size: 11,
+                       weight: FontWeight.w600,
+                       color: AppColors.textSecondary,
+                     ),
+                   ),
+                 ],
+               );
+            }),
+          )
+        ],
       ),
     );
   }
@@ -289,8 +354,8 @@ class _CompletionRingCard extends StatelessWidget {
           Text('Today', style: AppTypography.label(color: AppColors.textMuted)),
           SizedBox(height: 12),
           SizedBox(
-            width: 70,
-            height: 70,
+            width: 90,
+            height: 90,
             child: TweenAnimationBuilder<double>(
               tween: Tween(begin: 0, end: completionPct / 100),
               duration: const Duration(milliseconds: 800),
@@ -403,14 +468,7 @@ class _StreakCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.cardSurface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -494,13 +552,9 @@ class _StreakCard extends StatelessWidget {
 class _WeeklyChart extends StatelessWidget {
   const _WeeklyChart({
     required this.data,
-    required this.rangeIndex,
-    required this.onRangeChanged,
   });
 
   final List<double> data;
-  final int rangeIndex;
-  final ValueChanged<int> onRangeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -527,39 +581,6 @@ class _WeeklyChart extends StatelessWidget {
                   weight: FontWeight.w600,
                   color: AppColors.textPrimary,
                 ),
-              ),
-              // Range toggle
-              Row(
-                children: List.generate(3, (i) {
-                  const labels = ['W', 'M', 'Y'];
-                  final active = i == rangeIndex;
-                  return GestureDetector(
-                    onTap: () => onRangeChanged(i),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      margin: const EdgeInsets.only(left: 6),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: active ? AppColors.primary : Colors.transparent,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: active ? AppColors.primary : AppColors.border,
-                        ),
-                      ),
-                      child: Text(
-                        labels[i],
-                        style: AppTypography.mono(
-                          size: 11,
-                          weight: FontWeight.w600,
-                          color: active ? Colors.white : AppColors.textMuted,
-                        ),
-                      ),
-                    ),
-                  );
-                }),
               ),
             ],
           ),
@@ -643,164 +664,16 @@ class _WeeklyChart extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Habit Performance Card
-// ─────────────────────────────────────────────────────────────────────────────
 
-class _HabitPerformanceCard extends StatelessWidget {
-  const _HabitPerformanceCard({
-    required this.history,
-    required this.isFriday,
-    required this.isSunday,
-  });
-
-  final List<Map<String, dynamic>> history;
-  final bool isFriday;
-  final bool isSunday;
-
-  @override
-  Widget build(BuildContext context) {
-    final todaySessions = SessionData.sessionsForToday(
-      isFriday: isFriday,
-      isSunday: isSunday,
-    );
-
-    final taskCompleteCount = <String, int>{};
-    for (final row in history) {
-      final states = row['task_states'] as Map<String, dynamic>? ?? {};
-      for (final entry in states.entries) {
-        if (entry.value == true) {
-          taskCompleteCount[entry.key] =
-              (taskCompleteCount[entry.key] ?? 0) + 1;
-        }
-      }
-    }
-
-    final totalDays = history.isEmpty ? 1 : history.length;
-
-    final sessions = todaySessions.map((s) {
-      if (s.tasks.isEmpty) {
-        return (name: s.name, pct: 0, color: _getStageColor(0));
-      }
-
-      int done = 0;
-      for (var t in s.tasks) {
-        done += taskCompleteCount[t.id] ?? 0;
-      }
-      final potential = s.tasks.length * totalDays;
-      final pct = (done * 100) ~/ potential;
-
-      return (name: s.name, pct: pct, color: _getStageColor(pct));
-    }).toList();
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.cardSurface,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Habit Performance',
-                style: AppTypography.body(
-                  size: 14,
-                  weight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              Text(
-                'Last 30 Days',
-                style: AppTypography.label(color: AppColors.textSecondary),
-              ),
-            ],
-          ),
-          SizedBox(height: 16),
-          ...sessions.map(
-            (s) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
-                children: [
-                  // Accent dot
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: s.color,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      s.name,
-                      style: AppTypography.body(
-                        size: 13,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ),
-                  // Mini bar
-                  SizedBox(
-                    width: 80,
-                    child: Stack(
-                      children: [
-                        Container(
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceRaised,
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                        ),
-                        FractionallySizedBox(
-                          widthFactor: s.pct / 100,
-                          child: Container(
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: s.color,
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 34,
-                    child: Text(
-                      '${s.pct}%',
-                      textAlign: TextAlign.right,
-                      style: AppTypography.mono(
-                        size: 11,
-                        weight: FontWeight.w600,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Heatmap Grid  (30 days view)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _HeatmapGrid extends StatelessWidget {
-  const _HeatmapGrid({required this.values, required this.onTap});
+  const _HeatmapGrid({required this.values});
 
   final List<int> values;
-  final ValueChanged<int> onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -819,24 +692,21 @@ class _HeatmapGrid extends StatelessWidget {
       final isLightBg = values[i] <= 2;
       
       cells.add(
-        GestureDetector(
-          onTap: () => onTap(i),
-          child: Tooltip(
-            message: 'Day ${i + 1}',
-            child: Container(
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(4),
-                border: values[i] == 0 ? Border.all(color: AppColors.border) : null,
-              ),
-              child: Text(
-                '${i + 1}',
-                style: AppTypography.mono(
-                  size: 10,
-                  weight: FontWeight.w700,
-                  color: isLightBg ? AppColors.textMuted : Colors.white,
-                ),
+        Tooltip(
+          message: 'Day ${i + 1}',
+          child: Container(
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(4),
+              border: values[i] == 0 ? Border.all(color: AppColors.border) : null,
+            ),
+            child: Text(
+              '${i + 1}',
+              style: AppTypography.mono(
+                size: 10,
+                weight: FontWeight.w700,
+                color: isLightBg ? AppColors.textMuted : Colors.white,
               ),
             ),
           ),
@@ -987,14 +857,7 @@ class _FocusCard extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.cardSurface,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
