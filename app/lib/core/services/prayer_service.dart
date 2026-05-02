@@ -1,7 +1,6 @@
 import 'package:adhan/adhan.dart' as adhan;
 import '../models/prayer_times.dart';
 import '../../main.dart' show sharedPrefs;
-import 'package:flutter/material.dart';
 
 class PrayerService {
   PrayerTimes getPrayerTimesForDate(DateTime date) {

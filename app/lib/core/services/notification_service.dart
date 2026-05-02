@@ -4,15 +4,7 @@ import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 import 'prayer_service.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// NotificationService — flutter_local_notifications v20.x
-//
-// v20 API: ALL top-level methods use named parameters.
-//   initialize(settings: ..., ...)
-//   zonedSchedule(id:, scheduledDate:, notificationDetails:,
-//                 androidScheduleMode:, title:, body:)
-// ─────────────────────────────────────────────────────────────────────────────
-
+// ── NotificationService ── flutter_local_notifications v20.x
 class NotificationService {
   static final NotificationService _instance = NotificationService._();
   factory NotificationService() => _instance;
@@ -38,18 +30,17 @@ class NotificationService {
     ),
   );
 
-  // ── Init ───────────────────────────────────────────────────────────
   Future<void> init() async {
     if (_initialized) return;
     if (kIsWeb) {
       _initialized = true;
-      return; // flutter_local_notifications doesn't support web natively or throws errors
+      return;
     }
 
     tz_data.initializeTimeZones();
-    tz.setLocalLocation(tz.getLocation('Asia/Dubai'));
+    // BUG-003 fix: use device's local timezone instead of hardcoded 'Asia/Dubai'
+    tz.setLocalLocation(tz.local);
 
-    // v20: named `settings:` param
     await _plugin.initialize(
       settings: const InitializationSettings(
         android: AndroidInitializationSettings('@mipmap/ic_launcher'),
@@ -61,64 +52,57 @@ class NotificationService {
       ),
     );
 
-    if (!kIsWeb) {
-      await _plugin
-          .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin
-          >()
-          ?.requestNotificationsPermission();
-    }
+    // BUG-016 fix: removed redundant !kIsWeb guard; init() already returns early on web
+    await _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.requestNotificationsPermission();
 
     _initialized = true;
   }
 
-  // ── Schedule all reminders for today ──────────────────────────────
   Future<void> scheduleSessionNotifications({
     required bool sessionRemindersEnabled,
     required bool prayerAlertsEnabled,
     Set<String> disabledSessionIds = const {},
   }) async {
-    if (kIsWeb) return; // Prevent crashes on web
+    if (kIsWeb) return;
     await _plugin.cancelAll();
     final now = DateTime.now();
     int notifId = 100;
 
-    // Session reminders — 15 min before each session
     if (sessionRemindersEnabled) {
       for (final s in _sessionSchedule) {
         if (disabledSessionIds.contains(s.id)) continue;
         final start = _parseTime(s.startStr, now);
         if (start == null) continue;
-        final remind = start.subtract(const Duration(minutes: 15));
-        if (remind.isAfter(now)) {
-          await _zoned(
-            id: notifId++,
-            title: '${s.name} starts in 15 min',
-            body: s.body,
-            when: remind,
-          );
-        }
+        DateTime remind = start.subtract(const Duration(minutes: 15));
+        if (remind.isBefore(now)) remind = remind.add(const Duration(days: 1));
+        await _zoned(
+          id: notifId++,
+          title: '${s.name} starts in 15 min',
+          body: s.body,
+          when: remind,
+        );
       }
     }
 
-    // Prayer alerts — 10 min before Fajr + Asr
     if (prayerAlertsEnabled) {
       final prayers = prayerService.getTodayPrayerTimes();
       for (final p in [('Fajr', prayers.fajr), ('Asr', prayers.asr)]) {
-        final alertTime = p.$2.subtract(const Duration(minutes: 10));
-        if (alertTime.isAfter(now)) {
-          await _zoned(
-            id: notifId++,
-            title: '${p.$1} in 10 minutes',
-            body: 'Prepare for prayer.',
-            when: alertTime,
-          );
-        }
+        DateTime alertTime = p.$2.subtract(const Duration(minutes: 10));
+        if (alertTime.isBefore(now)) alertTime = alertTime.add(const Duration(days: 1));
+        await _zoned(
+          id: notifId++,
+          title: '${p.$1} in 10 minutes',
+          body: 'Prepare for prayer.',
+          when: alertTime,
+        );
       }
     }
   }
 
-  // ── v20 zonedSchedule (all named params) ──────────────────────────
   Future<void> _zoned({
     required int id,
     required String title,
@@ -133,24 +117,23 @@ class NotificationService {
         scheduledDate: tz.TZDateTime.from(when, tz.local),
         notificationDetails: _details,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        matchDateTimeComponents: DateTimeComponents.time,
       );
     } catch (_) {
-      // Exact alarm permission may not be granted — degrade silently
     }
   }
 
-  // ── Cancel all ─────────────────────────────────────────────────────
   Future<void> cancelAll() => _plugin.cancelAll();
 
-  // ── Helpers ────────────────────────────────────────────────────────
   DateTime? _parseTime(String t, DateTime ref) {
     try {
       t = t.toLowerCase().replaceAll(' ', '');
+      if (t == 'allday' || t.isEmpty) return null;
       final isPm = t.contains('pm');
       t = t.replaceAll('pm', '').replaceAll('am', '');
       final p = t.split(':');
-      int h = int.parse(p[0]);
-      final m = p.length > 1 ? int.parse(p[1]) : 0;
+      int h = int.tryParse(p[0]) ?? 0;
+      final m = p.length > 1 ? int.tryParse(p[1]) ?? 0 : 0;
       if (isPm && h != 12) h += 12;
       if (!isPm && h == 12) h = 0;
       return DateTime(ref.year, ref.month, ref.day, h, m);

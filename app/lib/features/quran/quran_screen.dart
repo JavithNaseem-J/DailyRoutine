@@ -1,17 +1,25 @@
 import 'dart:async';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../core/theme/app_colors.dart';
-import '../../core/theme/app_typography.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../main.dart' show sharedPrefs;
 import 'package:go_router/go_router.dart';
+import 'quran_data.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Quran Screen — Mushaf Image CDN (Option A)
-//
-// Pages served from: cdn.islamic.network/quran/images/
-// 604 pages, each a high-resolution Mushaf page image.
+// Design tokens (shared with QuranHomeScreen)
+// ─────────────────────────────────────────────────────────────────────────────
+const _kBg      = Color(0xFF0E0E0E);
+const _kSurface = Color(0xFF1A1A1A);
+const _kGold    = Color(0xFFC9A84C);
+const _kGoldMid = Color(0x40C9A84C);
+const _kText    = Color(0xFFF5F0E8);
+const _kTextSub = Color(0xFF9E9887);
+const _kDivider = Color(0xFF2A2A2A);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Quran Reader Screen — native paginated image viewer
 // ─────────────────────────────────────────────────────────────────────────────
 
 class QuranScreen extends StatefulWidget {
@@ -22,40 +30,86 @@ class QuranScreen extends StatefulWidget {
   State<QuranScreen> createState() => _QuranScreenState();
 }
 
-class _QuranScreenState extends State<QuranScreen> {
+class _QuranScreenState extends State<QuranScreen>
+    with SingleTickerProviderStateMixin {
   late PageController _pageController;
   late int _currentPage;
   int? _pinnedPage;
+  bool _barsVisible = true;
+  late AnimationController _barAnim;
+  late Animation<double> _barFade;
 
-  // ── Reading Timer ──────────────────────────────────────────────────────────
+  // ── Timer ────────────────────────────────────────────────────────────────
   static const int _defaultMinutes = 15;
   int _timerSeconds = _defaultMinutes * 60;
   Timer? _readingTimer;
   bool _timerRunning = false;
 
-  // CDN base — islamic.network serves Mushaf images (CORS-friendly)
-  static String _pageImageUrl(int page) {
-    final p = page.toString().padLeft(3, '0');
-    return 'https://cdn.islamic.network/quran/images/high-resolution/page$p.png';
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  String _imageUrl(int page) {
+    final pageStr = page.toString().padLeft(3, '0');
+    final url = 'https://android.quran.com/data/width_1024/page$pageStr.png';
+    if (kIsWeb) {
+      return 'https://api.allorigins.win/raw?url=${Uri.encodeComponent(url)}';
+    }
+    return url;
   }
 
+  SurahInfo _surahForPage(int page) {
+    for (int i = kSurahs.length - 1; i >= 0; i--) {
+      if (kSurahs[i].startPage <= page) return kSurahs[i];
+    }
+    return kSurahs.first;
+  }
+
+  String get _timerLabel {
+    final m = _timerSeconds ~/ 60;
+    final s = _timerSeconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  // ── Lifecycle ────────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
     _pinnedPage = sharedPrefs.getInt('quran_pinned_page');
-    final lastPage = sharedPrefs.getInt('quran_last_page') ?? widget.initialPage;
-    _currentPage = lastPage.clamp(1, 604);
+    // BUG-007 fix: use widget.initialPage as the primary target.
+    // Only fall back to the last-read page if no explicit page was requested
+    // (i.e. when initialPage is the default value of 1).
+    final savedPage = sharedPrefs.getInt('quran_last_page');
+    final startPage = (widget.initialPage != 1)
+        ? widget.initialPage
+        : (savedPage ?? widget.initialPage);
+    _currentPage = startPage.clamp(1, 604);
     _pageController = PageController(initialPage: _currentPage - 1);
+
+    _barAnim = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 250));
+    _barFade = CurvedAnimation(parent: _barAnim, curve: Curves.easeInOut);
+    _barAnim.value = 1.0; // start visible
   }
 
   @override
   void dispose() {
     _readingTimer?.cancel();
+    // BUG-009 fix: persist the timer duration so QuranHomeScreen can display it
+    sharedPrefs.setInt('quran_reading_minutes', _defaultMinutes);
     _pageController.dispose();
+    _barAnim.dispose();
     super.dispose();
   }
 
-  // ── Timer ──────────────────────────────────────────────────────────────────
+  // ── Tap to toggle bars ───────────────────────────────────────────────────
+  void _toggleBars() {
+    setState(() => _barsVisible = !_barsVisible);
+    if (_barsVisible) {
+      _barAnim.forward();
+    } else {
+      _barAnim.reverse();
+    }
+  }
+
+  // ── Timer ─────────────────────────────────────────────────────────────────
   void _toggleTimer() {
     HapticFeedback.lightImpact();
     if (_timerRunning) {
@@ -86,18 +140,7 @@ class _QuranScreenState extends State<QuranScreen> {
     });
   }
 
-  String get _timerLabel {
-    final m = _timerSeconds ~/ 60;
-    final s = _timerSeconds % 60;
-    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
-  }
-
-  // ── Bookmark ───────────────────────────────────────────────────────────────
-  void _onPageChanged(int idx) {
-    setState(() => _currentPage = idx + 1);
-    sharedPrefs.setInt('quran_last_page', _currentPage);
-  }
-
+  // ── Bookmark ──────────────────────────────────────────────────────────────
   void _toggleBookmark() {
     HapticFeedback.mediumImpact();
     setState(() {
@@ -111,201 +154,118 @@ class _QuranScreenState extends State<QuranScreen> {
     });
   }
 
+  // ── Navigation ────────────────────────────────────────────────────────────
+  void _navigateTo(int page) {
+    if (page < 1 || page > 604) return;
+    _pageController.animateToPage(
+      page - 1,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeInOutCubic,
+    );
+  }
+
+  void _onPageChanged(int index) {
+    final newPage = index + 1;
+    setState(() => _currentPage = newPage);
+    sharedPrefs.setInt('quran_last_page', newPage);
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final isBookmarked = _pinnedPage == _currentPage;
+    final surah = _surahForPage(_currentPage);
 
     return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white70),
-          onPressed: () => context.pop(),
-        ),
-        actions: [
-          // ── Jump-to-bookmark ─────────────────────────────────
-          if (_pinnedPage != null && _pinnedPage != _currentPage)
-            GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                _pageController.animateToPage(
-                  _pinnedPage! - 1,
-                  duration: const Duration(milliseconds: 400),
-                  curve: Curves.easeInOut,
-                );
-              },
-              child: Container(
-                margin: const EdgeInsets.symmetric(vertical: 10),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white10,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white24),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.bookmark_rounded, size: 13, color: Colors.amber),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Go to p.$_pinnedPage',
-                      style: const TextStyle(fontSize: 11, color: Colors.white60),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          // ── Timer chip: tap = play/pause, long-press = reset ──
-          GestureDetector(
-            onTap: _toggleTimer,
-            onLongPress: _resetTimer,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-              decoration: BoxDecoration(
-                color: _timerRunning
-                    ? AppColors.primary.withValues(alpha: 0.2)
-                    : Colors.white10,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: _timerRunning ? AppColors.primary : Colors.white24,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    _timerRunning ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                    size: 14,
-                    color: _timerRunning ? AppColors.primary : Colors.white54,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    _timerLabel,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: _timerRunning ? AppColors.primary : Colors.white54,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // ── Bookmark ─────────────────────────────────────────
-          IconButton(
-            icon: Icon(
-              isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-              color: isBookmarked ? Colors.amber : Colors.white54,
-            ),
-            onPressed: _toggleBookmark,
-          ),
-        ],
-      ),
-      body: Column(
+      backgroundColor: Colors.white,
+      body: Stack(
         children: [
-          // ── Page indicator bar ─────────────────────────────────
-          Container(
-            color: Colors.black,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Page $_currentPage',
-                  style: const TextStyle(
-                    color: Colors.white38,
-                    fontSize: 12,
-                    letterSpacing: 1,
-                  ),
-                ),
-                Text(
-                  '${((_currentPage / 604) * 100).toStringAsFixed(0)}% complete',
-                  style: const TextStyle(
-                    color: Colors.white38,
-                    fontSize: 12,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // ── Page image view ────────────────────────────────────
-          Expanded(
+          // ── Page Viewer ─────────────────────────────────────────────────
+          GestureDetector(
+            onTap: _toggleBars,
             child: PageView.builder(
               controller: _pageController,
-              onPageChanged: _onPageChanged,
+              reverse: true, // Arabic RTL
               itemCount: 604,
-              reverse: true, // Arabic RTL — page 1 is on the right
+              onPageChanged: _onPageChanged,
               itemBuilder: (context, index) {
-                final pageNum = index + 1;
-                return _MushafImagePage(
-                  imageUrl: _pageImageUrl(pageNum),
-                  page: pageNum,
-                  isBookmarked: _pinnedPage == pageNum,
+                final pageNumber = index + 1;
+                return InteractiveViewer(
+                  minScale: 1.0,
+                  maxScale: 4.0,
+                  child: kIsWeb
+                      ? Image.network(
+                          _imageUrl(pageNumber),
+                          fit: BoxFit.contain,
+                          width: double.infinity,
+                          height: double.infinity,
+                          loadingBuilder: (context, child, progress) {
+                            if (progress == null) return child;
+                            return _loadingWidget(progress);
+                          },
+                          errorBuilder: (_, __, ___) => _errorWidget(),
+                        )
+                      : CachedNetworkImage(
+                          imageUrl: _imageUrl(pageNumber),
+                          fit: BoxFit.contain,
+                          width: double.infinity,
+                          height: double.infinity,
+                          placeholder: (_, __) =>
+                              _loadingWidget(null),
+                          errorWidget: (_, __, ___) => _errorWidget(),
+                        ),
                 );
               },
             ),
           ),
 
-          // ── Navigation arrows ──────────────────────────────────
-          Container(
-            color: Colors.black,
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Next page (RTL: "next" = lower page number visually)
-                IconButton(
-                  onPressed: _currentPage < 604
-                      ? () => _pageController.nextPage(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                          )
+          // ── Top Bar ─────────────────────────────────────────────────────
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: FadeTransition(
+              opacity: _barFade,
+              child: IgnorePointer(
+                ignoring: !_barsVisible,
+                child: _TopBar(
+                  surah: surah,
+                  currentPage: _currentPage,
+                  pinnedPage: _pinnedPage,
+                  isBookmarked: isBookmarked,
+                  timerRunning: _timerRunning,
+                  timerLabel: _timerLabel,
+                  onBack: () => context.pop(),
+                  onBookmark: _toggleBookmark,
+                  onToggleTimer: _toggleTimer,
+                  onLongPressTimer: _resetTimer,
+                  onJumpToBookmark:
+                      _pinnedPage != null ? () => _navigateTo(_pinnedPage!) : null,
+                ),
+              ),
+            ),
+          ),
+
+          // ── Bottom Pill Nav ──────────────────────────────────────────────
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: FadeTransition(
+              opacity: _barFade,
+              child: IgnorePointer(
+                ignoring: !_barsVisible,
+                child: _BottomNav(
+                  currentPage: _currentPage,
+                  onPrev: _currentPage > 1
+                      ? () => _navigateTo(_currentPage - 1)
                       : null,
-                  icon: const Icon(Icons.chevron_left_rounded),
-                  color: Colors.white38,
-                  iconSize: 32,
-                ),
-                // Quick page jump
-                GestureDetector(
-                  onTap: () => _showPageJumpDialog(context),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white10,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '$_currentPage / 604',
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: _currentPage > 1
-                      ? () => _pageController.previousPage(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                          )
+                  onNext: _currentPage < 604
+                      ? () => _navigateTo(_currentPage + 1)
                       : null,
-                  icon: const Icon(Icons.chevron_right_rounded),
-                  color: Colors.white38,
-                  iconSize: 32,
+                  onTapPage: () => _showJumpDialog(context),
                 ),
-              ],
+              ),
             ),
           ),
         ],
@@ -313,140 +273,359 @@ class _QuranScreenState extends State<QuranScreen> {
     );
   }
 
-  // ── Page jump dialog ─────────────────────────────────────────────────────
-  void _showPageJumpDialog(BuildContext context) {
-    final controller = TextEditingController(text: '$_currentPage');
+  Widget _loadingWidget(ImageChunkEvent? progress) {
+    final value = (progress?.expectedTotalBytes != null)
+        ? progress!.cumulativeBytesLoaded / progress.expectedTotalBytes!
+        : null;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 48,
+            height: 48,
+            child: CircularProgressIndicator(
+              value: value,
+              color: _kGold,
+              backgroundColor: _kDivider,
+              strokeWidth: 3,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text('Loading page…',
+              style: TextStyle(color: _kTextSub, fontSize: 13)),
+        ],
+      ),
+    );
+  }
+
+  Widget _errorWidget() => const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.wifi_off_rounded, size: 48, color: _kTextSub),
+            SizedBox(height: 12),
+            Text('Could not load page.',
+                style: TextStyle(color: _kTextSub, fontSize: 13)),
+            SizedBox(height: 4),
+            Text('Check your connection.',
+                style: TextStyle(color: _kTextSub, fontSize: 12)),
+          ],
+        ),
+      );
+
+  void _showJumpDialog(BuildContext context) {
+    // BUG-015 fix: dispose controller after dialog closes to prevent memory leak
+    final controller =
+        TextEditingController(text: '$_currentPage');
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text(
-          'Jump to Page',
-          style: TextStyle(color: Colors.white, fontSize: 16),
-        ),
+        backgroundColor: _kSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Jump to Page',
+            style: TextStyle(color: _kText, fontSize: 16)),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
           autofocus: true,
-          style: const TextStyle(color: Colors.white, fontSize: 18),
-          decoration: InputDecoration(
+          style: const TextStyle(color: _kText, fontSize: 18),
+          decoration: const InputDecoration(
             hintText: '1 – 604',
-            hintStyle: const TextStyle(color: Colors.white38),
+            hintStyle: TextStyle(color: _kTextSub),
             enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.primary),
-            ),
+                borderSide: BorderSide(color: _kGold)),
             focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.primary, width: 2),
-            ),
+                borderSide: BorderSide(color: _kGold, width: 2)),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: TextStyle(color: Colors.white38)),
+            child: const Text('Cancel',
+                style: TextStyle(color: _kTextSub)),
           ),
           TextButton(
             onPressed: () {
-              final page = int.tryParse(controller.text) ?? _currentPage;
-              if (page >= 1 && page <= 604) {
-                _pageController.jumpToPage(page - 1);
-              }
+              final page =
+                  int.tryParse(controller.text) ?? _currentPage;
+              _navigateTo(page);
               Navigator.pop(ctx);
             },
-            child: Text('Go', style: TextStyle(color: AppColors.primary)),
+            child: const Text('Go',
+                style: TextStyle(
+                    color: _kGold, fontWeight: FontWeight.w700)),
           ),
         ],
+      ),
+    ).whenComplete(() => controller.dispose());
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Top Bar
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TopBar extends StatelessWidget {
+  const _TopBar({
+    required this.surah,
+    required this.currentPage,
+    required this.pinnedPage,
+    required this.isBookmarked,
+    required this.timerRunning,
+    required this.timerLabel,
+    required this.onBack,
+    required this.onBookmark,
+    required this.onToggleTimer,
+    required this.onLongPressTimer,
+    required this.onJumpToBookmark,
+  });
+
+  final SurahInfo surah;
+  final int currentPage;
+  final int? pinnedPage;
+  final bool isBookmarked;
+  final bool timerRunning;
+  final String timerLabel;
+  final VoidCallback onBack;
+  final VoidCallback onBookmark;
+  final VoidCallback onToggleTimer;
+  final VoidCallback onLongPressTimer;
+  final VoidCallback? onJumpToBookmark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            _kBg,
+            _kBg.withValues(alpha: 0.95),
+            Colors.transparent,
+          ],
+        ),
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
+          child: Row(
+            children: [
+              // Back
+              IconButton(
+                onPressed: onBack,
+                icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                    color: _kTextSub, size: 18),
+              ),
+              // Surah info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(surah.name,
+                        style: const TextStyle(
+                            color: _kText,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600)),
+                    Text('Juzz ${surah.juzz} · Page $currentPage',
+                        style: const TextStyle(
+                            color: _kTextSub, fontSize: 11)),
+                  ],
+                ),
+              ),
+              // Jump to bookmark pill
+              if (pinnedPage != null && pinnedPage != currentPage)
+                GestureDetector(
+                  onTap: onJumpToBookmark,
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: _kGoldMid,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: _kGold),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.bookmark_rounded,
+                            size: 12, color: _kGold),
+                        const SizedBox(width: 4),
+                        Text('p.$pinnedPage',
+                            style: const TextStyle(
+                                fontSize: 11,
+                                color: _kGold,
+                                fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ),
+              // Timer
+              GestureDetector(
+                onTap: onToggleTimer,
+                onLongPress: onLongPressTimer,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  margin: const EdgeInsets.only(right: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: timerRunning
+                        ? _kGold.withValues(alpha: 0.2)
+                        : _kSurface,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: timerRunning ? _kGold : _kDivider),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        timerRunning
+                            ? Icons.pause_rounded
+                            : Icons.timer_outlined,
+                        size: 13,
+                        color: timerRunning ? _kGold : _kTextSub,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(timerLabel,
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: timerRunning ? _kGold : _kTextSub,
+                              fontFamily: 'monospace')),
+                    ],
+                  ),
+                ),
+              ),
+              // Bookmark
+              IconButton(
+                onPressed: onBookmark,
+                icon: Icon(
+                  isBookmarked
+                      ? Icons.bookmark_rounded
+                      : Icons.bookmark_border_rounded,
+                  color: isBookmarked ? _kGold : _kTextSub,
+                  size: 22,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Individual Mushaf page — loads from CDN
+// Bottom Floating Pill Nav
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _MushafImagePage extends StatelessWidget {
-  const _MushafImagePage({
-    required this.imageUrl,
-    required this.page,
-    required this.isBookmarked,
+class _BottomNav extends StatelessWidget {
+  const _BottomNav({
+    required this.currentPage,
+    required this.onPrev,
+    required this.onNext,
+    required this.onTapPage,
   });
 
-  final String imageUrl;
-  final int page;
-  final bool isBookmarked;
+  final int currentPage;
+  final VoidCallback? onPrev;
+  final VoidCallback? onNext;
+  final VoidCallback onTapPage;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: Colors.black,
-      child: Stack(
-        children: [
-          // ── Mushaf page image ──────────────────────────────────
-          Center(
-            child: InteractiveViewer(
-              minScale: 0.8,
-              maxScale: 4.0,
-              child: CachedNetworkImage(
-                imageUrl: imageUrl,
-                fit: BoxFit.contain,
-                placeholder: (context, url) => Center(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [
+            _kBg,
+            _kBg.withValues(alpha: 0.9),
+            Colors.transparent,
+          ],
+        ),
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(32, 16, 32, 12),
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+              color: _kSurface,
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: _kDivider),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // ← Previous (in Quran RTL = higher page number)
+                _NavBtn(
+                  icon: Icons.chevron_left_rounded,
+                  onTap: onNext, // RTL: left arrow = next page number
+                ),
+                // Page indicator (tap to jump)
+                GestureDetector(
+                  onTap: onTapPage,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox(
-                        width: 28,
-                        height: 28,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Loading page $page...',
-                        style: const TextStyle(
-                          color: Colors.white38,
-                          fontSize: 12,
-                        ),
-                      ),
+                      Text('$currentPage',
+                          style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: _kText)),
+                      const Text('of 604',
+                          style: TextStyle(
+                              fontSize: 11, color: _kTextSub)),
                     ],
                   ),
                 ),
-                errorWidget: (context, url, error) => Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.wifi_off_rounded, color: Colors.white24, size: 40),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Could not load page',
-                        style: TextStyle(color: Colors.white38, fontSize: 13),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Check your internet connection',
-                        style: TextStyle(color: Colors.white24, fontSize: 11),
-                      ),
-                    ],
-                  ),
+                // → Next
+                _NavBtn(
+                  icon: Icons.chevron_right_rounded,
+                  onTap: onPrev, // RTL: right arrow = lower page number
                 ),
-              ),
+              ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
 
-          // ── Bookmark badge ─────────────────────────────────────
-          if (isBookmarked)
-            Positioned(
-              top: 8,
-              right: 12,
-              child: Icon(
-                Icons.bookmark_rounded,
-                color: Colors.amber.withValues(alpha: 0.8),
-                size: 28,
-              ),
-            ),
-        ],
+class _NavBtn extends StatelessWidget {
+  const _NavBtn({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: onTap != null ? _kGoldMid : Colors.transparent,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon,
+            color: onTap != null ? _kGold : _kDivider, size: 28),
       ),
     );
   }

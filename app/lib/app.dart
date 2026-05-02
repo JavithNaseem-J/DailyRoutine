@@ -8,12 +8,31 @@ import 'features/sessions/sessions_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/stats/stats_screen.dart';
 import 'features/quran/quran_screen.dart';
+import 'features/quran/quran_home_screen.dart';
 import 'features/focus/focus_screen.dart';
 import 'features/auth/auth_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class DailyRoutineApp extends StatelessWidget {
+class DailyRoutineApp extends StatefulWidget {
   const DailyRoutineApp({super.key});
+
+  @override
+  State<DailyRoutineApp> createState() => _DailyRoutineAppState();
+}
+
+// NEW-BUG-004 fix: listen for session expiry and redirect to /auth
+class _DailyRoutineAppState extends State<DailyRoutineApp> {
+  @override
+  void initState() {
+    super.initState();
+    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      final event = data.event;
+      if (event == AuthChangeEvent.signedOut ||
+          (event == AuthChangeEvent.tokenRefreshed && data.session == null)) {
+        if (mounted) _router.go('/auth');
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +51,30 @@ class DailyRoutineApp extends StatelessWidget {
 
 final _router = GoRouter(
   initialLocation: '/home',
+  // NEW-BUG-003 fix: handle unknown routes with a friendly fallback screen
+  errorBuilder: (context, state) => Scaffold(
+    backgroundColor: AppColors.background,
+    body: Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.explore_off_outlined,
+              size: 64, color: AppColors.textSecondary),
+          const SizedBox(height: 16),
+          Text('Page not found',
+              style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => context.go('/home'),
+            child: const Text('Go Home'),
+          ),
+        ],
+      ),
+    ),
+  ),
   redirect: (context, state) {
     final session = Supabase.instance.client.auth.currentSession;
     final isAuthRoute = state.matchedLocation == '/auth';
@@ -80,7 +123,18 @@ final _router = GoRouter(
       builder: (context, state) => const SettingsScreen(),
     ),
     // Quran — full-screen, no bottom nav
-    GoRoute(path: '/quran', builder: (context, state) => const QuranScreen()),
+    GoRoute(
+      path: '/quran',
+      builder: (context, state) => const QuranHomeScreen(),
+    ),
+    GoRoute(
+      path: '/quran/reader',
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>?;
+        final page = extra?['page'] as int? ?? 1;
+        return QuranScreen(initialPage: page);
+      },
+    ),
     // Focus Mode — full-screen, no bottom nav
     GoRoute(
       path: '/focus',
@@ -130,51 +184,62 @@ class _AppShell extends StatelessWidget {
     final index = _tabIndex(context);
 
     return Scaffold(
-      body: child,
-      bottomNavigationBar: SafeArea(
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-          decoration: BoxDecoration(
-            color: AppColors.navBackground,
-            borderRadius: BorderRadius.circular(30),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
-                blurRadius: 15,
-                offset: const Offset(0, 8),
+      backgroundColor: AppColors.background,
+      extendBody: true,
+      body: Stack(
+        children: [
+          child,
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: SafeArea(
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                decoration: BoxDecoration(
+                  color: AppColors.navBackground,
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.2),
+                      blurRadius: 15,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildNavItem(
+                        0,
+                        Icons.home_outlined,
+                        Icons.home,
+                        index,
+                        context,
+                      ),
+                      _buildNavItem(
+                        1,
+                        Icons.access_time_outlined,
+                        Icons.access_time_filled,
+                        index,
+                        context,
+                      ),
+                      _buildNavItem(
+                        2,
+                        Icons.bar_chart_outlined,
+                        Icons.bar_chart,
+                        index,
+                        context,
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNavItem(
-                  0,
-                  Icons.home_outlined,
-                  Icons.home,
-                  index,
-                  context,
-                ),
-                _buildNavItem(
-                  1,
-                  Icons.access_time_outlined,
-                  Icons.access_time_filled,
-                  index,
-                  context,
-                ),
-                _buildNavItem(
-                  2,
-                  Icons.bar_chart_outlined,
-                  Icons.bar_chart,
-                  index,
-                  context,
-                ),
-              ],
             ),
           ),
-        ),
+        ],
       ),
     );
   }

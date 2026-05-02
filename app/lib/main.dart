@@ -1,4 +1,3 @@
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,15 +14,43 @@ import 'app.dart';
 late SharedPreferences sharedPrefs;
 late String deviceId;
 
+// NEW-BUG-007 fix: fail fast with a clear message if secrets are not injected.
+// Build with: flutter run --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=... --dart-define=SENTRY_DSN=...
+const _supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+const _supabaseKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+const _sentryDsn = String.fromEnvironment('SENTRY_DSN');
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Load environment variables based on Build configuration
-  const envFile = String.fromEnvironment('ENV', defaultValue: '.env.dev');
-  await dotenv.load(fileName: envFile);
 
-  final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
-  final supabaseKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+  // NEW-BUG-007: gracefully handle missing secrets instead of a blank white screen
+  if (_supabaseUrl.isEmpty || _supabaseKey.isEmpty) {
+    runApp(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          backgroundColor: Colors.white,
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Text(
+                'Missing Supabase Configuration.\n\n'
+                'You must inject secrets at build time using:\n\n'
+                'flutter run --dart-define=SUPABASE_URL=<url> --dart-define=SUPABASE_ANON_KEY=<key>',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.red,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    return;
+  }
 
   // ── Lock to portrait ───────────────────────────────────────────────
   await SystemChrome.setPreferredOrientations([
@@ -40,7 +67,7 @@ Future<void> main() async {
   );
 
   // ── Supabase ───────────────────────────────────────────────────────
-  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseKey);
+  await Supabase.initialize(url: _supabaseUrl, anonKey: _supabaseKey);
 
   sharedPrefs = await SharedPreferences.getInstance();
   
@@ -60,17 +87,19 @@ Future<void> main() async {
   await notificationService.init();
   final sessionReminders = sharedPrefs.getBool('sessionReminders') ?? true;
   final prayerAlerts = sharedPrefs.getBool('prayerAlerts') ?? true;
+  final disabledSessions = sharedPrefs.getStringList('disabledSessions') ?? [];
   
   notificationService
       .scheduleSessionNotifications(
         sessionRemindersEnabled: sessionReminders,
         prayerAlertsEnabled: prayerAlerts,
+        disabledSessionIds: disabledSessions.toSet(),
       )
       .catchError((_) {});
 
   await SentryFlutter.init(
     (options) {
-      options.dsn = dotenv.env['SENTRY_DSN'] ?? '';
+      options.dsn = _sentryDsn;
       options.tracesSampleRate = 1.0;
     },
     appRunner: () => runApp(

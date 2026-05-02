@@ -27,9 +27,19 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            // Configured for CI/CD. Falls back to local variables for local builds.
+            storeFile = file("yawmi-release.jks")
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "yawmi123"
+            keyAlias = System.getenv("KEY_ALIAS") ?: "yawmi"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: "yawmi123"
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

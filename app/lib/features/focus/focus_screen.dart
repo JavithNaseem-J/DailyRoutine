@@ -32,19 +32,26 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
   String? _currentAmbient;
   String? _selectedProject;
 
+  // Removed: #Code, #Quran, #Build
   final List<String> _projectTags = [
-    '#Code',
-    '#Quran',
-    '#Build',
-    '#Study',
-    '#Work',
-    '#Reflect'
+    'Study',
+    'Work',
+    'Reflect',
+    'Deep Work',
+    'Review',
   ];
 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
   final AudioPlayer _audioPlayer = AudioPlayer();
   final AudioPlayer _ambientPlayer = AudioPlayer();
+
+  // ── Working ambient sound URLs ─────────────────────────────────────────────
+  static const _sounds = {
+    'rain':  'sounds/rain.wav',
+    'noise': 'sounds/noise.wav',
+    'cafe':  'sounds/cafe.wav',
+  };
 
   @override
   void initState() {
@@ -71,15 +78,16 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
     super.dispose();
   }
 
-  void _toggleAmbient(String id, String url) async {
+  void _toggleAmbient(String id) async {
     HapticFeedback.lightImpact();
     if (_currentAmbient == id) {
-      await _ambientPlayer.pause();
+      await _ambientPlayer.stop();
       setState(() => _currentAmbient = null);
     } else {
       setState(() => _currentAmbient = id);
       try {
-        await _ambientPlayer.play(UrlSource(url), volume: 0.5);
+        await _ambientPlayer.stop();
+        await _ambientPlayer.play(AssetSource(_sounds[id]!), volume: 0.5);
       } catch (_) {}
     }
   }
@@ -95,20 +103,15 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
       setState(() => _isRunning = true);
       _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
         if (_remainingSeconds > 0) {
-          setState(() {
-            _remainingSeconds--;
-          });
+          setState(() => _remainingSeconds--);
         } else {
           _timer?.cancel();
           _pulseController.stop();
           setState(() => _isRunning = false);
           HapticFeedback.heavyImpact();
-          // Timer finished
           _audioPlayer.play(
-            UrlSource(
-              'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3',
-            ),
-          );
+            AssetSource('sounds/timer_done.wav'),
+          ).catchError((_) {});
           ref
               .read(sessionsProvider.notifier)
               .addFocusMinutes(_totalSeconds ~/ 60, tag: _selectedProject);
@@ -134,7 +137,9 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
 
   @override
   Widget build(BuildContext context) {
-    final progress = 1 - (_remainingSeconds / _totalSeconds);
+    final progress = _totalSeconds > 0
+        ? 1 - (_remainingSeconds / _totalSeconds)
+        : 0.0;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -149,233 +154,244 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
           },
         ),
       ),
+      // ── Wrap entire body in SingleChildScrollView to fix cut-off ──
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'F O C U S   M O D E',
-                style: AppTypography.mono(
-                  size: 14,
-                  weight: FontWeight.w600,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                widget.taskTitle,
-                textAlign: TextAlign.center,
-                style: AppTypography.screenTitle(color: AppColors.textPrimary),
-              ),
-              const SizedBox(height: 24),
-              
-              // Project Tag Selector
-              SizedBox(
-                height: 36,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  shrinkWrap: true,
-                  itemCount: _projectTags.length,
-                  separatorBuilder: (context, _) => const SizedBox(width: 8),
-                  itemBuilder: (context, index) {
-                    final tag = _projectTags[index];
-                    final isSelected = _selectedProject == tag;
-                    return GestureDetector(
-                      onTap: () {
-                        if (!_isRunning) {
-                          HapticFeedback.selectionClick();
-                          setState(() {
-                            _selectedProject = isSelected ? null : tag;
-                          });
-                        }
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppColors.complete
-                              : AppColors.surfaceRaised,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: isSelected ? AppColors.complete : AppColors.border,
-                          ),
-                        ),
-                        child: Text(
-                          tag,
-                          style: AppTypography.body(
-                            size: 13,
-                            weight: isSelected ? FontWeight.bold : FontWeight.w500,
-                            color: isSelected ? Colors.white : AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 48),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              // BUG-013 fix: use kToolbarHeight constant instead of constructing a throwaway AppBar
+              minHeight: MediaQuery.of(context).size.height -
+                  kToolbarHeight -
+                  MediaQuery.of(context).padding.top -
+                  MediaQuery.of(context).padding.bottom,
+            ),
+            child: IntrinsicHeight(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 16),
+                  Text(
+                    'F O C U S   M O D E',
+                    style: AppTypography.mono(
+                      size: 14,
+                      weight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    widget.taskTitle,
+                    textAlign: TextAlign.center,
+                    style: AppTypography.screenTitle(color: AppColors.textPrimary),
+                  ),
+                  const SizedBox(height: 20),
 
-              // Timer Circle
-              GestureDetector(
-                onTap: _toggleTimer,
-                child: AnimatedBuilder(
-                  animation: _pulseAnimation,
-                  builder: (context, child) {
-                    return Transform.scale(
-                      scale: _isRunning ? _pulseAnimation.value : 1.0,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          // Background Ring
-                          SizedBox(
-                            width: 280,
-                            height: 280,
-                            child: CircularProgressIndicator(
-                              value: 1.0,
-                              strokeWidth: 8,
-                              valueColor: AlwaysStoppedAnimation(
-                                AppColors.surfaceRaised,
-                              ),
-                            ),
-                          ),
-                          // Progress Ring
-                          SizedBox(
-                            width: 280,
-                            height: 280,
-                            child: CircularProgressIndicator(
-                              value: progress,
-                              strokeWidth: 8,
-                              strokeCap: StrokeCap.round,
-                              valueColor: AlwaysStoppedAnimation(
-                                _isRunning
+                  // ── Project Tag Selector — fixed layout ────────────────
+                  SizedBox(
+                    height: 38,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      shrinkWrap: true,
+                      padding: EdgeInsets.zero,
+                      itemCount: _projectTags.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      itemBuilder: (context, index) {
+                        final tag = _projectTags[index];
+                        final isSelected = _selectedProject == tag;
+                        return GestureDetector(
+                          onTap: () {
+                            if (!_isRunning) {
+                              HapticFeedback.selectionClick();
+                              setState(() {
+                                _selectedProject = isSelected ? null : tag;
+                              });
+                            }
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AppColors.complete
+                                  : AppColors.surfaceRaised,
+                              borderRadius: BorderRadius.circular(19),
+                              border: Border.all(
+                                color: isSelected
                                     ? AppColors.complete
-                                    : AppColors.afternoon,
+                                    : AppColors.border,
+                              ),
+                            ),
+                            child: Text(
+                              tag,
+                              style: AppTypography.body(
+                                size: 13,
+                                weight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.w500,
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.textPrimary,
                               ),
                             ),
                           ),
-                          // Time Text
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+
+                  // ── Timer Circle ────────────────────────────────────────
+                  GestureDetector(
+                    onTap: _toggleTimer,
+                    child: AnimatedBuilder(
+                      animation: _pulseAnimation,
+                      builder: (context, child) {
+                        return Transform.scale(
+                          scale: _isRunning ? _pulseAnimation.value : 1.0,
+                          child: Stack(
+                            alignment: Alignment.center,
                             children: [
-                              Text(
-                                _timeString,
-                                style: AppTypography.mono(
-                                  size: 64,
-                                  weight: FontWeight.w300,
-                                  color: AppColors.textPrimary,
+                              SizedBox(
+                                width: 260,
+                                height: 260,
+                                child: CircularProgressIndicator(
+                                  value: 1.0,
+                                  strokeWidth: 8,
+                                  valueColor: AlwaysStoppedAnimation(
+                                    AppColors.surfaceRaised,
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 8),
-                              Icon(
-                                _isRunning
-                                    ? Icons.pause_circle_outline
-                                    : Icons.play_circle_outline,
-                                color: AppColors.textSecondary,
-                                size: 32,
+                              SizedBox(
+                                width: 260,
+                                height: 260,
+                                child: CircularProgressIndicator(
+                                  value: progress.toDouble(),
+                                  strokeWidth: 8,
+                                  strokeCap: StrokeCap.round,
+                                  valueColor: AlwaysStoppedAnimation(
+                                    _isRunning
+                                        ? AppColors.complete
+                                        : AppColors.afternoon,
+                                  ),
+                                ),
+                              ),
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    _timeString,
+                                    style: AppTypography.mono(
+                                      size: 58,
+                                      weight: FontWeight.w300,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Icon(
+                                    _isRunning
+                                        ? Icons.pause_circle_outline
+                                        : Icons.play_circle_outline,
+                                    color: AppColors.textSecondary,
+                                    size: 30,
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                        ],
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 48),
+
+                  // ── Duration Toggles ────────────────────────────────────
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _DurationToggle(
+                        label: '15M',
+                        isSelected: _totalSeconds == 15 * 60,
+                        onTap: () => _changeDuration(15),
                       ),
-                    );
-                  },
-                ),
-              ),
+                      const SizedBox(width: 12),
+                      _DurationToggle(
+                        label: '25M',
+                        isSelected: _totalSeconds == 25 * 60,
+                        onTap: () => _changeDuration(25),
+                      ),
+                      const SizedBox(width: 12),
+                      _DurationToggle(
+                        label: '1H',
+                        isSelected: _totalSeconds == 60 * 60,
+                        onTap: () => _changeDuration(60),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
 
-              const SizedBox(height: 80),
+                  // ── Ambient Sounds ──────────────────────────────────────
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _AmbientToggle(
+                        icon: Icons.water_drop,
+                        label: 'Rain',
+                        isSelected: _currentAmbient == 'rain',
+                        onTap: () => _toggleAmbient('rain'),
+                      ),
+                      const SizedBox(width: 12),
+                      _AmbientToggle(
+                        icon: Icons.waves,
+                        label: 'Noise',
+                        isSelected: _currentAmbient == 'noise',
+                        onTap: () => _toggleAmbient('noise'),
+                      ),
+                      const SizedBox(width: 12),
+                      _AmbientToggle(
+                        icon: Icons.coffee,
+                        label: 'Cafe',
+                        isSelected: _currentAmbient == 'cafe',
+                        onTap: () => _toggleAmbient('cafe'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
 
-              // Bottom Controls
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _DurationToggle(
-                    duration: 15,
-                    isSelected: _totalSeconds == 15 * 60,
-                    onTap: () => _changeDuration(15),
+                  // ── Reset ───────────────────────────────────────────────
+                  CupertinoButton(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 40,
+                      vertical: 12,
+                    ),
+                    color: AppColors.surfaceRaised,
+                    borderRadius: BorderRadius.circular(30),
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      setState(() {
+                        _timer?.cancel();
+                        _isRunning = false;
+                        _remainingSeconds = _totalSeconds;
+                        _pulseController.stop();
+                        _currentAmbient = null;
+                        _ambientPlayer.stop();
+                      });
+                    },
+                    child: Text(
+                      'Reset',
+                      style: AppTypography.body(
+                        size: 16,
+                        weight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
                   ),
-                  const SizedBox(width: 12),
-                  _DurationToggle(
-                    duration: 25,
-                    isSelected: _totalSeconds == 25 * 60,
-                    onTap: () => _changeDuration(25),
-                  ),
-                  const SizedBox(width: 12),
-                  _DurationToggle(
-                    duration: 60,
-                    isSelected: _totalSeconds == 60 * 60,
-                    onTap: () => _changeDuration(60),
-                  ),
+                  const SizedBox(height: 24),
                 ],
               ),
-              const SizedBox(height: 24),
-              // Ambient Sounds
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _AmbientToggle(
-                    icon: Icons.water_drop,
-                    label: "Rain",
-                    isSelected: _currentAmbient == "rain",
-                    onTap: () => _toggleAmbient(
-                      "rain",
-                      "https://actions.google.com/sounds/v1/water/rain_on_roof.ogg",
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  _AmbientToggle(
-                    icon: Icons.waves,
-                    label: "Noise",
-                    isSelected: _currentAmbient == "noise",
-                    onTap: () => _toggleAmbient(
-                      "noise",
-                      "https://actions.google.com/sounds/v1/water/waves_crashing_on_rock_beach.ogg",
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  _AmbientToggle(
-                    icon: Icons.coffee,
-                    label: "Cafe",
-                    isSelected: _currentAmbient == "cafe",
-                    onTap: () => _toggleAmbient(
-                      "cafe",
-                      "https://actions.google.com/sounds/v1/crowds/cafe_restaurant_medium_crowd.ogg",
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-              CupertinoButton(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 12,
-                ),
-                color: AppColors.surfaceRaised,
-                borderRadius: BorderRadius.circular(30),
-                onPressed: () {
-                  HapticFeedback.lightImpact();
-                  setState(() {
-                    _timer?.cancel();
-                    _isRunning = false;
-                    _remainingSeconds = _totalSeconds;
-                    _pulseController.stop();
-                    _currentAmbient = null;
-                    _ambientPlayer.stop();
-                  });
-                },
-                child: Text(
-                  'Reset',
-                  style: AppTypography.body(
-                    size: 16,
-                    weight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -385,12 +401,12 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
 
 class _DurationToggle extends StatelessWidget {
   const _DurationToggle({
-    required this.duration,
+    required this.label,
     required this.isSelected,
     required this.onTap,
   });
 
-  final int duration;
+  final String label;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -400,15 +416,13 @@ class _DurationToggle extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.complete
-              : AppColors.surfaceRaised,
+          color: isSelected ? AppColors.complete : AppColors.surfaceRaised,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
-          '$duration m',
+          label,
           style: AppTypography.body(
             size: 14,
             weight: isSelected ? FontWeight.bold : FontWeight.w500,

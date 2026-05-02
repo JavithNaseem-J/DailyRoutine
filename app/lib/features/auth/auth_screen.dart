@@ -30,6 +30,23 @@ class _AuthScreenState extends State<AuthScreen> {
     final password = _password.text.trim();
     if (email.isEmpty || password.isEmpty) return;
 
+    // BUG-010 fix: validate email format before network call
+    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+    if (!emailRegex.hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid email address.')),
+      );
+      return;
+    }
+
+    // BUG-011 fix: validate minimum password length (Supabase requires >= 6)
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password must be at least 6 characters.')),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
       if (_isSignUp) {

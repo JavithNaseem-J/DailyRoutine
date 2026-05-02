@@ -12,8 +12,8 @@ import '../../core/services/notification_service.dart';
 import '../../core/services/streak_service.dart';
 import '../../core/services/supabase_service.dart';
 import '../../core/theme/app_colors.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_typography.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../main.dart' show deviceId, sharedPrefs;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -521,8 +521,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     GestureDetector(
                       onTap: () async {
                         final uri = Uri.parse('https://javithnaseem.netlify.app');
-                        if (await canLaunchUrl(uri)) {
+                        try {
                           await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        } catch (_) {
+                          try {
+                            await launchUrl(uri, mode: LaunchMode.platformDefault);
+                          } catch (_) {}
                         }
                       },
                       child: Container(

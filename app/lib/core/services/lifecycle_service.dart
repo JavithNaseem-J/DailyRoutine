@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/date_service.dart';
 import '../services/hive_service.dart';
-import '../services/supabase_service.dart';
-import '../../main.dart' show deviceId, sharedPrefs;
+import '../../main.dart' show sharedPrefs;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LifecycleService — handles midnight date rollover

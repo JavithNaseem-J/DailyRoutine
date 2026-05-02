@@ -1,12 +1,10 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import '../../core/constants/session_data.dart';
 import '../../core/models/session.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
-import '../../core/utils/day_checker.dart';
 import 'providers/sessions_provider.dart';
 
 class AddTaskSheet extends ConsumerStatefulWidget {
@@ -40,8 +38,8 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
     _titleController.text = widget.existingTask?.title ?? '';
     _selectedSession = widget.defaultSession;
     _availableSessions = SessionData.sessionsForToday(
-      isFriday: DayChecker.isFriday(),
-      isSunday: DayChecker.isSunday(),
+      isFriday: DateTime.now().weekday == DateTime.friday,
+      isSunday: DateTime.now().weekday == DateTime.sunday,
     );
     // Ensure the default session is in the list
     if (!_availableSessions.any((s) => s.id == _selectedSession.id)) {
@@ -80,7 +78,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
 
   void _updateTimeBounds() {
     final range = _selectedSession.timeRange
-        .split('–')
+        .split(RegExp(r'\s*[-–—]\s*'))
         .map((s) => s.trim())
         .toList();
     if (range.length == 2) {
@@ -109,6 +107,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
 
   DateTime? _parseTimeStrToDate(String t) {
     t = t.toLowerCase();
+    if (t.replaceAll(' ', '') == 'allday' || t.isEmpty) return null;
     bool isPm = t.contains('pm');
     t = t.replaceAll('am', '').replaceAll('pm', '').trim();
     final parts = t.split(':');
@@ -131,9 +130,14 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
     final title = _titleController.text.trim();
     if (title.isEmpty) return;
 
-    final formattedTime = DateFormat(
-      'h:mma',
-    ).format(_selectedTime).toLowerCase();
+    final isPm = _selectedTime.hour >= 12;
+    final h = _selectedTime.hour == 0 
+        ? 12 
+        : _selectedTime.hour > 12 
+            ? _selectedTime.hour - 12 
+            : _selectedTime.hour;
+    final m = _selectedTime.minute.toString().padLeft(2, '0');
+    final formattedTime = '$h:$m${isPm ? "pm" : "am"}';
 
     if (widget.existingTask != null) {
       final updatedTask = Task(
@@ -275,7 +279,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                 .replaceAll('AM', ' AM')
                 .replaceAll('PM', ' PM')
                 .replaceAll('  ', ' ')
-                .replaceAll('–', '-'),
+                .replaceAll('â€“', '-'),
             style: AppTypography.mono(
               size: 12,
               weight: FontWeight.w600,
@@ -351,11 +355,118 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                             color: AppColors.cardSurface,
                             borderRadius: BorderRadius.circular(16),
                           ),
-                          child: CupertinoTimerPicker(
-                            mode: CupertinoTimerPickerMode.hm,
-                            initialTimerDuration: _selectedDuration,
-                            onTimerDurationChanged: (val) =>
-                                setState(() => _selectedDuration = val),
+                          child: CupertinoTheme(
+                            data: CupertinoTheme.of(context).copyWith(
+                              textTheme: CupertinoTextThemeData(
+                                dateTimePickerTextStyle: AppTypography.body(
+                                  size: 18,
+                                  weight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ),
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Expanded(
+                                      child: CupertinoPicker(
+                                        itemExtent: 32,
+                                        scrollController: FixedExtentScrollController(
+                                          initialItem: _selectedDuration.inHours,
+                                        ),
+                                        selectionOverlay: const CupertinoPickerDefaultSelectionOverlay(
+                                          background: CupertinoColors.tertiarySystemFill,
+                                        ),
+                                        onSelectedItemChanged: (i) {
+                                          setState(() {
+                                            _selectedDuration = Duration(
+                                                hours: i,
+                                                minutes: _selectedDuration.inMinutes % 60);
+                                          });
+                                        },
+                                        children: List.generate(
+                                            24,
+                                            (i) => Center(
+                                                    child: Padding(
+                                                      padding: const EdgeInsets.only(right: 20),
+                                                      child: Text(
+                                                                                                    '$i',
+                                                                                                    style: AppTypography.body(
+                                                                                                      size: 18,
+                                                                                                      weight: FontWeight.w600,
+                                                                                                      color: AppColors.textPrimary,
+                                                                                                    ),
+                                                                                                  ),
+                                                    ))),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: CupertinoPicker(
+                                        itemExtent: 32,
+                                        scrollController: FixedExtentScrollController(
+                                          initialItem:
+                                              (_selectedDuration.inMinutes % 60) ~/ 5,
+                                        ),
+                                        selectionOverlay: const CupertinoPickerDefaultSelectionOverlay(
+                                          background: CupertinoColors.tertiarySystemFill,
+                                        ),
+                                        onSelectedItemChanged: (i) {
+                                          setState(() {
+                                            _selectedDuration = Duration(
+                                                hours: _selectedDuration.inHours,
+                                                minutes: i * 5);
+                                          });
+                                        },
+                                        children: List.generate(
+                                            12,
+                                            (i) => Center(
+                                                    child: Padding(
+                                                      padding: const EdgeInsets.only(right: 20),
+                                                      child: Text(
+                                                                                                    '${i * 5}',
+                                                                                                    style: AppTypography.body(
+                                                                                                      size: 18,
+                                                                                                      weight: FontWeight.w600,
+                                                                                                      color: AppColors.textPrimary,
+                                                                                                    ),
+                                                                                                  ),
+                                                    ))),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                // Static Labels
+                                Positioned(
+                                  left: 0,
+                                  right: 0,
+                                  child: IgnorePointer(
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Center(
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(left: 24),
+                                              child: Text('H', style: AppTypography.body(size: 18, weight: FontWeight.w600)),
+                                            ),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Center(
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(left: 30),
+                                              child: Text('M', style: AppTypography.body(size: 18, weight: FontWeight.w600)),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -396,3 +507,10 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
     );
   }
 }
+
+
+
+
+
+
+

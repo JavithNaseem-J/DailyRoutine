@@ -1,5 +1,3 @@
-import 'package:intl/intl.dart';
-
 /// DateService — handles date keys, midnight detection, and day formatting.
 ///
 /// Date keys: "YYYY-MM-DD" strings used as Hive box keys and Supabase dates.
@@ -8,17 +6,20 @@ class DateService {
   factory DateService() => _instance;
   DateService._();
 
-  final _fmt = DateFormat('yyyy-MM-dd');
-
   /// Returns today's date key e.g. "2026-04-12"
-  String todayKey() => _fmt.format(DateTime.now());
+  String todayKey() => keyFor(DateTime.now());
 
   /// Returns a date key for any [date]
-  String keyFor(DateTime date) => _fmt.format(date);
+  String keyFor(DateTime date) {
+    final y = date.year.toString().padLeft(4, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
 
   /// Returns yesterday's date key
   String yesterdayKey() =>
-      _fmt.format(DateTime.now().subtract(const Duration(days: 1)));
+      keyFor(DateTime.now().subtract(const Duration(days: 1)));
 
   /// True if the stored date key differs from today → day has changed.
   bool hasNewDayStarted(String storedKey) => storedKey != todayKey();
@@ -49,10 +50,11 @@ class DateService {
     final todayIndex = todayWeekday == 7 ? 0 : todayWeekday;
     final labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-    return List.generate(7, (i) {
+    return List.generate(28, (i) {
       final diff = i - todayIndex;
       final d = now.add(Duration(days: diff));
-      return (dateNum: d.day, abbr: labels[i], isToday: diff == 0, date: d);
+      final dayIndex = d.weekday == 7 ? 0 : d.weekday;
+      return (dateNum: d.day, abbr: labels[dayIndex], isToday: diff == 0, date: d);
     });
   }
 }

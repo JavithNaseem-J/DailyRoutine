@@ -1,7 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/daily_state.dart';
 import '../models/quick_task.dart';
-import '../models/todays_focus.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SupabaseService — remote persistence
@@ -18,7 +17,7 @@ class SupabaseService {
 
   SupabaseClient get _db => Supabase.instance.client;
 
-  // ── DailyState ─────────────────────────────────────────────────────
+  // ── DailyState ─────────────────────────────────────────────────────────────
 
   Future<void> upsertDailyState(DailyState state, String deviceId) async {
     await _db.from('daily_state').upsert({
@@ -27,6 +26,9 @@ class SupabaseService {
       'task_states': state.taskStates,
       'bonus_states': state.bonusStates,
       if (state.mood != null) 'mood': state.mood,
+      'focus_minutes': state.focusMinutes,
+      'project_minutes': state.projectMinutes,
+      'prayer_states': state.prayerStates,
     }, onConflict: 'device_id, date');
   }
 
@@ -46,41 +48,17 @@ class SupabaseService {
         taskStates: _castBoolMap(res['task_states']),
         bonusStates: _castBoolMap(res['bonus_states']),
         mood: res['mood'] as String?,
+        focusMinutes: res['focus_minutes'] as int? ?? 0,
+        projectMinutes: (res['project_minutes'] as Map<String, dynamic>? ?? {})
+            .map((k, v) => MapEntry(k, (v as num).toInt())),
+        prayerStates: _castBoolMap(res['prayer_states']),
       );
     } catch (_) {
       return null;
     }
   }
 
-  // ── TodaysFocus ────────────────────────────────────────────────────
-
-  Future<void> upsertTodaysFocus(TodaysFocus focus, String deviceId) async {
-    await _db.from('todays_focus').upsert({
-      'device_id': deviceId,
-      'date': focus.date,
-      'session1': focus.session1,
-      'session2': focus.session2,
-      'session3': focus.session3,
-    }, onConflict: 'device_id, date');
-  }
-
-  Future<TodaysFocus?> fetchTodaysFocus(String dateKey, String deviceId) async {
-    try {
-      final res = await _db
-          .from('todays_focus')
-          .select()
-          .eq('device_id', deviceId)
-          .eq('date', dateKey)
-          .maybeSingle();
-
-      if (res == null) return null;
-      return TodaysFocus.fromJson(Map<String, dynamic>.from(res));
-    } catch (_) {
-      return null;
-    }
-  }
-
-  // ── QuickTasks ─────────────────────────────────────────────────────
+  // ── QuickTasks ─────────────────────────────────────────────────────────────
 
   Future<void> upsertQuickTask(QuickTask task, String deviceId) async {
     await _db.from('quick_tasks').upsert({
@@ -91,6 +69,8 @@ class SupabaseService {
       if (task.time != null) 'time': task.time,
       'done': task.done,
       'archived': task.archived,
+      'is_urgent': task.isUrgent,
+      'is_important': task.isImportant,
     });
   }
 
@@ -127,7 +107,7 @@ class SupabaseService {
         .eq('date', oldDateKey);
   }
 
-  // ── StatsHistory ───────────────────────────────────────────────────
+  // ── StatsHistory ───────────────────────────────────────────────────────────
 
   Future<void> upsertStatsHistory(
     String dateKey,
@@ -176,36 +156,14 @@ class SupabaseService {
     }
   }
 
-  // ── Heatmap ────────────────────────────────────────────────────────
+  // ── Helper ─────────────────────────────────────────────────────────────────
 
-  Future<void> upsertHeatmap(String dateKey, int value, String deviceId) async {
-    await _db.from('heatmap').upsert({
-      'device_id': deviceId,
-      'date': dateKey,
-      'value': value,
-    }, onConflict: 'device_id, date');
-  }
-
-  Future<List<Map<String, dynamic>>> fetchHeatmap(String deviceId) async {
-    try {
-      final from = DateTime.now().subtract(const Duration(days: 28));
-      final res = await _db
-          .from('heatmap')
-          .select('date, value')
-          .eq('device_id', deviceId)
-          .gte('date', from.toIso8601String().split('T').first)
-          .order('date');
-      return List<Map<String, dynamic>>.from(res);
-    } catch (_) {
-      return [];
-    }
-  }
-
-  // ── Helper ─────────────────────────────────────────────────────────
-
+  // BUG-018 fix: safe cast handles both bool and int (0/1) from Postgres
   Map<String, bool> _castBoolMap(dynamic raw) {
     if (raw == null) return {};
-    return (raw as Map).map((k, v) => MapEntry(k.toString(), v as bool));
+    return (raw as Map).map(
+      (k, v) => MapEntry(k.toString(), v == true || v == 1),
+    );
   }
 }
 

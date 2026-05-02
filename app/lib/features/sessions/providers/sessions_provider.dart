@@ -8,12 +8,11 @@ import '../../../core/services/date_service.dart';
 import '../../../core/services/hive_service.dart';
 import '../../../core/services/streak_service.dart';
 import '../../../core/services/supabase_service.dart';
-import '../../../core/utils/day_checker.dart';
 import '../../../main.dart' show deviceId;
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // SessionsState
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class SessionsState {
   const SessionsState({
@@ -32,7 +31,9 @@ class SessionsState {
   bool isTaskDone(String taskId) => dailyState.taskStates[taskId] ?? false;
   bool isBonusDone(String taskId) => dailyState.bonusStates[taskId] ?? false;
 
+  // BUG-014 fix: guard against empty sessions list before calling .first
   SessionPillState pillState(String sessionId) {
+    if (sessions.isEmpty) return SessionPillState.empty;
     final session = sessions.firstWhere(
       (s) => s.id == sessionId,
       orElse: () => sessions.first,
@@ -55,10 +56,14 @@ class SessionsState {
     return ((doneCount / allIds.length) * 100).round();
   }
 
-  Session? get activeSession => sessions.firstWhere(
-    (s) => s.id == (activeSessionId ?? ''),
-    orElse: () => sessions.isNotEmpty ? sessions.first : sessions.first,
-  );
+  // BUG-002 fix: return null instead of crashing when sessions is empty
+  Session? get activeSession {
+    if (sessions.isEmpty) return null;
+    return sessions.firstWhere(
+      (s) => s.id == (activeSessionId ?? ''),
+      orElse: () => sessions.first,
+    );
+  }
 
   SessionsState copyWith({DailyState? dailyState, List<Session>? sessions}) =>
       SessionsState(
@@ -68,9 +73,9 @@ class SessionsState {
       );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SessionsNotifier  (Riverpod 3.x — state is AsyncValue<SessionsState>)
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// SessionsNotifier  (Riverpod 3.x â€” state is AsyncValue<SessionsState>)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class SessionsNotifier extends AsyncNotifier<SessionsState> {
   String get _todayKey => dateService.todayKey();
@@ -78,8 +83,8 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
   @override
   Future<SessionsState> build() async {
     final defaultSessions = SessionData.sessionsForToday(
-      isFriday: DayChecker.isFriday(),
-      isSunday: DayChecker.isSunday(),
+      isFriday: DateTime.now().weekday == DateTime.friday,
+      isSunday: DateTime.now().weekday == DateTime.sunday,
     );
 
     // 1. Load from Hive instantly
@@ -142,7 +147,7 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     final now = TimeOfDay.now();
     final nowMin = now.hour * 60 + now.minute;
     for (final s in sessions) {
-      final range = s.timeRange.split('–').map((p) => p.trim()).toList();
+      final range = s.timeRange.split(RegExp(r'\s*[-–—]\s*')).map((p) => p.trim()).toList();
       if (range.length != 2) continue;
       if (nowMin >= _parseTime(range[0]) && nowMin < _parseTime(range[1])) {
         return s.id;
@@ -153,17 +158,18 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
 
   int _parseTime(String t) {
     t = t.toLowerCase().replaceAll(' ', '');
+    if (t == 'allday' || t.isEmpty) return 0;
     final isPm = t.contains('pm');
     t = t.replaceAll('pm', '').replaceAll('am', '');
     final p = t.split(':');
-    int h = int.parse(p[0]);
-    final m = p.length > 1 ? int.parse(p[1]) : 0;
+    int h = int.tryParse(p[0]) ?? 0;
+    final m = p.length > 1 ? int.tryParse(p[1]) ?? 0 : 0;
     if (isPm && h != 12) h += 12;
     if (!isPm && h == 12) h = 0;
     return h * 60 + m;
   }
 
-  // ── Toggle task ────────────────────────────────────────────────────
+  // â”€â”€ Toggle task â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> toggleTask(String taskId) async {
     final current = state.value;
@@ -202,7 +208,7 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
         allIds.every((id) => daily.taskStates[id] == true);
   }
 
-  // ── Toggle bonus ───────────────────────────────────────────────────
+  // â”€â”€ Toggle bonus â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> toggleBonus(String taskId) async {
     final current = state.value;
@@ -220,7 +226,7 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     supabaseService.upsertDailyState(newDaily, deviceId).catchError((_) {});
   }
 
-  // ── Toggle prayer ──────────────────────────────────────────────────
+  // â”€â”€ Toggle prayer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> togglePrayer(String prayerName) async {
     final current = state.value;
@@ -239,26 +245,21 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     supabaseService.upsertDailyState(newDaily, deviceId).catchError((_) {});
   }
 
-  // ── Set mood ───────────────────────────────────────────────────────
+  // â”€â”€ Set mood â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+  // BUG-005 fix: use copyWith so prayerStates and all fields are preserved
   Future<void> setMood(String mood) async {
     final current = state.value;
     if (current == null) return;
 
-    final newDaily = DailyState(
-      date: current.dailyState.date,
-      taskStates: current.dailyState.taskStates,
-      bonusStates: current.dailyState.bonusStates,
-      mood: mood,
-      focusMinutes: current.dailyState.focusMinutes,
-    );
+    final newDaily = current.dailyState.copyWith(mood: mood);
 
     state = AsyncData(current.copyWith(dailyState: newDaily));
     await hiveService.writeDailyState(newDaily);
     supabaseService.upsertDailyState(newDaily, deviceId).catchError((_) {});
   }
 
-  // ── Focus Tracking ─────────────────────────────────────────────────
+  // â”€â”€ Focus Tracking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> addFocusMinutes(int minutes, {String? tag}) async {
     final current = state.value;
@@ -281,7 +282,7 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     supabaseService.upsertDailyState(newDaily, deviceId).catchError((_) {});
   }
 
-  // ── Custom Tasks ───────────────────────────────────────────────────
+  // â”€â”€ Custom Tasks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> addCustomTask(Task task) async {
     final currentTasks = hiveService.readCustomTasks();
@@ -403,9 +404,9 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Providers
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 final sessionsProvider = AsyncNotifierProvider<SessionsNotifier, SessionsState>(
   SessionsNotifier.new,
@@ -418,3 +419,9 @@ final completionPctProvider = Provider<int>((ref) {
 final activeSessionProvider = Provider<Session?>((ref) {
   return ref.watch(sessionsProvider).value?.activeSession;
 });
+
+
+
+
+
+
