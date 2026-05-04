@@ -47,6 +47,3 @@ app.*.map.json
 
 # Extra implementation and fix scripts
 *.py
-*.dart
-!lib/
-!test/
