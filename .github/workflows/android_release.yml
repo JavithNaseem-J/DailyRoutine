@@ -37,17 +37,41 @@ jobs:
           echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env.prod
           echo "SENTRY_DSN=${{ secrets.SENTRY_DSN }}" >> .env.prod
 
+      - name: Decode Keystore
+        working-directory: ./app
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d -i > android/app/yawmi-release.jks
+          ls -la android/app/yawmi-release.jks
+
       - name: Install Dependencies
         working-directory: ./app
         run: flutter pub get
 
       - name: Build Android App Bundle (AAB for Play Store)
         working-directory: ./app
-        run: flutter build appbundle --release --dart-define=ENV=.env.prod
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          flutter build appbundle --release \
+            --dart-define=SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
+            --dart-define=SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}" \
+            --dart-define=SENTRY_DSN="${{ secrets.SENTRY_DSN }}"
 
       - name: Build Android APK (For testing)
         working-directory: ./app
-        run: flutter build apk --release --dart-define=ENV=.env.prod
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          flutter build apk --release \
+            --dart-define=SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
+            --dart-define=SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}" \
+            --dart-define=SENTRY_DSN="${{ secrets.SENTRY_DSN }}"
 
       - name: Rename output files to yawmi
         working-directory: ./app

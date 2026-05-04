@@ -49,5 +49,4 @@ flutter:
   assets:
     # Secrets must NOT be bundled — use --dart-define at build time.
     - assets/images/app_icon.png
-    - assets/quran_pages/
     - assets/sounds/
