@@ -68,17 +68,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Map<String, String> _plannedEvents = {};
 
   // In Progress board (replaces Today's Focus)
-  List<ProgressItem> _progressItems = [];
+  List<ProgressItem> _progressItems = [ProgressItem(name: 'Current Focus')];
   Timer? _progressDebounce;
 
   // Task Board
   List<QuickTask> _quickTasks = [];
 
-  // Water + Walk (no outer header)
-  int _waterMl = 0;
-  int _walkM = 0;
-  static const int _waterTarget = 4000; // ml
-  static const int _walkTarget = 4000; // m
 
   @override
   void initState() {
@@ -92,7 +87,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _loadPlannedEvents();
     _loadProgressItems();
     _loadQuickTasks();
-    _loadGoals();
+
     _prayerTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) {
         setState(
@@ -335,7 +330,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final raw = sharedPrefs.getString(
       'progress_items_${dateService.todayKey()}',
     );
-    if (raw == null) return;
+    if (raw == null) {
+      setState(() {
+        if (_progressItems.isEmpty) {
+          _progressItems = [ProgressItem(name: 'Current Focus')];
+        }
+      });
+      return;
+    }
     try {
       final list = jsonDecode(raw) as List;
       setState(() {
@@ -344,6 +346,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               (e) => ProgressItem.fromJson(Map<String, dynamic>.from(e as Map)),
             )
             .toList();
+        if (_progressItems.isEmpty) {
+          _progressItems = [ProgressItem(name: 'Current Focus')];
+        }
       });
     } catch (_) {}
   }
@@ -378,7 +383,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _deleteProgressItem(int i) {
-    setState(() => _progressItems = [..._progressItems]..removeAt(i));
+    setState(() {
+      _progressItems = [..._progressItems]..removeAt(i);
+      if (_progressItems.isEmpty) {
+        _progressItems.add(ProgressItem(name: 'Current Focus'));
+      }
+    });
     _saveProgressItems();
   }
 
@@ -449,25 +459,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Goals ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
-  void _loadGoals() {
-    final today = dateService.todayKey();
-    setState(() {
-      _waterMl = sharedPrefs.getInt('goal_water_$today') ?? 0;
-      _walkM = sharedPrefs.getInt('goal_walk_$today') ?? 0;
-    });
-  }
-
-  void _updateWater(int delta) {
-    final v = (_waterMl + delta).clamp(0, _waterTarget);
-    setState(() => _waterMl = v);
-    sharedPrefs.setInt('goal_water_${dateService.todayKey()}', v);
-  }
-
-  void _updateWalk(int delta) {
-    final v = (_walkM + delta).clamp(0, _walkTarget);
-    setState(() => _walkM = v);
-    sharedPrefs.setInt('goal_walk_${dateService.todayKey()}', v);
-  }
 
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Greeting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ({String text, IconData icon}) _greetingData(int hour) {
@@ -587,7 +578,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 _QuranCard(
                   lastPage: sharedPrefs.getInt('quran_last_page') ?? 1,
                   onTap: () async {
-                    await context.push('/quran');
+                    final lastPage = sharedPrefs.getInt('quran_last_page') ?? 1;
+                    await context.push('/quran/reader', extra: {'page': lastPage});
+                    if (!mounted) return;
                     setState(() {});
                   },
                 ),
@@ -605,16 +598,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 SizedBox(height: 20),
 
                 // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Water + Walk (no header) ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
-                _WaterWalkRow(
-                  waterMl: _waterMl,
-                  waterTarget: _waterTarget,
-                  walkM: _walkM,
-                  walkTarget: _walkTarget,
-                  onWaterTap: _updateWater,
-                  onWalkTap: _updateWalk,
-                ),
 
-                SizedBox(height: 20),
 
                 // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Task Board ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
                 _TaskBoard(
@@ -897,14 +881,39 @@ class _PrayerCard extends ConsumerWidget {
     final prayerStates = ref.watch(sessionsProvider).value?.dailyState.prayerStates ?? {};
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+      width: double.infinity,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(14),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF232526), Color(0xFF111111)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF111111).withValues(alpha: 0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
+          Positioned(
+            right: -20,
+            bottom: -30,
+            child: Icon(
+              Icons.mosque_rounded,
+              size: 160,
+              color: Colors.white.withValues(alpha: 0.03),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
           // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ TOP: icon+label (top-left) + times (top-right) ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
           Column(
             children: [
@@ -1011,17 +1020,14 @@ class _PrayerCard extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: prayerList.map((p) {
               final isPast = p.time.isBefore(now);
-              final isNext = p.name == prayer.name;
               return Column(
                 children: [
                   Text(
                     p.name[0].toUpperCase() + p.name.substring(1),
                     style: AppTypography.label(
-                      color: isNext
+                      color: !isPast
                           ? AppColors.complete
-                          : isPast
-                          ? Colors.white24
-                          : Colors.white38,
+                          : Colors.white24,
                     ),
                   ),
                   SizedBox(height: 2),
@@ -1029,12 +1035,10 @@ class _PrayerCard extends ConsumerWidget {
                     _fmtShort(p.time),
                     style: AppTypography.mono(
                       size: 10,
-                      weight: isNext ? FontWeight.w700 : FontWeight.w400,
-                      color: isNext
+                      weight: !isPast ? FontWeight.w700 : FontWeight.w400,
+                      color: !isPast
                           ? Colors.white
-                          : isPast
-                          ? Colors.white24
-                          : Colors.white54,
+                          : Colors.white24,
                     ),
                   ),
                   SizedBox(height: 4),
@@ -1065,6 +1069,9 @@ class _PrayerCard extends ConsumerWidget {
                 ],
               );
             }).toList(),
+          ),
+        ],
+      ),
           ),
         ],
       ),
@@ -1591,247 +1598,11 @@ class _ProgressCardState extends State<_ProgressCard> {
 }
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-class _WaterWalkRow extends StatelessWidget {
-  const _WaterWalkRow({
-    required this.waterMl,
-    required this.waterTarget,
-    required this.walkM,
-    required this.walkTarget,
-    required this.onWaterTap,
-    required this.onWalkTap,
-  });
-
-  final int waterMl;
-  final int waterTarget;
-  final int walkM;
-  final int walkTarget;
-  final ValueChanged<int> onWaterTap;
-  final ValueChanged<int> onWalkTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _GoalRing(
-            icon: Icons.water_drop_rounded,
-            label: 'Water',
-            ringColor: Color(0xFF3B82F6),
-            fraction: waterMl / waterTarget,
-            valueText: '${(waterMl / 1000).toStringAsFixed(1)} L',
-            onIncrement: () => onWaterTap(250),
-            onDecrement: () => onWaterTap(-250),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _GoalRing(
-            icon: Icons.directions_walk_rounded,
-            label: 'Walk',
-            ringColor: AppColors.complete,
-            fraction: walkM / walkTarget,
-            valueText: '${(walkM / 1000).toStringAsFixed(1)} km',
-            onIncrement: () => onWalkTap(500),
-            onDecrement: () => onWalkTap(-500),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _GoalRing extends StatelessWidget {
-  const _GoalRing({
-    required this.icon,
-    required this.label,
-    required this.ringColor,
-    required this.fraction,
-    required this.valueText,
-    required this.onIncrement,
-    required this.onDecrement,
-  });
-
-  final IconData icon;
-  final String label;
-  final Color ringColor;
-  final double fraction;
-  final String valueText;
-  final VoidCallback onIncrement;
-  final VoidCallback onDecrement;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
-      decoration: BoxDecoration(
-        color: AppColors.cardSurface,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: ringColor, size: 14),
-              const SizedBox(width: 5),
-              Text(
-                label,
-                style: AppTypography.body(
-                  size: 12,
-                  weight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 14),
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: fraction.clamp(0.0, 1.0)),
-            duration: const Duration(milliseconds: 600),
-            curve: Curves.easeOut,
-            builder: (_, value, __) => SizedBox(
-              width: 90,
-              height: 90,
-              child: CustomPaint(
-                painter: _ArcPainter(
-                  fraction: value,
-                  ringColor: ringColor,
-                  trackColor: AppColors.surfaceRaised,
-                  strokeWidth: 9,
-                ),
-                child: Center(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    child: value >= 1.0
-                        ? Icon(
-                            Icons.check_circle_rounded,
-                            color: ringColor,
-                            size: 32,
-                          )
-                        : Text(
-                            valueText,
-                            textAlign: TextAlign.center,
-                            style: AppTypography.mono(
-                              size: 12,
-                              weight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          SizedBox(height: 14),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _GoalBtn(icon: Icons.remove, onTap: onDecrement),
-              const SizedBox(width: 22),
-              _GoalBtn(
-                icon: Icons.add,
-                onTap: onIncrement,
-                filled: true,
-                color: ringColor,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _GoalBtn extends StatelessWidget {
-  const _GoalBtn({
-    required this.icon,
-    required this.onTap,
-    this.filled = false,
-    this.color,
-  });
-
-  final IconData icon;
-  final VoidCallback onTap;
-  final bool filled;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 34,
-        height: 34,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: filled
-              ? (color ?? AppColors.primary)
-              : AppColors.surfaceRaised,
-        ),
-        child: Icon(
-          icon,
-          size: 16,
-          color: filled ? Colors.white : AppColors.textSecondary,
-        ),
-      ),
-    );
-  }
-}
-
-class _ArcPainter extends CustomPainter {
-  const _ArcPainter({
-    required this.fraction,
-    required this.ringColor,
-    required this.trackColor,
-    required this.strokeWidth,
-  });
-
-  final double fraction;
-  final Color ringColor;
-  final Color trackColor;
-  final double strokeWidth;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final radius = (size.width - strokeWidth) / 2;
-    final rect = Rect.fromCircle(center: Offset(cx, cy), radius: radius);
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawArc(rect, -1.5708, 6.2832, false, paint..color = trackColor);
-    if (fraction > 0) {
-      canvas.drawArc(
-        rect,
-        -1.5708,
-        6.2832 * fraction,
-        false,
-        paint..color = ringColor,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_ArcPainter old) =>
-      old.fraction != fraction || old.ringColor != ringColor;
-}
-
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
-// Task Board ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â clean two-section design (per wireframe)
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Eisenhower Matrix — compact 2×2 grid + per-quadrant bottom sheet
-// ─────────────────────────────────────────────────────────────────────────────
-
 const _kQuadrants = [
   (label: 'Do it',       urgency: true,  important: true,  hex: 0xFF10B981, icon: Icons.bolt_rounded),
   (label: 'Schedule it', urgency: false, important: true,  hex: 0xFFF59E0B, icon: Icons.calendar_month_rounded),
   (label: 'Delegate it', urgency: true,  important: false, hex: 0xFF3B82F6, icon: Icons.group_add_rounded),
-  (label: 'Delete it',   urgency: false, important: false, hex: 0xFFEF4444, icon: Icons.delete_outline_rounded),
+  (label: 'Skip it',   urgency: false, important: false, hex: 0xFFEF4444, icon: Icons.delete_outline_rounded),
 ];
 
 class _TaskBoard extends StatefulWidget {
@@ -1962,7 +1733,7 @@ class _TaskBoardState extends State<_TaskBoard> {
         Row(
           children: [
             Text(
-              'Eisenhower Matrix',
+              'Focus Matrix',
               style: AppTypography.body(
                 size: 18,
                 weight: FontWeight.w800,
@@ -2452,45 +2223,63 @@ class _QuranCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(16),
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: const Color(0xFF111111),
-          borderRadius: BorderRadius.circular(20),
+          gradient: const LinearGradient(
+            colors: [Color(0xFF232526), Color(0xFF111111)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: const Color(0xFF111111).withValues(alpha: 0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
             ),
           ],
         ),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Left Icon Box
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2C2C2E),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Icon(Icons.auto_stories_rounded, color: Colors.white, size: 28),
+        child: Stack(
+          children: [
+            // Decorative Background Watermark
+            Positioned(
+              right: -30,
+              bottom: -30,
+              child: Icon(
+                Icons.menu_book_rounded,
+                size: 160,
+                color: Colors.white.withValues(alpha: 0.03),
               ),
-              const SizedBox(width: 16),
-              // Vertical Divider
-              Container(
-                width: 1,
-                color: Colors.white12,
-              ),
-              const SizedBox(width: 16),
-              // Main Content
-              Expanded(
+            ),
+            
+            // Main Content
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: IntrinsicHeight(
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // Text & Progress
+                    // Left Glassmorphic Icon Box
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.white.withValues(alpha: 0.15),
+                            Colors.white.withValues(alpha: 0.05),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                      ),
+                      child: const Icon(Icons.auto_stories_rounded, color: Colors.white, size: 28),
+                    ),
+                    const SizedBox(width: 18),
+                    
+                    // Center Text & Progress
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2499,7 +2288,7 @@ class _QuranCard extends StatelessWidget {
                           Text(
                             'Surah $surahName',
                             style: AppTypography.body(
-                              size: 16,
+                              size: 18,
                               weight: FontWeight.w800,
                               color: Colors.white,
                             ),
@@ -2508,31 +2297,35 @@ class _QuranCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Juzz - $juz',
+                            'Juzz $juz • Page $lastPage',
                             style: AppTypography.body(
                               size: 13,
                               color: Colors.white60,
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          // Progress Bar
-                          Padding(
-                            padding: const EdgeInsets.only(right: 20),
-                            child: Container(
-                              height: 4,
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                color: Colors.white24,
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                              child: FractionallySizedBox(
-                                alignment: Alignment.centerLeft,
-                                widthFactor: lastPage / 604,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
+                          const SizedBox(height: 14),
+                          // Glowing Progress Bar
+                          Container(
+                            height: 6,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            child: FractionallySizedBox(
+                              alignment: Alignment.centerLeft,
+                              widthFactor: lastPage / 604,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFACC15),
+                                  borderRadius: BorderRadius.circular(3),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFFFACC15).withValues(alpha: 0.4),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 0),
+                                    )
+                                  ],
                                 ),
                               ),
                             ),
@@ -2540,42 +2333,35 @@ class _QuranCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    // Actions (Time & Button)
+                    const SizedBox(width: 16),
+                    
+                    // Action Button (Resume)
                     Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
                       mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.timer_outlined, color: Color(0xFFFACC15), size: 14),
-                            const SizedBox(width: 4),
-                            Text(
-                              '15 mins',
-                              style: AppTypography.body(
-                                size: 13,
-                                weight: FontWeight.w700,
-                                color: const Color(0xFFFACC15),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           decoration: BoxDecoration(
                             color: const Color(0xFFFACC15),
                             borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFFACC15).withValues(alpha: 0.2),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              )
+                            ],
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.play_arrow_rounded, color: Colors.black, size: 14),
-                              const SizedBox(width: 4),
+                              const Icon(Icons.play_arrow_rounded, color: Colors.black, size: 16),
+                              const SizedBox(width: 6),
                               Text(
-                                'Resume Reading',
+                                'Resume',
                                 style: AppTypography.body(
-                                  size: 11,
+                                  size: 13,
                                   weight: FontWeight.w800,
                                   color: Colors.black,
                                 ),
@@ -2588,8 +2374,8 @@ class _QuranCard extends StatelessWidget {
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

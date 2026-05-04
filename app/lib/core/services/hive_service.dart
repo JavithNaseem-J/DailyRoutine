@@ -119,12 +119,6 @@ class HiveService {
     );
   }
 
-  Future<void> deleteQuickTask(String dateKey, String taskId) async {
-    if (!_initialized) return;
-    final tasks = readQuickTasks(dateKey);
-    tasks.removeWhere((t) => t.id == taskId);
-    await writeQuickTasks(dateKey, tasks);
-  }
 
   // ── Custom Tasks ───────────────────────────────────────────────────
 
@@ -150,13 +144,6 @@ class HiveService {
     );
   }
 
-  // ── Midnight reset ─────────────────────────────────────────────────
-  Future<void> archiveQuickTasks(String oldDateKey) async {
-    if (!_initialized) return;
-    final tasks = readQuickTasks(oldDateKey);
-    final archived = tasks.map((t) => t.copyWith(archived: true)).toList();
-    await writeQuickTasks(oldDateKey, archived);
-  }
 
   // ── Prune keys older than 30 days ──────────────────────────────────
   Future<void> pruneOldKeys(String currentDateKey) async {

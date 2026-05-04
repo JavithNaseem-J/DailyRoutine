@@ -8,7 +8,6 @@ import 'features/sessions/sessions_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/stats/stats_screen.dart';
 import 'features/quran/quran_screen.dart';
-import 'features/quran/quran_home_screen.dart';
 import 'features/focus/focus_screen.dart';
 import 'features/auth/auth_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -122,11 +121,7 @@ final _router = GoRouter(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),
     ),
-    // Quran — full-screen, no bottom nav
-    GoRoute(
-      path: '/quran',
-      builder: (context, state) => const QuranHomeScreen(),
-    ),
+    // Quran Reader — full-screen, no bottom nav
     GoRoute(
       path: '/quran/reader',
       builder: (context, state) {

@@ -95,7 +95,9 @@ Future<void> main() async {
         prayerAlertsEnabled: prayerAlerts,
         disabledSessionIds: disabledSessions.toSet(),
       )
-      .catchError((_) {});
+      .catchError((e, st) {
+        Sentry.captureException(e, stackTrace: st);
+      });
 
   await SentryFlutter.init(
     (options) {

@@ -99,13 +99,7 @@ class SupabaseService {
     }
   }
 
-  Future<void> archiveOldQuickTasks(String oldDateKey, String deviceId) async {
-    await _db
-        .from('quick_tasks')
-        .update({'archived': true})
-        .eq('device_id', deviceId)
-        .eq('date', oldDateKey);
-  }
+
 
   // ── StatsHistory ───────────────────────────────────────────────────────────
 

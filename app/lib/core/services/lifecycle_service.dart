@@ -51,9 +51,7 @@ class LifecycleService extends WidgetsBindingObserver {
   }
 
   Future<void> _rollover({required String oldDateKey}) async {
-    // Quick tasks are now global, so we don't archive them.
-
-    // 3. Prune Hive boxes older than 30 days
+    // Prune Hive boxes older than 30 days
     await hiveService.pruneOldKeys(dateService.todayKey());
   }
 }

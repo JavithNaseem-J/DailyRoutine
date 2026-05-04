@@ -453,7 +453,7 @@ class _TopBar extends StatelessWidget {
                         const Icon(Icons.bookmark_rounded,
                             size: 12, color: _kGold),
                         const SizedBox(width: 4),
-                        Text('p.$pinnedPage',
+                        Text('Page $pinnedPage',
                             style: const TextStyle(
                                 fontSize: 11,
                                 color: _kGold,
