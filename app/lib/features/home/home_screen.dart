@@ -327,9 +327,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _loadProgressItems() {
-    final raw = sharedPrefs.getString(
-      'progress_items_${dateService.todayKey()}',
-    );
+    final raw = sharedPrefs.getString('progress_items_global');
     if (raw == null) {
       setState(() {
         if (_progressItems.isEmpty) {
@@ -355,7 +353,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   void _saveProgressItems() {
     sharedPrefs.setString(
-      'progress_items_${dateService.todayKey()}',
+      'progress_items_global',
       jsonEncode(_progressItems.map((e) => e.toJson()).toList()),
     );
   }
@@ -1541,18 +1539,18 @@ class _ProgressCardState extends State<_ProgressCard> {
                     // PROGRESS BAR â€” drag/tap zone at the bottom of the column
                     GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onPanUpdate: (d) {
+                      onPanUpdate: _isEditing ? (d) {
                         final p = (d.localPosition.dx / widget.width * 100)
                             .clamp(0.0, 100.0)
                             .round();
                         widget.onProgressChanged(p);
-                      },
-                      onTapDown: (d) {
+                      } : null,
+                      onTapDown: _isEditing ? (d) {
                         final p = (d.localPosition.dx / widget.width * 100)
                             .clamp(0.0, 100.0)
                             .round();
                         widget.onProgressChanged(p);
-                      },
+                      } : null,
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(18, 6, 18, 14),
                         child: Stack(
