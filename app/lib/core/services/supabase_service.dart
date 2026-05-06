@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import '../models/daily_state.dart';
 import '../models/quick_task.dart';
 
@@ -53,7 +54,8 @@ class SupabaseService {
             .map((k, v) => MapEntry(k, (v as num).toInt())),
         prayerStates: _castBoolMap(res['prayer_states']),
       );
-    } catch (_) {
+    } catch (e, st) {
+      Sentry.captureException(e, stackTrace: st);
       return null;
     }
   }
@@ -94,7 +96,8 @@ class SupabaseService {
       return (res as List)
           .map((e) => QuickTask.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList();
-    } catch (_) {
+    } catch (e, st) {
+      Sentry.captureException(e, stackTrace: st);
       return [];
     }
   }
@@ -128,7 +131,8 @@ class SupabaseService {
           .gte('date', from.toIso8601String().split('T').first)
           .order('date');
       return List<Map<String, dynamic>>.from(res);
-    } catch (_) {
+    } catch (e, st) {
+      Sentry.captureException(e, stackTrace: st);
       return [];
     }
   }
@@ -145,7 +149,8 @@ class SupabaseService {
           .gte('date', from.toIso8601String().split('T').first)
           .order('date');
       return List<Map<String, dynamic>>.from(res);
-    } catch (_) {
+    } catch (e, st) {
+      Sentry.captureException(e, stackTrace: st);
       return [];
     }
   }

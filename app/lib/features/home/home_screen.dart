@@ -375,11 +375,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       note: note ?? c.note,
     );
     setState(() => _progressItems = [..._progressItems]..[i] = updated);
-    _progressDebounce?.cancel();
-    _progressDebounce = Timer(
-      const Duration(milliseconds: 400),
-      _saveProgressItems,
-    );
+    _saveProgressItems();
   }
 
   void _deleteProgressItem(int i) {
@@ -399,6 +395,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     });
     supabaseService.fetchQuickTasks('global', deviceId).catchError((_) => <QuickTask>[]).then((remote) { // NEW-BUG-008 fix
       if (!mounted) return;
+      if (remote.isEmpty && _quickTasks.isNotEmpty) {
+        // Fix: Avoid wiping local data if remote fetch fails or is empty due to RLS.
+        for (final t in _quickTasks) {
+          supabaseService.upsertQuickTask(t, deviceId).catchError((_) {});
+        }
+        return;
+      }
       final cleaned = _deduplicateTasks(remote);
       setState(() => _quickTasks = cleaned);
       hiveService.writeQuickTasks('global', cleaned);
@@ -575,15 +578,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                 SizedBox(height: 20),
 
-                _QuranCard(
-                  lastPage: sharedPrefs.getInt('quran_last_page') ?? 1,
-                  onTap: () async {
-                    final lastPage = sharedPrefs.getInt('quran_last_page') ?? 1;
-                    await context.push('/quran/reader', extra: {'page': lastPage});
-                    if (!mounted) return;
-                    setState(() {});
-                  },
-                ),
+                const _QuranCard(),
 
                 SizedBox(height: 20),
 
@@ -1754,8 +1749,8 @@ class _TaskBoardState extends State<_TaskBoard> {
                 Align(
                   alignment: Alignment.center,
                   child: FractionallySizedBox(
-                    widthFactor: 0.82,
-                    heightFactor: 0.82,
+                    widthFactor: 0.95,
+                    heightFactor: 0.95,
                     child: Column(
                       children: [
                         Expanded(
@@ -1821,29 +1816,7 @@ class _TaskBoardState extends State<_TaskBoard> {
                     ),
                   ),
                 ),
-                // Labels
-                Align(
-                  alignment: Alignment.topCenter,
-                  child: Text("Important", style: AppTypography.body(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
-                ),
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Text("Not Important", style: AppTypography.body(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: RotatedBox(
-                    quarterTurns: 3,
-                    child: Text("Urgent", style: AppTypography.body(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: RotatedBox(
-                    quarterTurns: 3,
-                    child: Text("Not Urgent", style: AppTypography.body(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
-                  ),
-                ),
+
               ],
             ),
           ),
@@ -2205,14 +2178,25 @@ class _MatrixTaskChip extends StatelessWidget {
 // Quran Card
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _QuranCard extends StatelessWidget {
-  final int lastPage;
-  final VoidCallback onTap;
+class _QuranCard extends StatefulWidget {
+  const _QuranCard();
 
-  const _QuranCard({required this.lastPage, required this.onTap});
+  @override
+  State<_QuranCard> createState() => _QuranCardState();
+}
+
+class _QuranCardState extends State<_QuranCard> {
+  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
+    final bStrs = sharedPrefs.getStringList('quran_bookmarks') ?? [];
+    final bookmarks = bStrs.map((e) => int.tryParse(e)).whereType<int>().toList();
+    bookmarks.sort((a,b) => b.compareTo(a));
+
+    final lastPage = sharedPrefs.getInt('quran_last_page') ?? 1;
+    final progressPage = bookmarks.isNotEmpty ? bookmarks.first : 0;
+
     final pageData = quran.getPageData(lastPage);
     final surahNum = pageData.isNotEmpty ? pageData.first['surah'] as int : 1;
     final ayahNum = pageData.isNotEmpty ? pageData.first['start'] as int : 1;
@@ -2220,8 +2204,11 @@ class _QuranCard extends StatelessWidget {
     final juz = quran.getJuzNumber(surahNum, ayahNum);
 
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
+      onTap: () {
+        setState(() => _expanded = !_expanded);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
         width: double.infinity,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
@@ -2239,140 +2226,222 @@ class _QuranCard extends StatelessWidget {
             ),
           ],
         ),
-        child: Stack(
+        child: Column(
           children: [
-            // Decorative Background Watermark
-            Positioned(
-              right: -30,
-              bottom: -30,
-              child: Icon(
-                Icons.menu_book_rounded,
-                size: 160,
-                color: Colors.white.withValues(alpha: 0.03),
-              ),
-            ),
-            
-            // Main Content
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // Left Glassmorphic Icon Box
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.white.withValues(alpha: 0.15),
-                            Colors.white.withValues(alpha: 0.05),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                      ),
-                      child: const Icon(Icons.auto_stories_rounded, color: Colors.white, size: 28),
-                    ),
-                    const SizedBox(width: 18),
-                    
-                    // Center Text & Progress
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Surah $surahName',
-                            style: AppTypography.body(
-                              size: 18,
-                              weight: FontWeight.w800,
-                              color: Colors.white,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Juzz $juz • Page $lastPage',
-                            style: AppTypography.body(
-                              size: 13,
-                              color: Colors.white60,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          // Glowing Progress Bar
-                          Container(
-                            height: 6,
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                            child: FractionallySizedBox(
-                              alignment: Alignment.centerLeft,
-                              widthFactor: lastPage / 604,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFACC15),
-                                  borderRadius: BorderRadius.circular(3),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFFFACC15).withValues(alpha: 0.4),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 0),
-                                    )
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    
-                    // Action Button (Resume)
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
+            Stack(
+              children: [
+                Positioned(
+                  right: -30,
+                  bottom: -30,
+                  child: Icon(
+                    Icons.menu_book_rounded,
+                    size: 160,
+                    color: Colors.white.withValues(alpha: 0.03),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          width: 50,
+                          height: 50,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFACC15),
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFFFACC15).withValues(alpha: 0.2),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              )
-                            ],
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.white.withValues(alpha: 0.15),
+                                Colors.white.withValues(alpha: 0.05),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
+                          child: const Icon(Icons.auto_stories_rounded, color: Colors.white, size: 24),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.play_arrow_rounded, color: Colors.black, size: 16),
-                              const SizedBox(width: 6),
                               Text(
-                                'Resume',
+                                surahName,
                                 style: AppTypography.body(
-                                  size: 13,
+                                  size: 16,
                                   weight: FontWeight.w800,
-                                  color: Colors.black,
+                                  color: Colors.white,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Juz $juz • Pg $lastPage',
+                                style: AppTypography.body(
+                                  size: 12,
+                                  color: Colors.white60,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 12),
+                              Container(
+                                height: 4,
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                                child: FractionallySizedBox(
+                                  alignment: Alignment.centerLeft,
+                                  widthFactor: progressPage / 604,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFACC15),
+                                      borderRadius: BorderRadius.circular(2),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: const Color(0xFFFACC15).withValues(alpha: 0.4),
+                                          blurRadius: 8,
+                                        )
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ),
                             ],
                           ),
+                        ),
+                        const SizedBox(width: 12),
+                        Icon(
+                          _expanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                          color: Colors.white54,
+                          size: 28,
                         ),
                       ],
                     ),
+                  ),
+                ),
+              ],
+            ),
+            
+            if (_expanded)
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Bookmarks & History',
+                      style: AppTypography.body(size: 13, weight: FontWeight.w600, color: Colors.white70),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 80,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: bookmarks.length + 1,
+                        itemBuilder: (context, index) {
+                          if (index == 0) {
+                            return _buildBookmarkCard(
+                              context, 
+                              page: lastPage, 
+                              isCurrent: true,
+                              onTap: () async {
+                                await context.push('/quran/reader', extra: {'page': lastPage});
+                                setState(() {});
+                              }
+                            );
+                          }
+                          final page = bookmarks[index - 1];
+                          return _buildBookmarkCard(
+                            context, 
+                            page: page, 
+                            isCurrent: false,
+                            onTap: () async {
+                              await context.push('/quran/reader', extra: {'page': page});
+                              setState(() {});
+                            }
+                          );
+                        },
+                      ),
+                    ),
                   ],
                 ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBookmarkCard(BuildContext context, {required int page, required bool isCurrent, required VoidCallback onTap}) {
+    final pageData = quran.getPageData(page);
+    final surahNum = pageData.isNotEmpty ? pageData.first['surah'] as int : 1;
+    final surahName = quran.getSurahName(surahNum);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 110,
+        margin: const EdgeInsets.only(right: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isCurrent ? const Color(0xFFFACC15).withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.05),
+          border: Border.all(
+            color: isCurrent ? const Color(0xFFFACC15).withValues(alpha: 0.5) : Colors.white.withValues(alpha: 0.1),
+          ),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  isCurrent ? Icons.menu_book_rounded : Icons.bookmark_rounded,
+                  size: 14,
+                  color: isCurrent ? const Color(0xFFFACC15) : Colors.white60,
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    isCurrent ? 'Current' : 'Saved',
+                    style: AppTypography.mono(
+                      size: 10,
+                      weight: FontWeight.w600,
+                      color: isCurrent ? const Color(0xFFFACC15) : Colors.white60,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            Text(
+              surahName,
+              style: AppTypography.body(
+                size: 13,
+                weight: FontWeight.w700,
+                color: Colors.white,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Page $page',
+              style: AppTypography.body(
+                size: 11,
+                color: Colors.white54,
               ),
             ),
           ],

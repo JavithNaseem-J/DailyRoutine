@@ -73,9 +73,18 @@ Future<void> main() async {
   
   final session = Supabase.instance.client.auth.currentSession;
   if (session != null) {
-    sharedPrefs.setString('deviceId', session.user.id);
-  } else if (!sharedPrefs.containsKey('deviceId')) {
-    sharedPrefs.setString('deviceId', const Uuid().v4());
+    await sharedPrefs.setString('deviceId', session.user.id);
+  } else {
+    try {
+      final res = await Supabase.instance.client.auth.signInAnonymously();
+      if (res.session != null) {
+        await sharedPrefs.setString('deviceId', res.session!.user.id);
+      }
+    } catch (_) {}
+  }
+  
+  if (!sharedPrefs.containsKey('deviceId')) {
+    await sharedPrefs.setString('deviceId', const Uuid().v4());
   }
   deviceId = sharedPrefs.getString('deviceId')!;
 

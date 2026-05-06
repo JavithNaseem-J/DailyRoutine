@@ -143,16 +143,10 @@ class NotificationService {
   }
 
   static const _sessionSchedule = [
-    _S('dawn', 'Dawn (Fajr)', '4:30am', 'Start your morning devotion.'),
-    _S('sunrise', 'Sunrise Build', '6:30am', 'First deep-work session.'),
-    _S('morning', 'Morning', '8:30am', 'Morning habits time.'),
-    _S('midMorning', 'Mid Morning Build', '10:00am', 'Second build session.'),
-    _S('midday', 'Midday', '12:00pm', 'Midday check-in.'),
-    _S('afternoon', 'Afternoon Build', '2:00pm', 'Third build session.'),
-    _S('asr', 'Asr', '4:30pm', 'Asr prayer and wind-down.'),
-    _S('sunset', 'Sunset', '6:00pm', 'Sunset reflection.'),
-    _S('evening', 'Evening', '7:30pm', 'Evening wind-down.'),
-    _S('night', 'Night', '9:00pm', 'Night routine.'),
+    _S('morning', 'Morning', '5:30am', 'Morning habits time.'),
+    _S('afternoon', 'Afternoon', '12:00pm', 'Afternoon build session.'),
+    _S('evening', 'Evening', '4:00pm', 'Evening wind-down.'),
+    _S('night', 'Night', '7:00pm', 'Night routine.'),
   ];
 }
 

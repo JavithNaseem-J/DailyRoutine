@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/services/streak_service.dart';
+import '../../core/models/streak.dart';
 import '../../core/services/supabase_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
@@ -49,78 +50,87 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
   Future<void> _loadRealData() async {
     try {
-    // 1. Fetch streak
-    final streak = await streakService.fetchStreak();
-    // 2. Fetch 7-day stats history for bar chart
-    final history = await supabaseService.fetchStatsHistory(7, deviceId);
-    // 3. Build heatmap from 30-day history
-    final history30 = await supabaseService.fetchStatsHistory(30, deviceId);
-    // 4. Fetch real task history for performance calculations
-    final taskHistory = await supabaseService.fetch30DayTaskHistory(deviceId);
+      // 1. Load local data FIRST so the UI updates immediately
+      final localStates = hiveService.readAllDailyStates();
+      final today = DateTime.now();
+      int focusMin = 0;
+      Map<String, int> tagMins = {};
+      Map<String, int> pCounts = {'fajr': 0, 'dhuhr': 0, 'asr': 0, 'maghrib': 0, 'isha': 0};
 
-    if (!mounted) return;
+      for (final s in localStates) {
+        try {
+          final dt = DateTime.parse(s.date);
+          if (dt.month == today.month && dt.year == today.year) {
+            focusMin += s.focusMinutes;
+            s.projectMinutes.forEach((k, v) {
+              tagMins[k] = (tagMins[k] ?? 0) + v;
+            });
+            
+            s.prayerStates.forEach((k, v) {
+              if (v == true) {
+                pCounts[k] = (pCounts[k] ?? 0) + 1;
+              }
+            });
+          }
+        } catch (_) {}
+      }
 
-    // Map history list Ã¢â€ â€™ Mon-indexed weekly bar data
-    final weekly = List<double>.filled(7, 0);
-    for (final row in history) {
-      try {
-        final dt = DateTime.parse(row['date'] as String);
-        final dayIdx = dt.weekday - 1; // Mon=0Ã¢â‚¬Â¦Sun=6
-        if (dayIdx >= 0 && dayIdx < 7) {
-          weekly[dayIdx] = (row['completion_pct'] as num).toDouble();
-        }
-      } catch (_) {}
-    }
+      if (mounted) {
+        setState(() {
+          _totalFocusMinutes = focusMin;
+          _projectMinutesData = tagMins;
+          _prayerCounts = pCounts;
+        });
+      }
 
-    // Map history to current month calendar
-    final today = DateTime.now();
-    final daysInMonth = DateTime(today.year, today.month + 1, 0).day;
-    final heatmap = List<int>.filled(daysInMonth, 0);
-
-    for (int i = 0; i < history30.length; i++) {
-      try {
-        final row = history30[i];
-        final dt = DateTime.parse(row['date'] as String);
-        if (dt.month == today.month && dt.year == today.year) {
-          final pct = (row['completion_pct'] as num).toInt();
-          heatmap[dt.day - 1] = pct;
-        }
-      } catch (_) {}
-    }
-
-    final localStates = hiveService.readAllDailyStates();
-    int focusMin = 0;
-    Map<String, int> tagMins = {};
-    Map<String, int> pCounts = {'fajr': 0, 'dhuhr': 0, 'asr': 0, 'maghrib': 0, 'isha': 0};
-
-    for (final s in localStates) {
-      try {
-        final dt = DateTime.parse(s.date);
-        if (dt.month == today.month && dt.year == today.year) {
-          focusMin += s.focusMinutes;
-          s.projectMinutes.forEach((k, v) {
-            tagMins[k] = (tagMins[k] ?? 0) + v;
-          });
-          
-          s.prayerStates.forEach((k, v) {
-            if (v == true) {
-              pCounts[k] = (pCounts[k] ?? 0) + 1;
-            }
-          });
-        }
-      } catch (_) {}
-    }
+      // 2. Fetch network data in parallel
+      final results = await Future.wait([
+        streakService.fetchStreak(),
+        supabaseService.fetchStatsHistory(7, deviceId),
+        supabaseService.fetchStatsHistory(30, deviceId),
+        supabaseService.fetch30DayTaskHistory(deviceId),
+      ]);
 
       if (!mounted) return;
+
+      final streak = results[0] as Streak?;
+      final history = results[1] as List<Map<String, dynamic>>;
+      final history30 = results[2] as List<Map<String, dynamic>>;
+      final taskHistory = results[3] as List<Map<String, dynamic>>;
+
+      // Map history list -> Mon-indexed weekly bar data
+      final weekly = List<double>.filled(7, 0);
+      for (final row in history) {
+        try {
+          final dt = DateTime.parse(row['date'] as String);
+          final dayIdx = dt.weekday - 1; // Mon=0...Sun=6
+          if (dayIdx >= 0 && dayIdx < 7) {
+            weekly[dayIdx] = (row['completion_pct'] as num).toDouble();
+          }
+        } catch (_) {}
+      }
+
+      // Map history to current month calendar
+      final daysInMonth = DateTime(today.year, today.month + 1, 0).day;
+      final heatmap = List<int>.filled(daysInMonth, 0);
+
+      for (int i = 0; i < history30.length; i++) {
+        try {
+          final row = history30[i];
+          final dt = DateTime.parse(row['date'] as String);
+          if (dt.month == today.month && dt.year == today.year) {
+            final pct = (row['completion_pct'] as num).toInt();
+            heatmap[dt.day - 1] = pct;
+          }
+        } catch (_) {}
+      }
+
       setState(() {
         _weeklyData = weekly;
         _heatmap = heatmap;
         _taskHistory = taskHistory;
         _currentStreak = streak?.currentStreak ?? 0;
         _bestStreak = streak?.bestStreak ?? 0;
-        _totalFocusMinutes = focusMin;
-        _projectMinutesData = tagMins;
-        _prayerCounts = pCounts;
       });
     } catch (_) {
       // Network or unexpected error
@@ -285,7 +295,7 @@ class _PrayerConsistencyCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: List.generate(5, (i) {
                final count = prayerCounts[prayers[i]] ?? 0;
-               final intensity = (count / DateTime.now().day).clamp(0.0, 1.0);
+               final intensity = (DateTime.now().day > 0 ? count / DateTime.now().day : 0.0).clamp(0.0, 1.0);
                final pct = (intensity * 100).round();
                return Column(
                  mainAxisSize: MainAxisSize.min,
@@ -780,7 +790,7 @@ class _InsightsBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     if (history.isEmpty) return const SizedBox();
 
-    String insight = "Ã°Å¸â€Â¥ You're building solid momentum!";
+    String insight = "🔥 You're building solid momentum!";
     final map = <int, int>{};
     for (final row in history) {
       final dt = DateTime.parse(row['date'] as String);
@@ -799,7 +809,7 @@ class _InsightsBadge extends StatelessWidget {
         'Saturday',
         'Sunday',
       ];
-      insight = "Ã°Å¸â€™Â¡ Your most productive day is ${days[best.key - 1]}.";
+      insight = "💡 Your most productive day is ${days[best.key - 1]}.";
     }
 
     return Container(

@@ -34,7 +34,7 @@ class _QuranScreenState extends State<QuranScreen>
     with SingleTickerProviderStateMixin {
   late PageController _pageController;
   late int _currentPage;
-  int? _pinnedPage;
+  List<int> _bookmarks = [];
   bool _barsVisible = true;
   late AnimationController _barAnim;
   late Animation<double> _barFade;
@@ -72,7 +72,15 @@ class _QuranScreenState extends State<QuranScreen>
   @override
   void initState() {
     super.initState();
-    _pinnedPage = sharedPrefs.getInt('quran_pinned_page');
+    final bStrs = sharedPrefs.getStringList('quran_bookmarks') ?? [];
+    _bookmarks = bStrs.map((e) => int.tryParse(e)).whereType<int>().toList();
+    
+    // Migrate legacy pinned page
+    final legacyPinned = sharedPrefs.getInt('quran_pinned_page');
+    if (legacyPinned != null && !_bookmarks.contains(legacyPinned)) {
+      _bookmarks.add(legacyPinned);
+      sharedPrefs.setStringList('quran_bookmarks', _bookmarks.map((e) => e.toString()).toList());
+    }
     // BUG-007 fix: use widget.initialPage as the primary target.
     // Only fall back to the last-read page if no explicit page was requested
     // (i.e. when initialPage is the default value of 1).
@@ -144,13 +152,12 @@ class _QuranScreenState extends State<QuranScreen>
   void _toggleBookmark() {
     HapticFeedback.mediumImpact();
     setState(() {
-      if (_pinnedPage == _currentPage) {
-        _pinnedPage = null;
-        sharedPrefs.remove('quran_pinned_page');
+      if (_bookmarks.contains(_currentPage)) {
+        _bookmarks.remove(_currentPage);
       } else {
-        _pinnedPage = _currentPage;
-        sharedPrefs.setInt('quran_pinned_page', _currentPage);
+        _bookmarks.add(_currentPage);
       }
+      sharedPrefs.setStringList('quran_bookmarks', _bookmarks.map((e) => e.toString()).toList());
     });
   }
 
@@ -173,7 +180,7 @@ class _QuranScreenState extends State<QuranScreen>
   // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final isBookmarked = _pinnedPage == _currentPage;
+    final isBookmarked = _bookmarks.contains(_currentPage);
     final surah = _surahForPage(_currentPage);
 
     return Scaffold(
@@ -231,7 +238,7 @@ class _QuranScreenState extends State<QuranScreen>
                 child: _TopBar(
                   surah: surah,
                   currentPage: _currentPage,
-                  pinnedPage: _pinnedPage,
+                  pinnedPage: _bookmarks.isNotEmpty ? _bookmarks.last : null,
                   isBookmarked: isBookmarked,
                   timerRunning: _timerRunning,
                   timerLabel: _timerLabel,
@@ -240,7 +247,7 @@ class _QuranScreenState extends State<QuranScreen>
                   onToggleTimer: _toggleTimer,
                   onLongPressTimer: _resetTimer,
                   onJumpToBookmark:
-                      _pinnedPage != null ? () => _navigateTo(_pinnedPage!) : null,
+                      _bookmarks.isNotEmpty ? () => _navigateTo(_bookmarks.last) : null,
                 ),
               ),
             ),
