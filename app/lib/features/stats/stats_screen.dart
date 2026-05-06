@@ -34,7 +34,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   List<int> _heatmap = List.filled(DateTime(DateTime.now().year, DateTime.now().month + 1, 0).day, 0);
 
   List<double> _weeklyData = List.filled(7, 0);
-  List<Map<String, dynamic>> _taskHistory = [];
+
   int _currentStreak = 0;
   int _bestStreak = 0;
   int _totalFocusMinutes = 0;
@@ -88,7 +88,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         streakService.fetchStreak(),
         supabaseService.fetchStatsHistory(7, deviceId),
         supabaseService.fetchStatsHistory(30, deviceId),
-        supabaseService.fetch30DayTaskHistory(deviceId),
       ]);
 
       if (!mounted) return;
@@ -96,7 +95,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       final streak = results[0] as Streak?;
       final history = results[1] as List<Map<String, dynamic>>;
       final history30 = results[2] as List<Map<String, dynamic>>;
-      final taskHistory = results[3] as List<Map<String, dynamic>>;
 
       // Map history list -> Mon-indexed weekly bar data
       final weekly = List<double>.filled(7, 0);
@@ -128,7 +126,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       setState(() {
         _weeklyData = weekly;
         _heatmap = heatmap;
-        _taskHistory = taskHistory;
         _currentStreak = streak?.currentStreak ?? 0;
         _bestStreak = streak?.bestStreak ?? 0;
       });
@@ -189,11 +186,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               ],
             ),
 
-            SizedBox(height: 16),
-            if (!_statsLoading && _taskHistory.isNotEmpty)
-              _InsightsBadge(history: _taskHistory),
-            if (!_statsLoading && _taskHistory.isNotEmpty)
-              SizedBox(height: 16),
+
 
             // Ã¢â€â‚¬Ã¢â€â‚¬ Completion ring + streak side by side Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
             IntrinsicHeight(
@@ -779,70 +772,6 @@ class _HeatmapGrid extends StatelessWidget {
 }
 
 // 
-// Insights Badge
-//
-
-class _InsightsBadge extends StatelessWidget {
-  const _InsightsBadge({required this.history});
-  final List<Map<String, dynamic>> history;
-
-  @override
-  Widget build(BuildContext context) {
-    if (history.isEmpty) return const SizedBox();
-
-    String insight = "🔥 You're building solid momentum!";
-    final map = <int, int>{};
-    for (final row in history) {
-      final dt = DateTime.parse(row['date'] as String);
-      final states = row['task_states'] as Map<String, dynamic>? ?? {};
-      int done = states.values.where((v) => v == true).length;
-      map[dt.weekday] = (map[dt.weekday] ?? 0) + done;
-    }
-    if (map.isNotEmpty) {
-      final best = map.entries.reduce((a, b) => a.value > b.value ? a : b);
-      final days = [
-        'Monday',
-        'Tuesday',
-        'Wednesday',
-        'Thursday',
-        'Friday',
-        'Saturday',
-        'Sunday',
-      ];
-      insight = "💡 Your most productive day is ${days[best.key - 1]}.";
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.tipBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.auto_awesome_rounded,
-            color: AppColors.primary,
-            size: 18,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              insight,
-              style: AppTypography.body(
-                size: 13,
-                weight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 // Focus Card
