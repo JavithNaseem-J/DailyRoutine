@@ -4,13 +4,20 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// ── Read signing credentials from key.properties (gitignored) ──────────────
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = java.util.Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(keystorePropertiesFile.inputStream())
+}
+
 android {
     namespace = "com.naseem.yawmi"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        isCoreLibraryDesugaringEnabled = true          // ← ADD THIS
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
@@ -29,11 +36,20 @@ android {
 
     signingConfigs {
         create("release") {
-            // Configured for CI/CD. Falls back to local variables for local builds.
-            storeFile = file("yawmi-release.jks")
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "yawmi123"
-            keyAlias = System.getenv("KEY_ALIAS") ?: "yawmi"
-            keyPassword = System.getenv("KEY_PASSWORD") ?: "yawmi123"
+            // CI/CD: env vars take priority. Local: read from key.properties.
+            storeFile = file(
+                System.getenv("KEYSTORE_FILE")
+                    ?: keystoreProperties.getProperty("storeFile", "yawmi-release.jks")
+            )
+            storePassword = System.getenv("KEYSTORE_PASSWORD")
+                ?: keystoreProperties.getProperty("storePassword")
+                ?: error("Missing KEYSTORE_PASSWORD. Set it in key.properties or as an env var.")
+            keyAlias = System.getenv("KEY_ALIAS")
+                ?: keystoreProperties.getProperty("keyAlias")
+                ?: error("Missing KEY_ALIAS. Set it in key.properties or as an env var.")
+            keyPassword = System.getenv("KEY_PASSWORD")
+                ?: keystoreProperties.getProperty("keyPassword")
+                ?: error("Missing KEY_PASSWORD. Set it in key.properties or as an env var.")
         }
     }
 
@@ -55,5 +71,5 @@ flutter {
 }
 
 dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")  // ← ADD THIS
-}
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+}

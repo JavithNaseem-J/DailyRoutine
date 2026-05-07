@@ -301,7 +301,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final today = dateService.todayKey();
 
     await hiveService.writeDailyState(DailyState.empty(today));
-    await hiveService.writeQuickTasks(today, <QuickTask>[]);
+    await hiveService.writeQuickTasks('global', <QuickTask>[]);
     await hiveService.writeTodaysFocus(TodaysFocus.empty(today));
 
     supabaseService

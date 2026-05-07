@@ -275,7 +275,7 @@ class _PrayerConsistencyCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.self_improvement_rounded, size: 18, color: AppColors.textSecondary),
+              Icon(Icons.mosque_rounded, size: 20, color: AppColors.textSecondary),
               const SizedBox(width: 8),
               Text(
                 'Prayer',

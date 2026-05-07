@@ -459,6 +459,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     supabaseService.deleteQuickTask(task.id).catchError((_) {});
   }
 
+  void _updateQuickTask(QuickTask updated) {
+    final i = _quickTasks.indexWhere((t) => t.id == updated.id);
+    if (i < 0) return;
+    setState(() => _quickTasks = [..._quickTasks]..[i] = updated);
+    hiveService.writeQuickTasks('global', _quickTasks);
+    supabaseService.upsertQuickTask(updated, deviceId).catchError((_) {});
+  }
+
+
   // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Goals ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Greeting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -599,6 +608,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   onAdd: _addQuickTask,
                   onDelete: _deleteQuickTask,
                   onToggle: _toggleQuickTask,
+                  onUpdate: _updateQuickTask,
                 ),
 
                 SizedBox(height: 32),
@@ -988,7 +998,7 @@ class _PrayerCard extends ConsumerWidget {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.person_outline, size: 9, color: AppColors.complete),
+                          Icon(Icons.mosque_rounded, size: 10, color: AppColors.complete),
                           const SizedBox(width: 4),
                           Text('Prayer', style: AppTypography.label(color: AppColors.complete)),
                         ],
@@ -1604,12 +1614,14 @@ class _TaskBoard extends StatefulWidget {
     required this.onAdd,
     required this.onDelete,
     required this.onToggle,
+    required this.onUpdate,
   });
 
   final List<QuickTask> tasks;
   final QuickTask Function(String title, bool isUrgent, bool isImportant) onAdd;
   final ValueChanged<String> onDelete;
   final ValueChanged<String> onToggle;
+  final ValueChanged<QuickTask> onUpdate;
 
   @override
   State<_TaskBoard> createState() => _TaskBoardState();
@@ -1638,11 +1650,13 @@ class _TaskBoardState extends State<_TaskBoard> {
         color: color,
         isUrgent: meta.urgency,
         isImportant: meta.important,
+        quadrantIndex: qi,
         allTasks: widget.tasks,
         controller: _ctls[qi],
         onAdd: widget.onAdd,
         onToggle: widget.onToggle,
         onDelete: widget.onDelete,
+        onUpdate: widget.onUpdate,
       ),
     );
   }
@@ -1834,22 +1848,26 @@ class _QuadrantSheet extends StatefulWidget {
     required this.color,
     required this.isUrgent,
     required this.isImportant,
+    required this.quadrantIndex,
     required this.allTasks,
     required this.controller,
     required this.onAdd,
     required this.onToggle,
     required this.onDelete,
+    required this.onUpdate,
   });
 
   final String label;
   final Color color;
   final bool isUrgent;
   final bool isImportant;
+  final int quadrantIndex;
   final List<QuickTask> allTasks;
   final TextEditingController controller;
   final QuickTask Function(String, bool, bool) onAdd;
   final ValueChanged<String> onToggle;
   final ValueChanged<String> onDelete;
+  final ValueChanged<QuickTask> onUpdate;
 
   @override
   State<_QuadrantSheet> createState() => _QuadrantSheetState();
@@ -1873,10 +1891,10 @@ class _QuadrantSheetState extends State<_QuadrantSheet> {
   void _add() {
     final text = widget.controller.text.trim();
     if (text.isEmpty) return;
-    if (_qTasks.length >= 4) {
+    if (_qTasks.length >= 3) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Max 4 tasks allowed in this category'),
+          content: Text('Max 3 tasks allowed in this category'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -1905,6 +1923,14 @@ class _QuadrantSheetState extends State<_QuadrantSheet> {
     widget.onDelete(task.id);
     setState(() =>
         _localAll = _localAll.where((t) => t.id != task.id).toList());
+  }
+
+  void _update(QuickTask updated) {
+    widget.onUpdate(updated);
+    setState(() {
+      final i = _localAll.indexWhere((t) => t.id == updated.id);
+      if (i >= 0) _localAll = List.from(_localAll)..[i] = updated;
+    });
   }
 
   @override
@@ -1987,8 +2013,10 @@ class _QuadrantSheetState extends State<_QuadrantSheet> {
                   key: ValueKey(task.id),
                   task: task,
                   accentColor: widget.color,
+                  quadrantIndex: widget.quadrantIndex,
                   onToggle: () => _toggle(task),
                   onDelete: () => _delete(task),
+                  onUpdate: _update,
                 )),
 
           const SizedBox(height: 12),
@@ -2063,70 +2091,338 @@ class _QuadrantSheetState extends State<_QuadrantSheet> {
 // Matrix Task Chip (used in sheet)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _MatrixTaskChip extends StatelessWidget {
+class _MatrixTaskChip extends StatefulWidget {
   const _MatrixTaskChip({
     super.key,
     required this.task,
     required this.accentColor,
+    required this.quadrantIndex,
     required this.onToggle,
     required this.onDelete,
+    required this.onUpdate,
   });
 
   final QuickTask task;
   final Color accentColor;
+  /// 0=Do it, 1=Schedule it, 2=Delegate it, 3=Skip it
+  final int quadrantIndex;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
+  final ValueChanged<QuickTask> onUpdate;
+
+  @override
+  State<_MatrixTaskChip> createState() => _MatrixTaskChipState();
+}
+class _MatrixTaskChipState extends State<_MatrixTaskChip> {
+  static const _months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  // ── Priority cycling (Do it) ──────────────────────────────────────────────
+  void _cyclePriority() {
+    final cur = widget.task.priority;
+    final String? next;
+    if (cur == null) {
+      next = 'P1';
+    } else if (cur == 'P1') {
+      next = 'P2';
+    } else if (cur == 'P2') {
+      next = 'P3';
+    } else {
+      next = null; // P3 → clear
+    }
+    widget.onUpdate(widget.task.copyWith(priority: next));
+  }
+
+  // ── Deadline picker (Schedule it) ────────────────────────────────────────
+  Future<void> _pickDeadline() async {
+    final now = DateTime.now();
+    final initial = widget.task.deadline != null
+        ? DateTime.tryParse(widget.task.deadline!) ?? now
+        : now;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: now.subtract(const Duration(days: 365)),
+      lastDate: now.add(const Duration(days: 730)),
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: ColorScheme.dark(
+            primary: widget.accentColor,
+            onPrimary: Colors.white,
+            surface: AppColors.cardSurface,
+            onSurface: AppColors.textPrimary,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) {
+      final iso = '${picked.year}-${picked.month.toString().padLeft(2,'0')}-${picked.day.toString().padLeft(2,'0')}';
+      widget.onUpdate(widget.task.copyWith(deadline: iso));
+    }
+  }
+
+  // ── Delegatee input (Delegate it) ─────────────────────────────────────────
+  Future<void> _pickDelegatee() async {
+    final ctrl = TextEditingController(text: widget.task.delegatee ?? '');
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Delegate to',
+          style: AppTypography.body(size: 16, weight: FontWeight.w700, color: AppColors.textPrimary),
+        ),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          style: AppTypography.body(size: 15, color: AppColors.textPrimary),
+          decoration: InputDecoration(
+            hintText: 'Person name...',
+            hintStyle: AppTypography.body(size: 15, color: AppColors.textMuted),
+            prefixIcon: Icon(Icons.person_outline_rounded, color: AppColors.textMuted, size: 20),
+            filled: true,
+            fillColor: AppColors.background,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+          onSubmitted: (_) => Navigator.pop(ctx),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: AppTypography.body(size: 14, color: AppColors.textMuted)),
+          ),
+          TextButton(
+            onPressed: () {
+              final name = ctrl.text.trim();
+              widget.onUpdate(widget.task.copyWith(delegatee: name.isEmpty ? null : name));
+              Navigator.pop(ctx);
+            },
+            child: Text('Save', style: AppTypography.body(size: 14, weight: FontWeight.w700, color: widget.accentColor)),
+          ),
+        ],
+      ),
+    ).whenComplete(() => ctrl.dispose());
+  }
+
+  // ── Metadata badge widget ─────────────────────────────────────────────────
+  Widget? _buildMetaBadge() {
+    switch (widget.quadrantIndex) {
+      // Do it → priority flag
+      case 0:
+        final p = widget.task.priority;
+        // P1=Red, P2=Orange, P3=Blue, null=muted
+        final Color pColor = p == 'P1'
+            ? const Color(0xFFEF4444)
+            : p == 'P2'
+                ? const Color(0xFFF59E0B)
+                : p == 'P3'
+                    ? const Color(0xFF3B82F6)
+                    : AppColors.textMuted;
+        return GestureDetector(
+          onTap: _cyclePriority,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: p != null
+                  ? pColor.withValues(alpha: 0.12)
+                  : AppColors.surfaceRaised,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: p != null
+                    ? pColor.withValues(alpha: 0.45)
+                    : AppColors.textMuted.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.flag_rounded,
+                  size: 13,
+                  color: pColor,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  p ?? 'P—',
+                  style: AppTypography.mono(
+                    size: 11,
+                    weight: FontWeight.w700,
+                    color: pColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+
+
+      // Schedule it → deadline date
+      case 1:
+        final dl = widget.task.deadline;
+        String label = 'Date';
+        bool hasDate = false;
+        bool isOverdue = false;
+        if (dl != null) {
+          final dt = DateTime.tryParse(dl);
+          if (dt != null) {
+            hasDate = true;
+            isOverdue = dt.isBefore(DateTime.now().subtract(const Duration(days: 1)));
+            label = '${_months[dt.month - 1]} ${dt.day}';
+          }
+        }
+        return GestureDetector(
+          onTap: _pickDeadline,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: hasDate
+                  ? (isOverdue
+                      ? Colors.red.withValues(alpha: 0.10)
+                      : widget.accentColor.withValues(alpha: 0.10))
+                  : AppColors.surfaceRaised,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: hasDate
+                    ? (isOverdue
+                        ? Colors.red.withValues(alpha: 0.4)
+                        : widget.accentColor.withValues(alpha: 0.4))
+                    : AppColors.textMuted.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.calendar_month_rounded,
+                  size: 13,
+                  color: hasDate
+                      ? (isOverdue ? Colors.red : widget.accentColor)
+                      : AppColors.textMuted,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: AppTypography.mono(
+                    size: 11,
+                    weight: FontWeight.w600,
+                    color: hasDate
+                        ? (isOverdue ? Colors.red : widget.accentColor)
+                        : AppColors.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+
+      // Delegate it → person name (sujood icon for prayer context)
+      case 2:
+        final name = widget.task.delegatee;
+        return GestureDetector(
+          onTap: _pickDelegatee,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: name != null
+                  ? widget.accentColor.withValues(alpha: 0.10)
+                  : AppColors.surfaceRaised,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: name != null
+                    ? widget.accentColor.withValues(alpha: 0.4)
+                    : AppColors.textMuted.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.person_outline_rounded,
+                  size: 13,
+                  color: name != null ? widget.accentColor : AppColors.textMuted,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  name ?? 'Who?',
+                  style: AppTypography.mono(
+                    size: 11,
+                    weight: FontWeight.w600,
+                    color: name != null ? widget.accentColor : AppColors.textMuted,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        );
+
+      default:
+        return null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final done = task.done;
+    final done = widget.task.done;
+    final badge = _buildMetaBadge();
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         children: [
           Expanded(
             child: GestureDetector(
-              onTap: onToggle,
+              onTap: widget.onToggle,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 height: 52,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                padding: const EdgeInsets.only(left: 8, right: 10),
                 decoration: BoxDecoration(
                   color: done
-                      ? accentColor.withValues(alpha: 0.08)
+                      ? widget.accentColor.withValues(alpha: 0.08)
                       : AppColors.surfaceRaised,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: done
-                        ? accentColor.withValues(alpha: 0.3)
+                        ? widget.accentColor.withValues(alpha: 0.3)
                         : Colors.transparent,
                   ),
                 ),
                 child: Row(
                   children: [
+                    // Checkbox
                     AnimatedContainer(
                       duration: const Duration(milliseconds: 180),
-                      width: 30,
-                      height: 30,
+                      width: 28,
+                      height: 28,
                       decoration: BoxDecoration(
-                        color: done ? accentColor : Colors.transparent,
+                        color: done ? widget.accentColor : Colors.transparent,
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: done ? accentColor : AppColors.textMuted.withValues(alpha: 0.6),
+                          color: done
+                              ? widget.accentColor
+                              : AppColors.textMuted.withValues(alpha: 0.6),
                           width: 1.5,
                         ),
                       ),
                       child: done
-                          ? const Icon(Icons.check_rounded,
-                              size: 18, color: Colors.white)
+                          ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
                           : null,
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
+                    // Title
                     Expanded(
                       child: Text(
-                        task.title,
+                        widget.task.title,
                         style: AppTypography.body(
-                          size: 16,
+                          size: 15,
                           weight: done ? FontWeight.w400 : FontWeight.w500,
                           color: done ? AppColors.textMuted : AppColors.textPrimary,
                         ).copyWith(
@@ -2137,29 +2433,35 @@ class _MatrixTaskChip extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    // Metadata badge (right side)
+                    if (badge != null) ...[
+                      const SizedBox(width: 8),
+                      badge,
+                    ],
                   ],
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
+          // Delete button
           GestureDetector(
-            onTap: onDelete,
+            onTap: widget.onDelete,
             child: Container(
-              width: 44,
-              height: 44,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: AppColors.textMuted.withValues(alpha: 0.08),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: AppColors.textMuted.withValues(alpha: 0.5),
+                  color: AppColors.textMuted.withValues(alpha: 0.4),
                   width: 1.5,
                 ),
               ),
               child: Icon(
                 Icons.close_rounded,
-                size: 20,
-                color: AppColors.textPrimary.withValues(alpha: 0.7),
+                size: 18,
+                color: AppColors.textPrimary.withValues(alpha: 0.6),
               ),
             ),
           ),

@@ -1,3 +1,4 @@
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/streak.dart';
 import '../../main.dart' show deviceId;
@@ -29,7 +30,8 @@ class StreakService {
           .maybeSingle();
       if (res == null) return null;
       return Streak.fromJson(deviceId, Map<String, dynamic>.from(res));
-    } catch (_) {
+    } catch (e, st) {
+      Sentry.captureException(e, stackTrace: st);
       return null;
     }
   }
@@ -88,7 +90,9 @@ class StreakService {
   Future<void> _upsertStreak(Streak streak) async {
     try {
       await _db.from('streak').upsert(streak.toJson(), onConflict: 'device_id');
-    } catch (_) {}
+    } catch (e, st) {
+      Sentry.captureException(e, stackTrace: st);
+    }
   }
 }
 

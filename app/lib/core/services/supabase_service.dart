@@ -21,16 +21,20 @@ class SupabaseService {
   // ── DailyState ─────────────────────────────────────────────────────────────
 
   Future<void> upsertDailyState(DailyState state, String deviceId) async {
-    await _db.from('daily_state').upsert({
-      'device_id': deviceId,
-      'date': state.date,
-      'task_states': state.taskStates,
-      'bonus_states': state.bonusStates,
-      if (state.mood != null) 'mood': state.mood,
-      'focus_minutes': state.focusMinutes,
-      'project_minutes': state.projectMinutes,
-      'prayer_states': state.prayerStates,
-    }, onConflict: 'device_id, date');
+    try {
+      await _db.from('daily_state').upsert({
+        'device_id': deviceId,
+        'date': state.date,
+        'task_states': state.taskStates,
+        'bonus_states': state.bonusStates,
+        if (state.mood != null) 'mood': state.mood,
+        'focus_minutes': state.focusMinutes,
+        'project_minutes': state.projectMinutes,
+        'prayer_states': state.prayerStates,
+      }, onConflict: 'device_id, date');
+    } catch (e, st) {
+      Sentry.captureException(e, stackTrace: st);
+    }
   }
 
   Future<DailyState?> fetchDailyState(String dateKey, String deviceId) async {
@@ -63,21 +67,32 @@ class SupabaseService {
   // ── QuickTasks ─────────────────────────────────────────────────────────────
 
   Future<void> upsertQuickTask(QuickTask task, String deviceId) async {
-    await _db.from('quick_tasks').upsert({
-      'id': task.id,
-      'device_id': deviceId,
-      'date': task.date,
-      'title': task.title,
-      if (task.time != null) 'time': task.time,
-      'done': task.done,
-      'archived': task.archived,
-      'is_urgent': task.isUrgent,
-      'is_important': task.isImportant,
-    });
+    try {
+      await _db.from('quick_tasks').upsert({
+        'id': task.id,
+        'device_id': deviceId,
+        'date': task.date,
+        'title': task.title,
+        if (task.time != null) 'time': task.time,
+        'done': task.done,
+        'archived': task.archived,
+        'is_urgent': task.isUrgent,
+        'is_important': task.isImportant,
+        if (task.priority != null) 'priority': task.priority,
+        if (task.deadline != null) 'deadline': task.deadline,
+        if (task.delegatee != null) 'delegatee': task.delegatee,
+      });
+    } catch (e, st) {
+      Sentry.captureException(e, stackTrace: st);
+    }
   }
 
   Future<void> deleteQuickTask(String taskId) async {
-    await _db.from('quick_tasks').delete().eq('id', taskId);
+    try {
+      await _db.from('quick_tasks').delete().eq('id', taskId);
+    } catch (e, st) {
+      Sentry.captureException(e, stackTrace: st);
+    }
   }
 
   Future<List<QuickTask>> fetchQuickTasks(
@@ -111,11 +126,15 @@ class SupabaseService {
     int completionPct,
     String deviceId,
   ) async {
-    await _db.from('stats_history').upsert({
-      'device_id': deviceId,
-      'date': dateKey,
-      'completion_pct': completionPct,
-    }, onConflict: 'device_id, date');
+    try {
+      await _db.from('stats_history').upsert({
+        'device_id': deviceId,
+        'date': dateKey,
+        'completion_pct': completionPct,
+      }, onConflict: 'device_id, date');
+    } catch (e, st) {
+      Sentry.captureException(e, stackTrace: st);
+    }
   }
 
   Future<List<Map<String, dynamic>>> fetchStatsHistory(
