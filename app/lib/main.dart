@@ -52,13 +52,11 @@ Future<void> main() async {
     return;
   }
 
-  // ── Lock to portrait ───────────────────────────────────────────────
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
-  // ── Status bar styling ─────────────────────────────────────────────
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -66,7 +64,6 @@ Future<void> main() async {
     ),
   );
 
-  // ── Supabase ───────────────────────────────────────────────────────
   await Supabase.initialize(url: _supabaseUrl, anonKey: _supabaseKey);
 
   sharedPrefs = await SharedPreferences.getInstance();
@@ -88,10 +85,8 @@ Future<void> main() async {
   }
   deviceId = sharedPrefs.getString('deviceId')!;
 
-  // ── Hive local cache (mobile only) ────────────────────────────
   await hiveService.init();
 
-  // ── Midnight reset + Notifications (mobile only) ─────────────────────
   lifecycleService.init();
   await notificationService.init();
   final sessionReminders = sharedPrefs.getBool('sessionReminders') ?? true;

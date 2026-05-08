@@ -18,7 +18,6 @@ class PrayerTimes {
   final DateTime isha;
   final bool isOverride;
 
-  // ── Named prayers ordered chronologically ────────────────────────
   List<({String name, DateTime time})> asOrderedList() => [
     (name: 'Fajr', time: fajr),
     (name: 'Dhuhr', time: dhuhr),

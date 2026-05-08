@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Data models for the session/task system
-// ─────────────────────────────────────────────────────────────────────────────
 
 /// Which habit ring a task contributes to.
 enum RingType { worship, build, body, none }
@@ -15,9 +13,7 @@ enum SessionPillState {
   complete, // all done
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Task
-// ─────────────────────────────────────────────────────────────────────────────
 class Task {
   const Task({
     required this.id,
@@ -93,9 +89,7 @@ class Task {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Session
-// ─────────────────────────────────────────────────────────────────────────────
 class Session {
   const Session({
     required this.id,

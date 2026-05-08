@@ -3,13 +3,10 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import '../models/daily_state.dart';
 import '../models/quick_task.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // SupabaseService — remote persistence
-//
 // All rows keyed by deviceId (UUID from SharedPreferences).
 // Never call these directly from UI — go through Riverpod providers.
 // Call after Hive write to avoid blocking the UI.
-// ─────────────────────────────────────────────────────────────────────────────
 
 class SupabaseService {
   static final SupabaseService _instance = SupabaseService._();
@@ -18,7 +15,6 @@ class SupabaseService {
 
   SupabaseClient get _db => Supabase.instance.client;
 
-  // ── DailyState ─────────────────────────────────────────────────────────────
 
   Future<void> upsertDailyState(DailyState state, String deviceId) async {
     try {
@@ -64,7 +60,6 @@ class SupabaseService {
     }
   }
 
-  // ── QuickTasks ─────────────────────────────────────────────────────────────
 
   Future<void> upsertQuickTask(QuickTask task, String deviceId) async {
     try {
@@ -119,7 +114,6 @@ class SupabaseService {
 
 
 
-  // ── StatsHistory ───────────────────────────────────────────────────────────
 
   Future<void> upsertStatsHistory(
     String dateKey,
@@ -174,7 +168,17 @@ class SupabaseService {
     }
   }
 
-  // ── Helper ─────────────────────────────────────────────────────────────────
+  Future<void> resetAllData(String deviceId) async {
+    try {
+      await _db.from('daily_state').delete().eq('device_id', deviceId);
+      await _db.from('quick_tasks').delete().eq('device_id', deviceId);
+      await _db.from('stats_history').delete().eq('device_id', deviceId);
+      await _db.from('streak').delete().eq('device_id', deviceId);
+    } catch (e, st) {
+      Sentry.captureException(e, stackTrace: st);
+    }
+  }
+
 
   // BUG-018 fix: safe cast handles both bool and int (0/1) from Postgres
   Map<String, bool> _castBoolMap(dynamic raw) {

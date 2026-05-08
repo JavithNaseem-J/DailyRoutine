@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +7,8 @@ import 'package:audioplayers/audioplayers.dart';
 import '../../core/theme/app_typography.dart';
 import '../../core/theme/app_colors.dart';
 import '../sessions/providers/sessions_provider.dart';
+
+import 'providers/focus_timer_provider.dart';
 
 class FocusScreen extends ConsumerStatefulWidget {
   const FocusScreen({
@@ -24,15 +25,18 @@ class FocusScreen extends ConsumerStatefulWidget {
 }
 
 class _FocusScreenState extends ConsumerState<FocusScreen>
-    with SingleTickerProviderStateMixin {
-  late int _remainingSeconds;
-  late int _totalSeconds;
-  Timer? _timer;
-  bool _isRunning = false;
-  String? _currentAmbient;
-  String? _selectedProject;
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  final AudioPlayer _ambientPlayer = AudioPlayer();
 
-  // Removed: #Code, #Quran, #Build
+  static const _sounds = {
+    'rain':  'sounds/rain.wav',
+    'noise': 'sounds/noise.wav',
+    'cafe':  'sounds/cafe.wav',
+  };
+
   final List<String> _projectTags = [
     'Study',
     'Work',
@@ -41,23 +45,18 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
     'Review',
   ];
 
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
-  final AudioPlayer _audioPlayer = AudioPlayer();
-  final AudioPlayer _ambientPlayer = AudioPlayer();
-
-  // ── Working ambient sound URLs ─────────────────────────────────────────────
-  static const _sounds = {
-    'rain':  'sounds/rain.wav',
-    'noise': 'sounds/noise.wav',
-    'cafe':  'sounds/cafe.wav',
-  };
-
   @override
   void initState() {
     super.initState();
-    _totalSeconds = widget.durationMinutes * 60;
-    _remainingSeconds = _totalSeconds;
+    WidgetsBinding.instance.addObserver(this);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(focusTimerProvider.notifier).initTimer(
+            taskTitle: widget.taskTitle,
+            durationMinutes: widget.durationMinutes,
+          );
+      _syncAmbientSound();
+    });
 
     _pulseController = AnimationController(
       vsync: this,
@@ -69,76 +68,107 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
     _ambientPlayer.setReleaseMode(ReleaseMode.loop);
   }
 
+  void _syncAmbientSound() async {
+    final state = ref.read(focusTimerProvider);
+    if (state.currentAmbient != null && state.currentAmbient != 'none') {
+      try {
+        await _ambientPlayer.play(AssetSource(_sounds[state.currentAmbient]!), volume: 0.5);
+      } catch (_) {}
+    }
+  }
+
   @override
   void dispose() {
-    _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    // Automatically pause the timer when leaving the screen
+    // We remove the auto pause so focus timer can continue running while user navigates other parts.
+    // ref.read(focusTimerProvider.notifier).pauseTimer();
+    
     _pulseController.dispose();
     _audioPlayer.dispose();
     _ambientPlayer.dispose();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      ref.read(focusTimerProvider.notifier).backgroundPause();
+    } else if (state == AppLifecycleState.resumed) {
+      ref.read(focusTimerProvider.notifier).backgroundResume(
+        onComplete: _onTimerComplete
+      );
+    }
+  }
+
+  void _onTimerComplete() {
+    _pulseController.stop();
+    HapticFeedback.heavyImpact();
+    _audioPlayer.play(
+      AssetSource('sounds/timer_done.wav'),
+    ).catchError((_) {});
+    
+    final state = ref.read(focusTimerProvider);
+    ref
+        .read(sessionsProvider.notifier)
+        .addFocusMinutes(state.totalSeconds ~/ 60, tag: state.selectedProject);
+  }
+
   void _toggleAmbient(String id) async {
     HapticFeedback.lightImpact();
-    if (_currentAmbient == id) {
-      await _ambientPlayer.stop();
-      setState(() => _currentAmbient = null);
-    } else {
-      setState(() => _currentAmbient = id);
+    final notifier = ref.read(focusTimerProvider.notifier);
+    notifier.toggleAmbient(id);
+    final currentState = ref.read(focusTimerProvider);
+
+    await _ambientPlayer.stop();
+    if (currentState.currentAmbient != null && currentState.currentAmbient != 'none') {
       try {
-        await _ambientPlayer.stop();
-        await _ambientPlayer.play(AssetSource(_sounds[id]!), volume: 0.5);
+        await _ambientPlayer.play(AssetSource(_sounds[currentState.currentAmbient]!), volume: 0.5);
       } catch (_) {}
     }
   }
 
   void _toggleTimer() {
     HapticFeedback.lightImpact();
-    if (_isRunning) {
-      _timer?.cancel();
+    final state = ref.read(focusTimerProvider);
+    final notifier = ref.read(focusTimerProvider.notifier);
+
+    if (state.isRunning) {
+      notifier.pauseTimer();
       _pulseController.stop();
-      setState(() => _isRunning = false);
     } else {
       _pulseController.repeat(reverse: true);
-      setState(() => _isRunning = true);
-      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        if (_remainingSeconds > 0) {
-          setState(() => _remainingSeconds--);
-        } else {
-          _timer?.cancel();
-          _pulseController.stop();
-          setState(() => _isRunning = false);
-          HapticFeedback.heavyImpact();
-          _audioPlayer.play(
-            AssetSource('sounds/timer_done.wav'),
-          ).catchError((_) {});
-          ref
-              .read(sessionsProvider.notifier)
-              .addFocusMinutes(_totalSeconds ~/ 60, tag: _selectedProject);
-        }
-      });
+      notifier.startTimer(
+        onComplete: _onTimerComplete,
+      );
     }
   }
 
   void _changeDuration(int minutes) {
-    if (_isRunning) return;
-    setState(() {
-      _totalSeconds = minutes * 60;
-      _remainingSeconds = _totalSeconds;
-    });
+    if (ref.read(focusTimerProvider).isRunning) return;
+    ref.read(focusTimerProvider.notifier).changeDuration(minutes);
     HapticFeedback.selectionClick();
   }
 
-  String get _timeString {
-    final m = _remainingSeconds ~/ 60;
-    final s = _remainingSeconds % 60;
+  String _timeString(int remainingSeconds) {
+    final m = remainingSeconds ~/ 60;
+    final s = remainingSeconds % 60;
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
-    final progress = _totalSeconds > 0
-        ? 1 - (_remainingSeconds / _totalSeconds)
+    final timerState = ref.watch(focusTimerProvider);
+    
+    // Sync pulse animation state just in case it got out of sync
+    if (timerState.isRunning && !_pulseController.isAnimating) {
+      _pulseController.repeat(reverse: true);
+    } else if (!timerState.isRunning && _pulseController.isAnimating) {
+      _pulseController.stop();
+    }
+
+    final progress = timerState.totalSeconds > 0
+        ? 1 - (timerState.remainingSeconds / timerState.totalSeconds)
         : 0.0;
 
     return Scaffold(
@@ -147,14 +177,13 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
         backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.close_rounded, color: AppColors.textSecondary),
+          icon: Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textSecondary, size: 32),
           onPressed: () {
-            _timer?.cancel();
+            // BUG-004 fix: instead of stopping the timer, just pop so the user can navigate away.
             context.pop();
           },
         ),
       ),
-      // ── Wrap entire body in SingleChildScrollView to fix cut-off ──
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -181,13 +210,12 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    widget.taskTitle,
+                    timerState.taskTitle,
                     textAlign: TextAlign.center,
                     style: AppTypography.screenTitle(color: AppColors.textPrimary),
                   ),
                   const SizedBox(height: 20),
 
-                  // ── Project Tag Selector — fixed layout ────────────────
                   SizedBox(
                     height: 38,
                     child: ListView.separated(
@@ -198,14 +226,14 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
                       separatorBuilder: (_, __) => const SizedBox(width: 8),
                       itemBuilder: (context, index) {
                         final tag = _projectTags[index];
-                        final isSelected = _selectedProject == tag;
+                        final isSelected = timerState.selectedProject == tag;
                         return GestureDetector(
                           onTap: () {
-                            if (!_isRunning) {
+                            if (!timerState.isRunning) {
                               HapticFeedback.selectionClick();
-                              setState(() {
-                                _selectedProject = isSelected ? null : tag;
-                              });
+                              ref.read(focusTimerProvider.notifier).setSelectedProject(
+                                isSelected ? null : tag,
+                              );
                             }
                           },
                           child: AnimatedContainer(
@@ -242,14 +270,13 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
                   ),
                   const SizedBox(height: 40),
 
-                  // ── Timer Circle ────────────────────────────────────────
                   GestureDetector(
                     onTap: _toggleTimer,
                     child: AnimatedBuilder(
                       animation: _pulseAnimation,
                       builder: (context, child) {
                         return Transform.scale(
-                          scale: _isRunning ? _pulseAnimation.value : 1.0,
+                          scale: timerState.isRunning ? _pulseAnimation.value : 1.0,
                           child: Stack(
                             alignment: Alignment.center,
                             children: [
@@ -272,7 +299,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
                                   strokeWidth: 8,
                                   strokeCap: StrokeCap.round,
                                   valueColor: AlwaysStoppedAnimation(
-                                    _isRunning
+                                    timerState.isRunning
                                         ? AppColors.complete
                                         : AppColors.afternoon,
                                   ),
@@ -282,7 +309,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    _timeString,
+                                    _timeString(timerState.remainingSeconds),
                                     style: AppTypography.mono(
                                       size: 58,
                                       weight: FontWeight.w300,
@@ -291,7 +318,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
                                   ),
                                   const SizedBox(height: 8),
                                   Icon(
-                                    _isRunning
+                                    timerState.isRunning
                                         ? Icons.pause_circle_outline
                                         : Icons.play_circle_outline,
                                     color: AppColors.textSecondary,
@@ -307,60 +334,57 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
                   ),
                   const SizedBox(height: 48),
 
-                  // ── Duration Toggles ────────────────────────────────────
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       _DurationToggle(
                         label: '15M',
-                        isSelected: _totalSeconds == 15 * 60,
+                        isSelected: timerState.totalSeconds == 15 * 60,
                         onTap: () => _changeDuration(15),
                       ),
                       const SizedBox(width: 12),
                       _DurationToggle(
                         label: '25M',
-                        isSelected: _totalSeconds == 25 * 60,
+                        isSelected: timerState.totalSeconds == 25 * 60,
                         onTap: () => _changeDuration(25),
                       ),
                       const SizedBox(width: 12),
                       _DurationToggle(
                         label: '1H',
-                        isSelected: _totalSeconds == 60 * 60,
+                        isSelected: timerState.totalSeconds == 60 * 60,
                         onTap: () => _changeDuration(60),
                       ),
                     ],
                   ),
                   const SizedBox(height: 20),
 
-                  // ── Ambient Sounds ──────────────────────────────────────
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       _AmbientToggle(
                         icon: Icons.water_drop,
                         label: 'Rain',
-                        isSelected: _currentAmbient == 'rain',
+                        isSelected: timerState.currentAmbient == 'rain',
                         onTap: () => _toggleAmbient('rain'),
                       ),
                       const SizedBox(width: 12),
                       _AmbientToggle(
                         icon: Icons.waves,
                         label: 'Noise',
-                        isSelected: _currentAmbient == 'noise',
+                        isSelected: timerState.currentAmbient == 'noise',
                         onTap: () => _toggleAmbient('noise'),
                       ),
                       const SizedBox(width: 12),
                       _AmbientToggle(
                         icon: Icons.coffee,
                         label: 'Cafe',
-                        isSelected: _currentAmbient == 'cafe',
+                        isSelected: timerState.currentAmbient == 'cafe',
                         onTap: () => _toggleAmbient('cafe'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 24),
 
-                  // ── Reset ───────────────────────────────────────────────
                   CupertinoButton(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 40,
@@ -370,14 +394,10 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
                     borderRadius: BorderRadius.circular(30),
                     onPressed: () {
                       HapticFeedback.lightImpact();
-                      setState(() {
-                        _timer?.cancel();
-                        _isRunning = false;
-                        _remainingSeconds = _totalSeconds;
-                        _pulseController.stop();
-                        _currentAmbient = null;
-                        _ambientPlayer.stop();
-                      });
+                      ref.read(focusTimerProvider.notifier).stopTimer();
+                      ref.read(focusTimerProvider.notifier).setAmbient('none');
+                      _pulseController.stop();
+                      _ambientPlayer.stop();
                     },
                     child: Text(
                       'Reset',
@@ -388,7 +408,8 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  // Extra padding to prevent nav bar overlap
+                  const SizedBox(height: 120),
                 ],
               ),
             ),

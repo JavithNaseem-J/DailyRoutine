@@ -6,7 +6,6 @@ import 'package:google_fonts/google_fonts.dart';
 /// body() → Plus Jakarta Sans  (all headings, labels, body copy)
 /// mono() → JetBrains Mono     (times, durations, counts, timer, %)
 abstract final class AppTypography {
-  // ── Body / Display — Plus Jakarta Sans ───────────────────────────
   static TextStyle body({
     double size = 14,
     FontWeight weight = FontWeight.w400,
@@ -23,7 +22,6 @@ abstract final class AppTypography {
     letterSpacing: letterSpacing,
   );
 
-  // ── Monospace — JetBrains Mono ───────────────────────────────────
   static TextStyle mono({
     double size = 14,
     FontWeight weight = FontWeight.w400,
@@ -36,7 +34,6 @@ abstract final class AppTypography {
     height: height,
   );
 
-  // ── Semantic shortcuts ────────────────────────────────────────────
   /// Large screen title — "Good Morning!"
   static TextStyle screenTitle({Color? color}) =>
       body(size: 22, weight: FontWeight.w700, color: color);

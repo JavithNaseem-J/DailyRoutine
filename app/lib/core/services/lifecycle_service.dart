@@ -3,16 +3,12 @@ import '../services/date_service.dart';
 import '../services/hive_service.dart';
 import '../../main.dart' show sharedPrefs;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // LifecycleService — handles midnight date rollover
-//
 // On every app resume (AppLifecycleState.resumed):
 //   1. Compare stored date key to today
 //   2. If different → archive old quick tasks, prune old Hive keys
 //   3. Save new date key to SharedPreferences
-//
 // Usage: wrap your top-level app widget with LifecycleObserver
-// ─────────────────────────────────────────────────────────────────────────────
 
 class LifecycleService extends WidgetsBindingObserver {
   static final LifecycleService _instance = LifecycleService._();

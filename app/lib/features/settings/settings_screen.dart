@@ -16,9 +16,7 @@ import '../../core/theme/app_typography.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../main.dart' show deviceId, sharedPrefs;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Settings Screen — Phase 4.5
-// ─────────────────────────────────────────────────────────────────────────────
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -86,14 +84,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  // ── Change Location (GPS) ───────────────────────────────────────────
   Future<void> _changeLocation() async {
     setState(() => _isLocating = true);
 
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        throw Exception('Location services are disabled.');
+        setState(() => _isLocating = false);
+        final bool openSettings = await _showConfirm(
+          title: 'Location Disabled',
+          message: 'Location services are disabled. Would you like to enable them in settings?',
+        );
+        if (openSettings) {
+          await Geolocator.openLocationSettings();
+        }
+        return;
       }
 
       LocationPermission permission = await Geolocator.checkPermission();
@@ -105,7 +110,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
       
       if (permission == LocationPermission.deniedForever) {
-        throw Exception('Location permissions are permanently denied.');
+        setState(() => _isLocating = false);
+        final bool openSettings = await _showConfirm(
+          title: 'Permission Denied',
+          message: 'Location permissions are permanently denied. Please enable them in app settings.',
+        );
+        if (openSettings) {
+          await Geolocator.openAppSettings();
+        }
+        return;
       } 
 
       Position position = await Geolocator.getCurrentPosition();
@@ -193,7 +206,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  // ── Reset streak ───────────────────────────────────────────────────
   Future<void> _resetStreak() async {
     final confirm = await _showConfirm(
       title: 'Reset Streak',
@@ -201,7 +213,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
     if (!confirm) return;
 
-    await streakService.onTaskToggled(allTasksDone: false);
+    await streakService.resetStreak();
     if (mounted) {
       ScaffoldMessenger.of(
         context,
@@ -209,7 +221,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  // ── Reset ALL (requires typed "RESET") ────────────────────────────
   Future<void> _showResetAllDialog() async {
     _resetController.clear();
     await showDialog(
@@ -298,15 +309,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _performResetAll() async {
     setState(() => _isResetting = true);
+
+    await hiveService.clearAll();
+    await supabaseService.resetAllData(deviceId);
+
+    // Also restart empty states for today locally
     final today = dateService.todayKey();
-
     await hiveService.writeDailyState(DailyState.empty(today));
-    await hiveService.writeQuickTasks('global', <QuickTask>[]);
     await hiveService.writeTodaysFocus(TodaysFocus.empty(today));
-
-    supabaseService
-        .upsertDailyState(DailyState.empty(today), deviceId)
-        .catchError((_) {});
+    await hiveService.writeQuickTasks('global', <QuickTask>[]);
 
     setState(() => _isResetting = false);
 
@@ -391,7 +402,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               children: [
 
 
-                // ── Notifications ──────────────────────────────────
                 const _SectionHeader(title: 'Notifications'),
                 _SettingsTile(
                   icon: Icons.notifications_active_outlined,
@@ -416,7 +426,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
                 SizedBox(height: 24),
 
-                // ── Prayer Times ───────────────────────────────────
                 const _SectionHeader(title: 'Prayer Times'),
                 Row(
                   children: [
@@ -477,7 +486,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
                 SizedBox(height: 24),
 
-                // ── Data & Reset ───────────────────────────────────
                 const _SectionHeader(title: 'Data & Reset'),
                 _SettingsTile(
                   icon: Icons.refresh_rounded,
@@ -583,9 +591,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Section Header
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.title});
@@ -607,9 +613,7 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Settings Tile
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _SettingsTile extends StatelessWidget {
   const _SettingsTile({

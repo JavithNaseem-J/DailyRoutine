@@ -4,7 +4,6 @@ import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 import 'prayer_service.dart';
 
-// ── NotificationService ── flutter_local_notifications v20.x
 class NotificationService {
   static final NotificationService _instance = NotificationService._();
   factory NotificationService() => _instance;

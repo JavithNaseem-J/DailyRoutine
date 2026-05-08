@@ -5,14 +5,10 @@ import '../models/quick_task.dart';
 import '../models/todays_focus.dart';
 import '../models/session.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // HiveService — local write-ahead cache
-//
 // On web: _initialized stays false → all reads return empty defaults,
 //          all writes are no-ops. Supabase is the sole data source on web.
-//
 // On mobile: boxes are opened in init(), called from main() before runApp.
-// ─────────────────────────────────────────────────────────────────────────────
 
 class HiveService {
   static final HiveService _instance = HiveService._();
@@ -26,7 +22,6 @@ class HiveService {
 
   bool _initialized = false;
 
-  // ── Init — call once in main() (mobile only) ───────────────────────
   Future<void> init() async {
     if (_initialized) return;
     await Hive.initFlutter();
@@ -37,7 +32,6 @@ class HiveService {
     _initialized = true;
   }
 
-  // ── DailyState ─────────────────────────────────────────────────────
 
   DailyState readDailyState(String dateKey) {
     if (!_initialized) return DailyState.empty(dateKey);
@@ -75,7 +69,6 @@ class HiveService {
     return states;
   }
 
-  // ── TodaysFocus ────────────────────────────────────────────────────
 
   TodaysFocus readTodaysFocus(String dateKey) {
     if (!_initialized) return TodaysFocus.empty(dateKey);
@@ -95,7 +88,6 @@ class HiveService {
     await _focusBox!.put(focus.date, jsonEncode(focus.toJson()));
   }
 
-  // ── QuickTasks ─────────────────────────────────────────────────────
 
   List<QuickTask> readQuickTasks(String dateKey) {
     if (!_initialized) return [];
@@ -120,7 +112,6 @@ class HiveService {
   }
 
 
-  // ── Custom Tasks ───────────────────────────────────────────────────
 
   List<Task> readCustomTasks() {
     if (!_initialized) return [];
@@ -145,7 +136,6 @@ class HiveService {
   }
 
 
-  // ── Prune keys older than 30 days ──────────────────────────────────
   Future<void> pruneOldKeys(String currentDateKey) async {
     if (!_initialized) return;
     final cutoff = DateTime.now().subtract(const Duration(days: 30));
@@ -161,6 +151,14 @@ class HiveService {
         await box.delete(k);
       }
     }
+  }
+
+  Future<void> clearAll() async {
+    if (!_initialized) return;
+    await _dailyStateBox?.clear();
+    await _focusBox?.clear();
+    await _quickTasksBox?.clear();
+    await _customTasksBox?.clear();
   }
 }
 

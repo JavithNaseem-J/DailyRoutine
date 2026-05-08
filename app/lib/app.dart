@@ -44,9 +44,7 @@ class _DailyRoutineAppState extends State<DailyRoutineApp> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // GoRouter — ShellRoute with 3-tab bottom nav
-// ─────────────────────────────────────────────────────────────────────────────
 
 final _router = GoRouter(
   initialLocation: '/home',
@@ -114,6 +112,21 @@ final _router = GoRouter(
                 FadeTransition(opacity: animation, child: child),
           ),
         ),
+        // Focus Mode — inside shell so bottom nav persists
+        GoRoute(
+          path: '/focus',
+          pageBuilder: (context, state) {
+            final extra = state.extra as Map<String, dynamic>?;
+            return CustomTransitionPage(
+              child: FocusScreen(
+                taskTitle: extra?['taskTitle'] as String? ?? 'Focus Session',
+                durationMinutes: extra?['durationMinutes'] as int? ?? 25,
+              ),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+                  FadeTransition(opacity: animation, child: child),
+            );
+          },
+        ),
       ],
     ),
     // Settings — full-screen, no bottom nav
@@ -130,23 +143,10 @@ final _router = GoRouter(
         return QuranScreen(initialPage: page);
       },
     ),
-    // Focus Mode — full-screen, no bottom nav
-    GoRoute(
-      path: '/focus',
-      builder: (context, state) {
-        final extra = state.extra as Map<String, dynamic>?;
-        return FocusScreen(
-          taskTitle: extra?['taskTitle'] as String? ?? 'Focus Session',
-          durationMinutes: extra?['durationMinutes'] as int? ?? 25,
-        );
-      },
-    ),
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
 // App Shell — wraps each tab with the shared bottom navigation bar
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _AppShell extends StatelessWidget {
   const _AppShell({required this.child});

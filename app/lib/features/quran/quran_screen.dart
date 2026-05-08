@@ -7,9 +7,7 @@ import '../../main.dart' show sharedPrefs;
 import 'package:go_router/go_router.dart';
 import 'quran_data.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Design tokens (shared with QuranHomeScreen)
-// ─────────────────────────────────────────────────────────────────────────────
 const _kBg      = Color(0xFF0E0E0E);
 const _kSurface = Color(0xFF1A1A1A);
 const _kGold    = Color(0xFFC9A84C);
@@ -18,9 +16,7 @@ const _kText    = Color(0xFFF5F0E8);
 const _kTextSub = Color(0xFF9E9887);
 const _kDivider = Color(0xFF2A2A2A);
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Quran Reader Screen — native paginated image viewer
-// ─────────────────────────────────────────────────────────────────────────────
 
 class QuranScreen extends StatefulWidget {
   final int initialPage;
@@ -31,7 +27,7 @@ class QuranScreen extends StatefulWidget {
 }
 
 class _QuranScreenState extends State<QuranScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late PageController _pageController;
   late int _currentPage;
   List<int> _bookmarks = [];
@@ -39,13 +35,12 @@ class _QuranScreenState extends State<QuranScreen>
   late AnimationController _barAnim;
   late Animation<double> _barFade;
 
-  // ── Timer ────────────────────────────────────────────────────────────────
   static const int _defaultMinutes = 15;
   int _timerSeconds = _defaultMinutes * 60;
   Timer? _readingTimer;
   bool _timerRunning = false;
+  DateTime? _pausedAt;
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
   String _imageUrl(int page) {
     final pageStr = page.toString().padLeft(3, '0');
     final url = 'https://android.quran.com/data/width_1024/page$pageStr.png';
@@ -68,10 +63,10 @@ class _QuranScreenState extends State<QuranScreen>
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
-  // ── Lifecycle ────────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final bStrs = sharedPrefs.getStringList('quran_bookmarks') ?? [];
     _bookmarks = bStrs.map((e) => int.tryParse(e)).whereType<int>().toList();
     
@@ -99,6 +94,7 @@ class _QuranScreenState extends State<QuranScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _readingTimer?.cancel();
     // BUG-009 fix: persist the timer duration so QuranHomeScreen can display it
     sharedPrefs.setInt('quran_reading_minutes', _defaultMinutes);
@@ -107,7 +103,29 @@ class _QuranScreenState extends State<QuranScreen>
     super.dispose();
   }
 
-  // ── Tap to toggle bars ───────────────────────────────────────────────────
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      if (_timerRunning) {
+        _pausedAt = DateTime.now();
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      if (_timerRunning && _pausedAt != null) {
+        final elapsed = DateTime.now().difference(_pausedAt!).inSeconds;
+        setState(() {
+          _timerSeconds -= elapsed;
+          if (_timerSeconds <= 0) {
+            _timerSeconds = 0;
+            _readingTimer?.cancel();
+            _timerRunning = false;
+            HapticFeedback.heavyImpact();
+          }
+        });
+        _pausedAt = null;
+      }
+    }
+  }
+
   void _toggleBars() {
     setState(() => _barsVisible = !_barsVisible);
     if (_barsVisible) {
@@ -117,7 +135,6 @@ class _QuranScreenState extends State<QuranScreen>
     }
   }
 
-  // ── Timer ─────────────────────────────────────────────────────────────────
   void _toggleTimer() {
     HapticFeedback.lightImpact();
     if (_timerRunning) {
@@ -148,7 +165,6 @@ class _QuranScreenState extends State<QuranScreen>
     });
   }
 
-  // ── Bookmark ──────────────────────────────────────────────────────────────
   void _toggleBookmark() {
     HapticFeedback.mediumImpact();
     setState(() {
@@ -161,7 +177,6 @@ class _QuranScreenState extends State<QuranScreen>
     });
   }
 
-  // ── Navigation ────────────────────────────────────────────────────────────
   void _navigateTo(int page) {
     if (page < 1 || page > 604) return;
     _pageController.animateToPage(
@@ -177,7 +192,6 @@ class _QuranScreenState extends State<QuranScreen>
     sharedPrefs.setInt('quran_last_page', newPage);
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final isBookmarked = _bookmarks.contains(_currentPage);
@@ -187,7 +201,6 @@ class _QuranScreenState extends State<QuranScreen>
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          // ── Page Viewer ─────────────────────────────────────────────────
           GestureDetector(
             onTap: _toggleBars,
             child: PageView.builder(
@@ -226,7 +239,6 @@ class _QuranScreenState extends State<QuranScreen>
             ),
           ),
 
-          // ── Top Bar ─────────────────────────────────────────────────────
           Positioned(
             top: 0,
             left: 0,
@@ -253,7 +265,6 @@ class _QuranScreenState extends State<QuranScreen>
             ),
           ),
 
-          // ── Bottom Pill Nav ──────────────────────────────────────────────
           Positioned(
             bottom: 0,
             left: 0,
@@ -369,9 +380,7 @@ class _QuranScreenState extends State<QuranScreen>
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Top Bar
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _TopBar extends StatelessWidget {
   const _TopBar({
@@ -526,9 +535,7 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Bottom Floating Pill Nav
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _BottomNav extends StatelessWidget {
   const _BottomNav({

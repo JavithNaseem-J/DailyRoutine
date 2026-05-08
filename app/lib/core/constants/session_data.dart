@@ -1,9 +1,7 @@
 import '../models/session.dart';
 import '../theme/app_colors.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // SESSION DATA — Empty task canvas!
-// ─────────────────────────────────────────────────────────────────────────────
 
 abstract final class SessionData {
   static List<Session> get allSessions => [
@@ -55,7 +53,6 @@ abstract final class SessionData {
     tasks: [],
   );
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
 
   static Session? getById(String id) {
     try {

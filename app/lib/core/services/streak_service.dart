@@ -3,15 +3,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/streak.dart';
 import '../../main.dart' show deviceId;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // StreakService — manages current_streak + best_streak
-//
 // weekStrip: Map<int, bool> where key = weekday index (0=Sun…6=Sat)
 // Logic:
 //   • allTasksDone=true: mark today's weekday slot, increment streak if
 //     yesterday was also complete; otherwise start fresh at 1.
 //   • allTasksDone=false: unmark today, decrement streak (floor 0).
-// ─────────────────────────────────────────────────────────────────────────────
 
 class StreakService {
   static final StreakService _instance = StreakService._();
@@ -20,7 +17,6 @@ class StreakService {
 
   SupabaseClient get _db => Supabase.instance.client;
 
-  // ── Fetch ──────────────────────────────────────────────────────────
   Future<Streak?> fetchStreak() async {
     try {
       final res = await _db
@@ -36,7 +32,6 @@ class StreakService {
     }
   }
 
-  // ── Called after every task toggle ─────────────────────────────────
   Future<Streak> onTaskToggled({required bool allTasksDone}) async {
     final now = DateTime.now();
     // weekday: Mon=1…Sun=7, we store Sun=0…Sat=6
@@ -93,6 +88,17 @@ class StreakService {
     } catch (e, st) {
       Sentry.captureException(e, stackTrace: st);
     }
+  }
+
+  Future<void> resetStreak() async {
+    Streak current = await fetchStreak() ?? Streak.empty(deviceId);
+    current = Streak(
+      deviceId: deviceId,
+      weekStrip: current.weekStrip,
+      currentStreak: 0,
+      bestStreak: current.bestStreak,
+    );
+    await _upsertStreak(current);
   }
 }
 
