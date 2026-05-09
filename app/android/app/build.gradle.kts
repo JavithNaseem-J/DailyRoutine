@@ -6,7 +6,7 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// ── Read signing credentials from key.properties (gitignored) ──────────────
+// Read signing credentials from key.properties (gitignored)
 val keystorePropertiesFile = rootProject.file("key.properties")
 val keystoreProperties = Properties()
 if (keystorePropertiesFile.exists()) {

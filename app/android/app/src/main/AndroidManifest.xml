@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- ── Permissions ───────────────────────────────────────────────── -->
+    <!-- Permissions -->
     <!-- Network access — required for Supabase, geolocator, Sentry -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Notifications (Android 13+) -->
