@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'core/theme/app_theme.dart';
@@ -21,16 +22,24 @@ class DailyRoutineApp extends StatefulWidget {
 
 // NEW-BUG-004 fix: listen for session expiry and redirect to /auth
 class _DailyRoutineAppState extends State<DailyRoutineApp> {
+  StreamSubscription<AuthState>? _authSub;
+
   @override
   void initState() {
     super.initState();
-    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+    _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       final event = data.event;
       if (event == AuthChangeEvent.signedOut ||
           (event == AuthChangeEvent.tokenRefreshed && data.session == null)) {
         if (mounted) _router.go('/auth');
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
   }
 
   @override

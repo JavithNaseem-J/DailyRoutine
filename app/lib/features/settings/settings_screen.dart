@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import '../../core/models/daily_state.dart';
-import '../../core/models/quick_task.dart';
 import '../../core/models/todays_focus.dart';
 import '../../core/services/date_service.dart';
 import '../../core/services/hive_service.dart';
@@ -317,7 +316,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final today = dateService.todayKey();
     await hiveService.writeDailyState(DailyState.empty(today));
     await hiveService.writeTodaysFocus(TodaysFocus.empty(today));
-    await hiveService.writeQuickTasks('global', <QuickTask>[]);
 
     setState(() => _isResetting = false);
 

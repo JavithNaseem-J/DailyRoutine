@@ -9,7 +9,7 @@ abstract final class SessionData {
     _afternoon,
     _evening,
     _night,
-    _sundayPlanning,
+    _weekend,
   ];
 
   static final _morning = Session(
@@ -44,12 +44,11 @@ abstract final class SessionData {
     tasks: [],
   );
 
-  static final _sundayPlanning = Session(
-    id: 'sunday_planning',
-    name: 'Sunday Planning',
+  static final _weekend = Session(
+    id: 'weekend',
+    name: 'Weekend',
     timeRange: 'All Day',
-    accentColor: AppColors.primary,
-    isSundayOnly: true,
+    accentColor: AppColors.midMorning,
     tasks: [],
   );
 
@@ -64,11 +63,9 @@ abstract final class SessionData {
 
   static List<Session> sessionsForToday({
     bool isFriday = false,
-    bool isSunday = false,
   }) {
     return allSessions.where((s) {
       if (s.isFridayOnly && !isFriday) return false;
-      if (s.isSundayOnly && !isSunday) return false;
       return true;
     }).toList();
   }
@@ -77,6 +74,5 @@ abstract final class SessionData {
 
   static List<String> taskIdsForToday({
     bool isFriday = false,
-    bool isSunday = false,
   }) => [];
 }

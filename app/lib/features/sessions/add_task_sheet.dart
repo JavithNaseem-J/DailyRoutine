@@ -39,7 +39,6 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
     _selectedSession = widget.defaultSession;
     _availableSessions = SessionData.sessionsForToday(
       isFriday: DateTime.now().weekday == DateTime.friday,
-      isSunday: DateTime.now().weekday == DateTime.sunday,
     );
     // Ensure the default session is in the list
     if (!_availableSessions.any((s) => s.id == _selectedSession.id)) {

@@ -80,7 +80,6 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
   Future<SessionsState> build() async {
     final defaultSessions = SessionData.sessionsForToday(
       isFriday: DateTime.now().weekday == DateTime.friday,
-      isSunday: DateTime.now().weekday == DateTime.sunday,
     );
 
     // 1. Load from Hive instantly
@@ -101,7 +100,6 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
         accentColor: s.accentColor,
         tasks: [...s.tasks, ...relevantTasks],
         isFridayOnly: s.isFridayOnly,
-        isSundayOnly: s.isSundayOnly,
       );
     }).toList();
 
@@ -295,7 +293,6 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
           accentColor: s.accentColor,
           tasks: mergedTasks,
           isFridayOnly: s.isFridayOnly,
-          isSundayOnly: s.isSundayOnly,
         );
       }
       return s;
@@ -330,7 +327,6 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
           accentColor: s.accentColor,
           tasks: mergedTasks,
           isFridayOnly: s.isFridayOnly,
-          isSundayOnly: s.isSundayOnly,
         );
       } else if (s.id == oldSessionId) {
         final mergedTasks = s.tasks
@@ -343,7 +339,6 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
           accentColor: s.accentColor,
           tasks: mergedTasks,
           isFridayOnly: s.isFridayOnly,
-          isSundayOnly: s.isSundayOnly,
         );
       } else if (s.id == updatedTask.sessionId) {
         final mergedTasks = [...s.tasks, updatedTask];
@@ -357,7 +352,6 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
           accentColor: s.accentColor,
           tasks: mergedTasks,
           isFridayOnly: s.isFridayOnly,
-          isSundayOnly: s.isSundayOnly,
         );
       }
       return s;
@@ -384,7 +378,6 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
           accentColor: s.accentColor,
           tasks: mergedTasks,
           isFridayOnly: s.isFridayOnly,
-          isSundayOnly: s.isSundayOnly,
         );
       }
       return s;

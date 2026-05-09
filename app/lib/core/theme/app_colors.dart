@@ -27,6 +27,13 @@ abstract final class AppColors {
 
   static Color streak = const Color(0xFF111111);
   static Color streakFill = const Color(0xFFF5F5F5);
+  
+  // Priority flag colors (Focus Matrix)
+  static const Color p1 = Color(0xFFEF4444); // Red
+  static const Color p2 = Color(0xFFF59E0B); // Orange
+  static const Color p3 = Color(0xFF3B82F6); // Blue
+  static const Color p4 = Color(0xFF8B5CF6); // Purple
+  static const Color p5 = Color(0xFF10B981); // Green
 
   static Color dayActive = const Color(0xFF111111);
   static Color dayActiveTxt = const Color(0xFFFFFFFF);

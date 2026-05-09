@@ -28,7 +28,6 @@ class Task {
     this.isBreak = false,
     this.hasSessionTimer = false,
     this.isFridayOnly = false,
-    this.isSundayOnly = false,
     this.isFridaySpecial = false,
   });
 
@@ -44,7 +43,6 @@ class Task {
   final bool isBreak;
   final bool hasSessionTimer; // build sessions 1, 2, 3 only
   final bool isFridayOnly;
-  final bool isSundayOnly;
   final bool isFridaySpecial; // Dhuhr → Jumu'ah on Fridays
 
   factory Task.fromJson(Map<String, dynamic> json) {
@@ -64,7 +62,6 @@ class Task {
       isBreak: json['isBreak'] as bool? ?? false,
       hasSessionTimer: json['hasSessionTimer'] as bool? ?? false,
       isFridayOnly: json['isFridayOnly'] as bool? ?? false,
-      isSundayOnly: json['isSundayOnly'] as bool? ?? false,
       isFridaySpecial: json['isFridaySpecial'] as bool? ?? false,
     );
   }
@@ -83,7 +80,6 @@ class Task {
       'isBreak': isBreak,
       'hasSessionTimer': hasSessionTimer,
       'isFridayOnly': isFridayOnly,
-      'isSundayOnly': isSundayOnly,
       'isFridaySpecial': isFridaySpecial,
     };
   }
@@ -98,7 +94,6 @@ class Session {
     required this.accentColor,
     required this.tasks,
     this.isFridayOnly = false,
-    this.isSundayOnly = false,
   });
 
   final String id;
@@ -107,5 +102,4 @@ class Session {
   final Color accentColor;
   final List<Task> tasks;
   final bool isFridayOnly;
-  final bool isSundayOnly;
 }

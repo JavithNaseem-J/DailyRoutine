@@ -18,6 +18,7 @@ import '../../core/theme/app_typography.dart';
 import '../sessions/providers/sessions_provider.dart';
 import '../../main.dart' show deviceId, sharedPrefs;
 import 'package:quran/quran.dart' as quran;
+import 'widgets/schedule_sheet.dart';
 
 
 class ProgressItem {
@@ -107,220 +108,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _loadPlannedEvents() {
     final map = <String, String>{};
     for (final d in _weekStrip) {
-      final key = 'event_${dateService.keyFor(d.date)}';
-      final val = sharedPrefs.getString(key);
-      if (val != null) map[dateService.keyFor(d.date)] = val;
+      final dateKey = dateService.keyFor(d.date);
+      final newKey = 'schedule_$dateKey';
+      final oldKey = 'event_$dateKey';
+      
+      final newVal = sharedPrefs.getString(newKey);
+      final oldVal = sharedPrefs.getString(oldKey);
+      
+      if ((newVal != null && newVal != '[]') || (oldVal != null && oldVal.isNotEmpty)) {
+        map[dateKey] = 'has_events';
+      }
     }
     setState(() => _plannedEvents = map);
   }
 
-  void _savePlannedEvent(DateTime date, String text) {
-    final key = 'event_${dateService.keyFor(date)}';
-    if (text.isEmpty) {
-      sharedPrefs.remove(key);
-      setState(() => _plannedEvents.remove(dateService.keyFor(date)));
-    } else {
-      sharedPrefs.setString(key, text);
-      setState(() => _plannedEvents[dateService.keyFor(date)] = text);
-    }
-  }
 
-  void _showEventEditor(DateTime date, String existingText) {
-    final ctrl = TextEditingController(text: existingText);
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      isScrollControlled: true,
-      useRootNavigator: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + kBottomNavigationBarHeight + 16,
-          left: 20,
-          right: 20,
-          top: 20,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Date + day header
-            Builder(builder: (ctx2) {
-              final days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-              final months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-              final dayName = days[date.weekday - 1];
-              final monthName = months[date.month - 1];
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '$dayName, ${date.day} $monthName',
-                    style: AppTypography.body(size: 18, weight: FontWeight.w800, color: Colors.black),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-              );
-            }),
-            TextField(
-              controller: ctrl,
-              autofocus: true,
-              style: AppTypography.body(
-                size: 16,
-                weight: FontWeight.w600,
-                color: Colors.black,
-              ),
-              decoration: InputDecoration(
-                hintText: '',
-                hintStyle: AppTypography.body(size: 16, color: Colors.black38),
-                filled: true,
-                fillColor: Color(0xFFF3F4F6),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-              ),
-            ),
-            SizedBox(height: 20),
-            Row(
-              children: [
-                if (existingText.isNotEmpty)
-                  Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        side: BorderSide(color: Colors.black, width: 2),
-                      ),
-                      onPressed: () {
-                        _savePlannedEvent(date, '');
-                        Navigator.pop(ctx);
-                        if (Navigator.canPop(ctx)) {
-                          Navigator.pop(ctx); // Close viewer if open
-                        }
-                      },
-                      child: Text(
-                        'Delete',
-                        style: AppTypography.body(
-                          size: 16,
-                          weight: FontWeight.w700,
-                          color: Colors.black,
-                        ),
-                      ),
-                    ),
-                  ),
-                if (existingText.isNotEmpty) const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 0,
-                    ),
-                    onPressed: () {
-                      _savePlannedEvent(date, ctrl.text.trim());
-                      Navigator.pop(ctx);
-                    },
-                    child: Text(
-                      'Save',
-                      style: AppTypography.body(
-                        size: 16,
-                        weight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-          ],
-        ),
-      ),
-    ).whenComplete(() => ctrl.dispose()); // NEW-BUG-002 fix: prevent TextEditingController leak
-  }
-
-  void _showEventViewer(DateTime date, String text) {
-    showGeneralDialog(
-      context: context,
-      barrierColor: Colors.black12,
-      barrierDismissible: true,
-      barrierLabel: 'Close Popup',
-      transitionDuration: const Duration(milliseconds: 200),
-      pageBuilder: (ctx, anim1, anim2) {
-        return Align(
-          alignment: Alignment.topCenter,
-          child: Container(
-            margin: const EdgeInsets.only(
-              top: 210,
-              left: 24,
-              right: 24,
-            ), // Directly under the date strip
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 15,
-                  offset: const Offset(0, 5),
-                ),
-              ],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: GestureDetector(
-                      onTap: () => Navigator.pop(ctx),
-                      child: Icon(
-                        Icons.close_rounded,
-                        color: Colors.black54,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    text,
-                    style: AppTypography.body(
-                      size: 18,
-                      weight: FontWeight.w800,
-                      color: Colors.black,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-      transitionBuilder: (ctx, anim1, anim2, child) {
-        return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0, -0.05),
-            end: Offset.zero,
-          ).animate(anim1),
-          child: FadeTransition(opacity: anim1, child: child),
-        );
-      },
-    );
-  }
 
   void _loadProgressItems() {
     final raw = sharedPrefs.getString('progress_items_global');
@@ -551,15 +353,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 _WeekStrip(
                   days: _weekStrip,
                   plannedEvents: _plannedEvents,
-                  onDateTap: (date) {
-                    final key = dateService.keyFor(date);
-                    if (_plannedEvents.containsKey(key)) {
-                      _showEventViewer(date, _plannedEvents[key]!);
-                    }
+                  onDateTap: (date) async {
+                    await ScheduleSheet.show(context, date);
+                    _loadPlannedEvents();
                   },
-                  onDateLongPress: (date) {
-                    final key = dateService.keyFor(date);
-                    _showEventEditor(date, _plannedEvents[key] ?? '');
+                  onDateLongPress: (date) async {
+                    await ScheduleSheet.show(context, date);
+                    _loadPlannedEvents();
                   },
                 ),
 
@@ -1851,10 +1651,10 @@ class _QuadrantSheetState extends State<_QuadrantSheet> {
   void _add() {
     final text = widget.controller.text.trim();
     if (text.isEmpty) return;
-    if (_qTasks.length >= 3) {
+    if (_qTasks.length >= 5) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Max 3 tasks allowed in this category'),
+          content: Text('Max 5 tasks allowed in this category'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -1982,65 +1782,66 @@ class _QuadrantSheetState extends State<_QuadrantSheet> {
           const SizedBox(height: 12),
 
           // Add row
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 52,
-                  child: TextField(
-                    controller: widget.controller,
-                    onSubmitted: (_) => _add(),
-                    autofocus: false,
-                    textAlignVertical: TextAlignVertical.center,
-                    style: AppTypography.body(
-                      size: 14,
-                      weight: FontWeight.w500,
-                      color: AppColors.textPrimary,
-                    ),
-                    decoration: InputDecoration(
-                      hintText:
-                          'Add to ${widget.label.toLowerCase()}...',
-                      hintStyle: AppTypography.body(
-                          size: 14, color: AppColors.textMuted),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 0),
-                      filled: true,
-                      fillColor: AppColors.cardSurface,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
+          if (qTasks.length < 5)
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 52,
+                    child: TextField(
+                      controller: widget.controller,
+                      onSubmitted: (_) => _add(),
+                      autofocus: false,
+                      textAlignVertical: TextAlignVertical.center,
+                      style: AppTypography.body(
+                        size: 14,
+                        weight: FontWeight.w500,
+                        color: AppColors.textPrimary,
                       ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: widget.color.withValues(alpha: 0.6),
-                          width: 1.5,
+                      decoration: InputDecoration(
+                        hintText:
+                            'Add to ${widget.label.toLowerCase()}...',
+                        hintStyle: AppTypography.body(
+                            size: 14, color: AppColors.textMuted),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 0),
+                        filled: true,
+                        fillColor: AppColors.cardSurface,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: widget.color.withValues(alpha: 0.6),
+                            width: 1.5,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              GestureDetector(
-                onTap: _add,
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: widget.color,
-                    shape: BoxShape.circle,
+                const SizedBox(width: 10),
+                GestureDetector(
+                  onTap: _add,
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: widget.color,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.add_rounded,
+                        color: Colors.white, size: 22),
                   ),
-                  child: const Icon(Icons.add_rounded,
-                      color: Colors.white, size: 22),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
         ],
       ),
     );
@@ -2083,8 +1884,12 @@ class _MatrixTaskChipState extends State<_MatrixTaskChip> {
       next = 'P2';
     } else if (cur == 'P2') {
       next = 'P3';
+    } else if (cur == 'P3') {
+      next = 'P4';
+    } else if (cur == 'P4') {
+      next = 'P5';
     } else {
-      next = null; // P3 → clear
+      next = null; // P5 → clear
     }
     widget.onUpdate(widget.task.copyWith(priority: next));
   }
@@ -2169,14 +1974,18 @@ class _MatrixTaskChipState extends State<_MatrixTaskChip> {
       // Do it → priority flag
       case 0:
         final p = widget.task.priority;
-        // P1=Red, P2=Orange, P3=Blue, null=muted
+        // P1=Red, P2=Orange, P3=Blue, P4=Purple, P5=Green, null=muted
         final Color pColor = p == 'P1'
-            ? const Color(0xFFEF4444)
+            ? AppColors.p1
             : p == 'P2'
-                ? const Color(0xFFF59E0B)
+                ? AppColors.p2
                 : p == 'P3'
-                    ? const Color(0xFF3B82F6)
-                    : AppColors.textMuted;
+                    ? AppColors.p3
+                    : p == 'P4'
+                        ? AppColors.p4
+                        : p == 'P5'
+                            ? AppColors.p5
+                            : AppColors.textMuted;
         return GestureDetector(
           onTap: _cyclePriority,
           child: AnimatedContainer(
@@ -2373,18 +2182,19 @@ class _MatrixTaskChipState extends State<_MatrixTaskChip> {
                     const SizedBox(width: 10),
                     // Title
                     Expanded(
-                      child: Text(
-                        widget.task.title,
-                        style: AppTypography.body(
-                          size: 15,
-                          weight: done ? FontWeight.w400 : FontWeight.w500,
-                          color: done ? AppColors.textMuted : AppColors.textPrimary,
-                        ).copyWith(
-                          decoration: done ? TextDecoration.lineThrough : null,
-                          decorationColor: AppColors.textMuted,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Text(
+                          widget.task.title,
+                          style: AppTypography.body(
+                            size: 15,
+                            weight: done ? FontWeight.w400 : FontWeight.w500,
+                            color: done ? AppColors.textMuted : AppColors.textPrimary,
+                          ).copyWith(
+                            decoration: done ? TextDecoration.lineThrough : null,
+                            decorationColor: AppColors.textMuted,
+                          ),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     // Metadata badge (right side)

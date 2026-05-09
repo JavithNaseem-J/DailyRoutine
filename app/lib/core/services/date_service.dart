@@ -46,15 +46,12 @@ class DateService {
   List<({int dateNum, String abbr, bool isToday, DateTime date})>
   buildWeekStripWithDates() {
     final now = DateTime.now();
-    final todayWeekday = now.weekday; // 1=Mon…7=Sun
-    final todayIndex = todayWeekday == 7 ? 0 : todayWeekday;
     final labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-    return List.generate(28, (i) {
-      final diff = i - todayIndex;
-      final d = now.add(Duration(days: diff));
+    return List.generate(30, (i) {
+      final d = now.add(Duration(days: i));
       final dayIndex = d.weekday == 7 ? 0 : d.weekday;
-      return (dateNum: d.day, abbr: labels[dayIndex], isToday: diff == 0, date: d);
+      return (dateNum: d.day, abbr: labels[dayIndex], isToday: i == 0, date: d);
     });
   }
 }

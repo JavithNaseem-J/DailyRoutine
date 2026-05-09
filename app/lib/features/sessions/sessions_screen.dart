@@ -29,7 +29,6 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
       ref.read(sessionsProvider).value?.sessions ??
       SessionData.sessionsForToday(
         isFriday: DateTime.now().weekday == DateTime.friday,
-        isSunday: DateTime.now().weekday == DateTime.sunday,
       );
 
   @override
@@ -40,7 +39,6 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     );
     final sessions = SessionData.sessionsForToday(
       isFriday: DateTime.now().weekday == DateTime.friday,
-      isSunday: DateTime.now().weekday == DateTime.sunday,
     );
     _currentIndex = _findActiveSessionIndex(sessions);
     _pageController = PageController(initialPage: _currentIndex);

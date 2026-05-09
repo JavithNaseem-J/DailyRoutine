@@ -174,6 +174,14 @@ class SupabaseService {
       await _db.from('quick_tasks').delete().eq('device_id', deviceId);
       await _db.from('stats_history').delete().eq('device_id', deviceId);
       await _db.from('streak').delete().eq('device_id', deviceId);
+      
+      // Seed a fresh empty streak so fetchStreak() has a valid record going forward
+      await _db.from('streak').upsert({
+        'device_id': deviceId,
+        'week_strip': {},
+        'current_streak': 0,
+        'best_streak': 0,
+      });
     } catch (e, st) {
       Sentry.captureException(e, stackTrace: st);
     }
