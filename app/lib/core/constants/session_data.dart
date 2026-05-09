@@ -15,7 +15,7 @@ abstract final class SessionData {
   static final _morning = Session(
     id: 'morning',
     name: 'Morning',
-    timeRange: '5:30 AM – 12:00 PM',
+    timeRange: '5:00 AM – 12:00 PM',
     accentColor: AppColors.morning,
     tasks: [],
   );

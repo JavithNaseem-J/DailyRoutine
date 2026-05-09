@@ -142,7 +142,7 @@ class NotificationService {
   }
 
   static const _sessionSchedule = [
-    _S('morning', 'Morning', '5:30am', 'Morning habits time.'),
+    _S('morning', 'Morning', '5:00am', 'Morning habits time.'),
     _S('afternoon', 'Afternoon', '12:00pm', 'Afternoon build session.'),
     _S('evening', 'Evening', '4:00pm', 'Evening wind-down.'),
     _S('night', 'Night', '7:00pm', 'Night routine.'),
