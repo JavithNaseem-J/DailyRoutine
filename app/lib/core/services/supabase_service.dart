@@ -22,6 +22,7 @@ class SupabaseService {
         'device_id': deviceId,
         'date': state.date,
         'task_states': state.taskStates,
+        'task_status': state.taskStatus,
         'bonus_states': state.bonusStates,
         if (state.mood != null) 'mood': state.mood,
         'focus_minutes': state.focusMinutes,
@@ -47,6 +48,7 @@ class SupabaseService {
       return DailyState(
         date: res['date'] as String,
         taskStates: _castBoolMap(res['task_states']),
+        taskStatus: _castStringMap(res['task_status']),
         bonusStates: _castBoolMap(res['bonus_states']),
         mood: res['mood'] as String?,
         focusMinutes: res['focus_minutes'] as int? ?? 0,
@@ -193,6 +195,13 @@ class SupabaseService {
     if (raw == null) return {};
     return (raw as Map).map(
       (k, v) => MapEntry(k.toString(), v == true || v == 1),
+    );
+  }
+
+  Map<String, String> _castStringMap(dynamic raw) {
+    if (raw == null) return {};
+    return (raw as Map).map(
+      (k, v) => MapEntry(k.toString(), v?.toString() ?? 'none'),
     );
   }
 }

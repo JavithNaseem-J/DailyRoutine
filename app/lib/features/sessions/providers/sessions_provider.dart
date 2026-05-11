@@ -169,8 +169,32 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     if (current == null) return;
 
     final newDone = !(current.taskStates[taskId] ?? false);
+    String newStatus = 'none';
+
+    if (newDone) {
+      Task? targetTask;
+      for (final s in current.sessions) {
+        targetTask = s.tasks.where((t) => t.id == taskId).firstOrNull;
+        if (targetTask != null) break;
+      }
+
+      if (targetTask != null) {
+        final startMin = _parseTime(targetTask.time);
+        final endMin = startMin + targetTask.durationMinutes;
+        final now = TimeOfDay.now();
+        final nowMin = now.hour * 60 + now.minute;
+
+        if (nowMin <= endMin) {
+          newStatus = 'on_time';
+        } else {
+          newStatus = 'late';
+        }
+      }
+    }
+
     final newDaily = current.dailyState.copyWith(
       taskStates: {...current.taskStates, taskId: newDone},
+      taskStatus: {...current.dailyState.taskStatus, taskId: newStatus},
     );
 
     state = AsyncData(current.copyWith(dailyState: newDaily));

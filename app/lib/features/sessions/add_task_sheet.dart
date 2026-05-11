@@ -24,6 +24,30 @@ class AddTaskSheet extends ConsumerStatefulWidget {
 class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
   late Session _selectedSession;
   final _titleController = TextEditingController();
+  bool _isBreak = false;
+  String _selectedIconName = 'star';
+
+  static const Map<String, IconData> _appIcons = {
+    'star': Icons.star_rounded,
+    'sun': Icons.wb_sunny_rounded,
+    'bed': Icons.bed_rounded,
+    'cup': Icons.local_cafe_rounded,
+    'book': Icons.menu_book_rounded,
+    'walk': Icons.directions_walk_rounded,
+    'workout': Icons.fitness_center_rounded,
+    'group': Icons.group_rounded,
+    'meditation': Icons.self_improvement_rounded,
+    'laptop': Icons.laptop_mac_rounded,
+    'eat': Icons.restaurant_rounded,
+    'shower': Icons.shower_rounded,
+    'shop': Icons.shopping_cart_rounded,
+    'drive': Icons.drive_eta_rounded,
+    'prayer': Icons.mosque_rounded,
+    'job': Icons.work_outline_rounded,
+    'english': Icons.translate_rounded,
+    'interview': Icons.co_present_rounded,
+    'family': Icons.family_restroom_rounded,
+  };
 
   DateTime _selectedTime = DateTime.now();
   Duration _selectedDuration = const Duration(minutes: 15);
@@ -72,6 +96,8 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
       _selectedDuration = Duration(
         minutes: widget.existingTask!.durationMinutes,
       );
+      _isBreak = widget.existingTask!.isBreak;
+      _selectedIconName = widget.existingTask!.iconName;
     }
   }
 
@@ -139,13 +165,13 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
     final formattedTime = '$h:$m${isPm ? "pm" : "am"}';
 
     if (widget.existingTask != null) {
-      final updatedTask = Task(
-        id: widget.existingTask!.id,
-        sessionId: _selectedSession.id,
+      final updatedTask = widget.existingTask!.copyWith(
         title: title,
         time: formattedTime,
         durationMinutes: _selectedDuration.inMinutes,
-        tip: widget.existingTask!.tip,
+        sessionId: _selectedSession.id,
+        isBreak: _isBreak,
+        iconName: _selectedIconName,
       );
       ref
           .read(sessionsProvider.notifier)
@@ -158,6 +184,8 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
         time: formattedTime,
         durationMinutes: _selectedDuration.inMinutes,
         tip: 'Custom task',
+        isBreak: _isBreak,
+        iconName: _selectedIconName,
       );
       ref.read(sessionsProvider.notifier).addCustomTask(newTask);
     }
@@ -272,6 +300,60 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
             ),
           ),
           const SizedBox(height: 16),
+
+          // Icon Picker
+          SizedBox(
+            height: 40,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _appIcons.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (context, i) {
+                final key = _appIcons.keys.elementAt(i);
+                final icon = _appIcons[key];
+                final isSelected = key == _selectedIconName;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedIconName = key),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: isSelected ? AppColors.primary : AppColors.cardSurface,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isSelected ? AppColors.primary : Colors.transparent,
+                        width: 2,
+                      ),
+                    ),
+                    child: Center(
+                      child: Icon(
+                        icon,
+                        color: isSelected ? Colors.white : AppColors.textSecondary,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+          
+          // Break Toggle
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Mark as break', style: AppTypography.body(size: 14, color: AppColors.textPrimary)),
+              CupertinoSwitch(
+                value: _isBreak,
+                activeTrackColor: AppColors.primary,
+                onChanged: (val) => setState(() => _isBreak = val),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
           Text(
             _selectedSession.timeRange
                 .toUpperCase()

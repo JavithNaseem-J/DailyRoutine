@@ -67,7 +67,7 @@ Future<void> main() async {
   await SentryFlutter.init(
     (options) {
       options.dsn = _sentryDsn;
-      options.tracesSampleRate = 1.0;
+      options.tracesSampleRate = 0.1; // 10% sampling — avoids quota burn in production
     },
     appRunner: () async {
       try {

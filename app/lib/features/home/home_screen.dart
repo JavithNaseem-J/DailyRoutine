@@ -13,6 +13,7 @@ import '../../core/services/date_service.dart';
 import '../../core/services/hive_service.dart';
 import '../../core/services/prayer_service.dart';
 import '../../core/services/supabase_service.dart';
+import '../../core/services/weather_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../sessions/providers/sessions_provider.dart';
@@ -72,6 +73,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // Task Board
   List<QuickTask> _quickTasks = [];
 
+  WeatherData? _weatherData;
 
   @override
   void initState() {
@@ -85,6 +87,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _loadPlannedEvents();
     _loadProgressItems();
     _loadQuickTasks();
+    _loadWeather();
 
     _prayerTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) {
@@ -102,6 +105,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     
     _progressDebounce?.cancel();
     super.dispose();
+  }
+
+  Future<void> _loadWeather({bool forceRefresh = false}) async {
+    final w = await weatherService.getWeatherData(forceRefresh: forceRefresh);
+    if (mounted) setState(() => _weatherData = w);
   }
 
   // Week Planner
@@ -299,8 +307,139 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     final now = DateTime.now();
     final greeting = _greetingData(now.hour);
+    final displayGreeting = greeting.text;
     final quote = Hadiths.today();
     final completionPct = ref.watch(completionPctProvider);
+
+    Widget buildHeader() {
+      if (_weatherData != null) {
+        final w = _weatherData!;
+        IconData weatherIcon = Icons.cloud_outlined;
+        final c = w.condition.toLowerCase();
+        if (c.contains('clear')) {
+          weatherIcon = Icons.wb_sunny_outlined;
+        } else if (c.contains('rain') || c.contains('drizzle')) {
+          weatherIcon = Icons.water_drop_outlined;
+        } else if (c.contains('thunder')) {
+          weatherIcon = Icons.bolt_outlined;
+        } else if (c.contains('snow')) {
+          weatherIcon = Icons.ac_unit_outlined;
+        }
+
+        return Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: AppColors.cardSurface,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Stack(
+            children: [
+              // Background Watermark (Decorative Clouds)
+              Positioned(
+                right: -20,
+                bottom: -10,
+                child: Icon(
+                  Icons.cloud_outlined,
+                  size: 130,
+                  color: AppColors.textSecondary.withValues(alpha: 0.06),
+                ),
+              ),
+              Positioned(
+                right: 40,
+                bottom: -30,
+                child: Transform.rotate(
+                  angle: -0.1,
+                  child: Icon(
+                    Icons.cloud_outlined,
+                    size: 90,
+                    color: AppColors.textSecondary.withValues(alpha: 0.04),
+                  ),
+                ),
+              ),
+              
+              // Top Right Refresh Button
+              Positioned(
+                top: 4,
+                right: 4,
+                child: IconButton(
+                  icon: Icon(Icons.refresh_rounded, size: 20, color: AppColors.textSecondary),
+                  onPressed: () => _loadWeather(forceRefresh: true),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  splashRadius: 20,
+                ),
+              ),
+
+              // Main Content
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Icon(weatherIcon, size: 28, color: AppColors.textPrimary),
+                    const SizedBox(width: 12),
+                    Text(
+                      '${w.temp}°',
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black,
+                        fontFamily: 'Inter',
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${w.condition} later',
+                            style: AppTypography.body(size: 14, weight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Feels like ${w.feelsLike}°  •  Humidity ${w.humidity}%',
+                            style: AppTypography.body(size: 12, color: AppColors.textSecondary),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      } else {
+        return Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.cardSurface,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                greeting.icon,
+                color: AppColors.textPrimary,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                displayGreeting,
+                style: AppTypography.screenTitle(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        );
+      }
+    }
 
     return Stack(
       children: [
@@ -309,40 +448,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           body: SafeArea(bottom: false, child: ListView(padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
               children: [
                 SizedBox(height: 16),
-
-                Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: AppColors.cardSurface,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        greeting.icon,
-                        color: AppColors.textPrimary,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        greeting.text,
-                        style: AppTypography.screenTitle(
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        Icons.settings_outlined,
-                        color: AppColors.textSecondary,
-                      ),
-                      onPressed: () => context.push('/settings'),
-                    ),
-                  ],
-                ),
+                buildHeader(),
 
                 SizedBox(height: 16),
 
@@ -1523,8 +1629,8 @@ class _TaskBoardState extends State<_TaskBoard> {
                 Align(
                   alignment: Alignment.center,
                   child: FractionallySizedBox(
-                    widthFactor: 0.95,
-                    heightFactor: 0.95,
+                    widthFactor: 1.0,
+                    heightFactor: 1.0,
                     child: Column(
                       children: [
                         Expanded(

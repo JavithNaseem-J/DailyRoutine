@@ -183,7 +183,57 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               ],
             ),
 
+            Builder(
+              builder: (context) {
+                String insight = "Consistency is key! Keep up the great work.";
+                if (_currentStreak > 2) {
+                  insight = "You're on fire! 🔥 A $_currentStreak-day streak is excellent.";
+                } else if (completionPct > 80) {
+                  insight = "Fantastic effort today! You're crushing your tasks.";
+                } else if (_totalFocusMinutes > 0) {
+                  insight = "You've accumulated $_totalFocusMinutes minutes of deep focus this month!";
+                }
 
+                return Container(
+                  margin: const EdgeInsets.only(top: 20, bottom: 20),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 20),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'AI Insights',
+                              style: AppTypography.body(size: 12, weight: FontWeight.w700, color: AppColors.primary),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              insight,
+                              style: AppTypography.body(size: 14, color: AppColors.textPrimary, weight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
 
             IntrinsicHeight(
               child: Row(

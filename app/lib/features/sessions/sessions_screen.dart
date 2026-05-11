@@ -301,6 +301,14 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                               color: AppColors.textPrimary,
                             ),
                           ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Plan your day. Stay consistent.',
+                            style: AppTypography.body(
+                              size: 13,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
                         ],
                       ),
                       IconButton(
@@ -391,6 +399,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                       itemBuilder: (context, i) => _SessionPage(
                         session: sessions[i],
                         taskStates: taskStates,
+                        taskStatus: sessionsAsync.value?.dailyState.taskStatus ?? {},
                         bonusStates: bonusStates,
                         onToggleTask: _toggleTask,
                         onToggleBonus: _toggleBonus,
@@ -530,6 +539,7 @@ class _SessionPage extends StatelessWidget {
   const _SessionPage({
     required this.session,
     required this.taskStates,
+    required this.taskStatus,
     required this.bonusStates,
     required this.onToggleTask,
     required this.onToggleBonus,
@@ -538,6 +548,7 @@ class _SessionPage extends StatelessWidget {
 
   final Session session;
   final Map<String, bool> taskStates;
+  final Map<String, String> taskStatus;
   final Map<String, bool> bonusStates;
   final ValueChanged<Task> onToggleTask;
   final ValueChanged<String> onToggleBonus;
@@ -563,6 +574,8 @@ class _SessionPage extends StatelessWidget {
           return _TaskCard(
             task: task,
             isDone: taskStates[task.id] ?? false,
+            taskStatus: taskStatus[task.id] ?? 'none',
+            isFirst: index == 0,
             isLast: index == session.tasks.length - 1,
             onToggle: () => onToggleTask(task),
             onLongPress: () => onLongPressTask(task),
@@ -576,13 +589,14 @@ class _SessionPage extends StatelessWidget {
 // Timeline Painter
 
 class _TimelinePainter extends CustomPainter {
+  final bool isFirst;
   final bool isLast;
 
-  _TimelinePainter({this.isLast = false});
+  _TimelinePainter({this.isFirst = false, this.isLast = false});
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (isLast) return;
+    if (isFirst && isLast) return;
 
     final paint = Paint()
       ..color = Color(0xFFE5E7EB)
@@ -590,11 +604,13 @@ class _TimelinePainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     final double dashWidth = 4, dashSpace = 4;
-    double startY = 32; // Start line slightly below the circle
-    while (startY < size.height) {
+    double startY = isFirst ? size.height / 2 : 0;
+    final double endY = isLast ? size.height / 2 : size.height;
+    
+    while (startY < endY) {
       canvas.drawLine(
         Offset(size.width / 2, startY),
-        Offset(size.width / 2, (startY + dashWidth).clamp(0.0, size.height)),
+        Offset(size.width / 2, (startY + dashWidth).clamp(0.0, endY)),
         paint,
       );
       startY += dashWidth + dashSpace;
@@ -603,7 +619,7 @@ class _TimelinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _TimelinePainter oldDelegate) =>
-      oldDelegate.isLast != isLast;
+      oldDelegate.isFirst != isFirst || oldDelegate.isLast != isLast;
 }
 
 // Task Card (Timeline Style)
@@ -612,6 +628,8 @@ class _TaskCard extends StatelessWidget {
   const _TaskCard({
     required this.task,
     required this.isDone,
+    required this.taskStatus,
+    required this.isFirst,
     required this.isLast,
     required this.onToggle,
     required this.onLongPress,
@@ -619,119 +637,214 @@ class _TaskCard extends StatelessWidget {
 
   final Task task;
   final bool isDone;
+  final String taskStatus;
+  final bool isFirst;
   final bool isLast;
   final VoidCallback onToggle;
   final VoidCallback onLongPress;
 
+  IconData _getIconData(String name) {
+    const Map<String, IconData> icons = {
+      'star': Icons.star_rounded,
+      'sun': Icons.wb_sunny_rounded,
+      'bed': Icons.bed_rounded,
+      'cup': Icons.local_cafe_rounded,
+      'book': Icons.menu_book_rounded,
+      'walk': Icons.directions_walk_rounded,
+      'workout': Icons.fitness_center_rounded,
+      'group': Icons.group_rounded,
+      'meditation': Icons.self_improvement_rounded,
+      'laptop': Icons.laptop_mac_rounded,
+      'eat': Icons.restaurant_rounded,
+      'shower': Icons.shower_rounded,
+      'shop': Icons.shopping_cart_rounded,
+      'drive': Icons.drive_eta_rounded,
+      'prayer': Icons.mosque_rounded,
+      'job': Icons.work_outline_rounded,
+      'english': Icons.translate_rounded,
+      'interview': Icons.co_present_rounded,
+      'family': Icons.family_restroom_rounded,
+    };
+    return icons[name] ?? Icons.star_rounded;
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Parse time string for "5:00" and "am"
+    final timeStr = task.time.replaceAll(' ', '').toLowerCase();
+    String timePart = timeStr;
+    String amPmPart = '';
+    if (timeStr.contains('am')) {
+      timePart = timeStr.replaceAll('am', '');
+      amPmPart = 'am';
+    } else if (timeStr.contains('pm')) {
+      timePart = timeStr.replaceAll('pm', '');
+      amPmPart = 'pm';
+    }
+
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Timeline Graphics Column
+          // 1. Time Column
+          SizedBox(
+            width: 40,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    timePart,
+                    style: AppTypography.body(
+                      size: 13,
+                      weight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  if (amPmPart.isNotEmpty)
+                    Text(
+                      amPmPart,
+                      style: AppTypography.body(
+                        size: 10,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          
+          // 2. Timeline Graphic Column
           SizedBox(
             width: 32,
             child: CustomPaint(
-              painter: _TimelinePainter(isLast: isLast),
-              child: Padding(
-                padding: const EdgeInsets.only(top: 14),
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: GestureDetector(
-                    onTap: onToggle,
-                    onLongPress: onLongPress,
+              painter: _TimelinePainter(isFirst: isFirst, isLast: isLast),
+              child: Align(
+                alignment: Alignment.center,
+                child: GestureDetector(
+                    onTap: task.isBreak ? null : onToggle,
+                    behavior: HitTestBehavior.opaque,
                     child: Container(
-                      width: 20,
-                      height: 20,
+                      width: task.isBreak ? 14 : 20,
+                      height: task.isBreak ? 14 : 20,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: isDone ? Color(0xFF4ade80) : Colors.white,
-                        border: isDone
+                        color: task.isBreak 
+                            ? Color(0xFF9CA3AF)
+                            : isDone
+                                ? taskStatus == 'late'
+                                    ? Color(0xFFEF4444) // Red for late
+                                    : Color(0xFF4ade80) // Green for on_time
+                                : Colors.white,
+                        border: (isDone || task.isBreak)
                             ? null
                             : Border.all(
                                 color: Color(0xFFD1D5DB),
                                 width: 1.5,
                               ),
                       ),
-                      child: isDone
-                          ? Icon(
-                              Icons.check,
-                              size: 12,
-                              color: Colors.white,
-                            )
+                      child: (isDone && !task.isBreak)
+                          ? const Icon(Icons.check, size: 12, color: Colors.white)
                           : null,
                     ),
                   ),
                 ),
               ),
             ),
-          ),
+          
+          const SizedBox(width: 8),
 
-          const SizedBox(width: 12),
-
-          // Content Column
+          // 3. Card Column
           Expanded(
-            child: GestureDetector(
-                onTap: onToggle,
-                onLongPress: onLongPress,
-                behavior: HitTestBehavior.opaque,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 14, bottom: 28),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              task.title,
-                              style:
-                                  AppTypography.body(
-                                    size: 15,
-                                    weight: FontWeight.w600,
-                                    color: isDone
-                                        ? Color(0xFF9CA3AF)
-                                        : AppColors.textPrimary,
-                                  ).copyWith(
-                                    decoration: isDone
-                                        ? TextDecoration.lineThrough
-                                        : TextDecoration.none,
-                                  ),
-                            ),
-                          ],
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: task.isBreak ? AppColors.surfaceRaised : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: task.isBreak ? Colors.transparent : Color(0xFFF3F4F6),
+                    width: 1.5,
+                  ),
+                  boxShadow: task.isBreak ? [] : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    )
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    // Icon Box
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: task.isBreak 
+                            ? Colors.white.withValues(alpha: 0.5) 
+                            : Color(0xFFF3F4F6),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        _getIconData(task.iconName),
+                        size: 20,
+                        color: isDone && !task.isBreak ? Color(0xFF9CA3AF) : AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    
+                    // Title
+                    Expanded(
+                      child: Text(
+                        task.title,
+                        style: AppTypography.body(
+                          size: 15,
+                          weight: FontWeight.w600,
+                          color: isDone && !task.isBreak
+                              ? Color(0xFF9CA3AF)
+                              : AppColors.textPrimary,
+                        ).copyWith(
+                          decoration: isDone && !task.isBreak
+                              ? TextDecoration.lineThrough
+                              : TextDecoration.none,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            task.time,
-                            style: AppTypography.mono(
-                              size: 12,
-                              color: Color(0xFF9CA3AF),
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            '${task.durationMinutes} min',
-                            style: AppTypography.body(
-                              size: 11,
-                              weight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                    ),
+                    
+                    // Duration & Menu
+                    Text(
+                      '${task.durationMinutes} min',
+                      style: AppTypography.body(
+                        size: 13,
+                        weight: FontWeight.w500,
+                        color: AppColors.textSecondary,
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: onLongPress, // Using onTap instead of onLongPress for the 3-dot menu!
+                      behavior: HitTestBehavior.opaque,
+                      child: Padding(
+                        padding: const EdgeInsets.all(4.0),
+                        child: Icon(
+                          Icons.more_vert_rounded,
+                          color: AppColors.textSecondary,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ],
-        ),
-      );
+          ),
+        ],
+      ),
+    );
   }
 }
 // Session Complete Banner

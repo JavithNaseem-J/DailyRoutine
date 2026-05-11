@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/daily_state.dart';
 import '../models/quick_task.dart';
-import '../models/todays_focus.dart';
 import '../models/session.dart';
 
 // HiveService — local write-ahead cache
@@ -16,7 +15,6 @@ class HiveService {
   HiveService._();
 
   Box<String>? _dailyStateBox;
-  Box<String>? _focusBox;
   Box<String>? _quickTasksBox;
   Box<String>? _customTasksBox;
 
@@ -26,7 +24,6 @@ class HiveService {
     if (_initialized) return;
     await Hive.initFlutter();
     _dailyStateBox = await Hive.openBox<String>('daily_state');
-    _focusBox = await Hive.openBox<String>('todays_focus');
     _quickTasksBox = await Hive.openBox<String>('quick_tasks');
     _customTasksBox = await Hive.openBox<String>('custom_tasks');
     _initialized = true;
@@ -67,25 +64,6 @@ class HiveService {
       }
     }
     return states;
-  }
-
-
-  TodaysFocus readTodaysFocus(String dateKey) {
-    if (!_initialized) return TodaysFocus.empty(dateKey);
-    final raw = _focusBox!.get(dateKey);
-    if (raw == null) return TodaysFocus.empty(dateKey);
-    try {
-      return TodaysFocus.fromJson(
-        Map<String, dynamic>.from(jsonDecode(raw) as Map),
-      );
-    } catch (_) {
-      return TodaysFocus.empty(dateKey);
-    }
-  }
-
-  Future<void> writeTodaysFocus(TodaysFocus focus) async {
-    if (!_initialized) return;
-    await _focusBox!.put(focus.date, jsonEncode(focus.toJson()));
   }
 
 
@@ -139,7 +117,7 @@ class HiveService {
   Future<void> pruneOldKeys(String currentDateKey) async {
     if (!_initialized) return;
     final cutoff = DateTime.now().subtract(const Duration(days: 30));
-    for (final box in [_dailyStateBox!, _focusBox!, _quickTasksBox!]) {
+    for (final box in [_dailyStateBox!, _quickTasksBox!]) {
       final keysToDelete = box.keys.whereType<String>().where((k) {
         try {
           return DateTime.parse(k).isBefore(cutoff);
@@ -156,7 +134,6 @@ class HiveService {
   Future<void> clearAll() async {
     if (!_initialized) return;
     await _dailyStateBox?.clear();
-    await _focusBox?.clear();
     await _quickTasksBox?.clear();
     await _customTasksBox?.clear();
   }

@@ -29,6 +29,7 @@ class Task {
     this.hasSessionTimer = false,
     this.isFridayOnly = false,
     this.isFridaySpecial = false,
+    this.iconName = 'star',
   });
 
   final String id;
@@ -44,6 +45,41 @@ class Task {
   final bool hasSessionTimer; // build sessions 1, 2, 3 only
   final bool isFridayOnly;
   final bool isFridaySpecial; // Dhuhr → Jumu'ah on Fridays
+  final String iconName;
+
+  Task copyWith({
+    String? id,
+    String? sessionId,
+    String? title,
+    String? time,
+    int? durationMinutes,
+    String? tip,
+    String? bonus,
+    String? subtitle,
+    RingType? ring,
+    bool? isBreak,
+    bool? hasSessionTimer,
+    bool? isFridayOnly,
+    bool? isFridaySpecial,
+    String? iconName,
+  }) {
+    return Task(
+      id: id ?? this.id,
+      sessionId: sessionId ?? this.sessionId,
+      title: title ?? this.title,
+      time: time ?? this.time,
+      durationMinutes: durationMinutes ?? this.durationMinutes,
+      tip: tip ?? this.tip,
+      bonus: bonus ?? this.bonus,
+      subtitle: subtitle ?? this.subtitle,
+      ring: ring ?? this.ring,
+      isBreak: isBreak ?? this.isBreak,
+      hasSessionTimer: hasSessionTimer ?? this.hasSessionTimer,
+      isFridayOnly: isFridayOnly ?? this.isFridayOnly,
+      isFridaySpecial: isFridaySpecial ?? this.isFridaySpecial,
+      iconName: iconName ?? this.iconName,
+    );
+  }
 
   factory Task.fromJson(Map<String, dynamic> json) {
     return Task(
@@ -63,6 +99,7 @@ class Task {
       hasSessionTimer: json['hasSessionTimer'] as bool? ?? false,
       isFridayOnly: json['isFridayOnly'] as bool? ?? false,
       isFridaySpecial: json['isFridaySpecial'] as bool? ?? false,
+      iconName: json['iconName'] as String? ?? 'star',
     );
   }
 
@@ -81,6 +118,7 @@ class Task {
       'hasSessionTimer': hasSessionTimer,
       'isFridayOnly': isFridayOnly,
       'isFridaySpecial': isFridaySpecial,
+      'iconName': iconName,
     };
   }
 }
