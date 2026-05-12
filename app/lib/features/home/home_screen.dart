@@ -6,13 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:confetti/confetti.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
-import '../../core/constants/hadiths.dart';
+
 import '../../core/models/prayer_times.dart';
 import '../../core/models/quick_task.dart';
 import '../../core/services/date_service.dart';
 import '../../core/services/hive_service.dart';
 import '../../core/services/prayer_service.dart';
 import '../../core/services/supabase_service.dart';
+import '../../core/services/hadith_service.dart';
 import '../../core/services/weather_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
@@ -74,6 +75,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   List<QuickTask> _quickTasks = [];
 
   WeatherData? _weatherData;
+  HadithData? _dailyHadith;
 
   @override
   void initState() {
@@ -88,6 +90,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _loadProgressItems();
     _loadQuickTasks();
     _loadWeather();
+    _loadHadith();
 
     _prayerTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) {
@@ -107,9 +110,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     super.dispose();
   }
 
-  Future<void> _loadWeather({bool forceRefresh = false}) async {
-    final w = await weatherService.getWeatherData(forceRefresh: forceRefresh);
+  Future<void> _loadWeather() async {
+    final w = await weatherService.getWeatherData();
     if (mounted) setState(() => _weatherData = w);
+  }
+
+  Future<void> _loadHadith() async {
+    final h = await hadithService.getDailyHadith();
+    if (mounted) setState(() => _dailyHadith = h);
   }
 
   // Week Planner
@@ -308,22 +316,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final now = DateTime.now();
     final greeting = _greetingData(now.hour);
     final displayGreeting = greeting.text;
-    final quote = Hadiths.today();
-    final completionPct = ref.watch(completionPctProvider);
 
     Widget buildHeader() {
       if (_weatherData != null) {
         final w = _weatherData!;
-        IconData weatherIcon = Icons.cloud_outlined;
+        IconData weatherIcon = Icons.cloud;
         final c = w.condition.toLowerCase();
         if (c.contains('clear')) {
-          weatherIcon = Icons.wb_sunny_outlined;
+          weatherIcon = Icons.wb_sunny;
         } else if (c.contains('rain') || c.contains('drizzle')) {
-          weatherIcon = Icons.water_drop_outlined;
+          weatherIcon = Icons.water_drop;
         } else if (c.contains('thunder')) {
-          weatherIcon = Icons.bolt_outlined;
+          weatherIcon = Icons.bolt;
         } else if (c.contains('snow')) {
-          weatherIcon = Icons.ac_unit_outlined;
+          weatherIcon = Icons.ac_unit;
         }
 
         return Container(
@@ -339,7 +345,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 right: -20,
                 bottom: -10,
                 child: Icon(
-                  Icons.cloud_outlined,
+                  Icons.cloud,
                   size: 130,
                   color: AppColors.textSecondary.withValues(alpha: 0.06),
                 ),
@@ -350,26 +356,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: Transform.rotate(
                   angle: -0.1,
                   child: Icon(
-                    Icons.cloud_outlined,
+                    Icons.cloud,
                     size: 90,
                     color: AppColors.textSecondary.withValues(alpha: 0.04),
                   ),
                 ),
               ),
-              
-              // Top Right Refresh Button
               Positioned(
-                top: 4,
-                right: 4,
-                child: IconButton(
-                  icon: Icon(Icons.refresh_rounded, size: 20, color: AppColors.textSecondary),
-                  onPressed: () => _loadWeather(forceRefresh: true),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  splashRadius: 20,
+                left: 60,
+                top: -20,
+                child: Transform.rotate(
+                  angle: 0.2,
+                  child: Icon(
+                    Icons.cloud,
+                    size: 70,
+                    color: AppColors.textSecondary.withValues(alpha: 0.03),
+                  ),
                 ),
               ),
-
+              Positioned(
+                left: -15,
+                top: 10,
+                child: Transform.rotate(
+                  angle: -0.15,
+                  child: Icon(
+                    Icons.cloud,
+                    size: 50,
+                    color: AppColors.textSecondary.withValues(alpha: 0.04),
+                  ),
+                ),
+              ),
               // Main Content
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -452,10 +468,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                 SizedBox(height: 16),
 
-                _DailyProgressBar(completionPct: completionPct),
-
-                SizedBox(height: 16),
-
                 _WeekStrip(
                   days: _weekStrip,
                   plannedEvents: _plannedEvents,
@@ -471,7 +483,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                 SizedBox(height: 20),
 
-                _HadithCard(text: quote.text, attribution: quote.attribution),
+                if (_dailyHadith != null)
+                  _HadithCard(text: _dailyHadith!.text, attribution: _dailyHadith!.attribution)
+                else
+                  const SizedBox(),
 
                 SizedBox(height: 16),
 
@@ -531,76 +546,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-// Daily Progress Bar
-
-class _DailyProgressBar extends StatelessWidget {
-  const _DailyProgressBar({required this.completionPct});
-  final int completionPct;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.cardSurface,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                "Today's Progress",
-                style: AppTypography.body(
-                  size: 13,
-                  weight: FontWeight.w500,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              Text(
-                '$completionPct%',
-                style: AppTypography.mono(
-                  size: 12,
-                  weight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 10),
-          LayoutBuilder(
-            builder: (_, constraints) {
-              return Stack(
-                children: [
-                  Container(
-                    height: 6,
-                    width: constraints.maxWidth,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceRaised,
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 600),
-                    curve: Curves.easeOut,
-                    height: 6,
-                    width: constraints.maxWidth * (completionPct / 100),
-                    decoration: BoxDecoration(
-                      color: AppColors.complete,
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // Week Strip
 
@@ -703,36 +648,86 @@ class _HadithCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
       decoration: BoxDecoration(
         color: AppColors.cardSurface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border(
-          left: BorderSide(color: AppColors.primary, width: 3),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Hadith of the Day',
-            style: AppTypography.label(color: AppColors.textMuted),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-          SizedBox(height: 6),
-          Text(
-            text,
-            textAlign: TextAlign.justify,
-            style: AppTypography.body(
-              size: 13,
-              style: FontStyle.italic,
-              color: AppColors.textSecondary,
-              height: 1.5,
+        ],
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Watermark
+          Positioned(
+            top: -20,
+            left: -10,
+            child: Text(
+              '"',
+              style: TextStyle(
+                fontFamily: 'serif',
+                fontSize: 80,
+                color: AppColors.primary.withValues(alpha: 0.08),
+                height: 1.0,
+              ),
             ),
           ),
-          SizedBox(height: 6),
-          Text(
-            attribution,
-            style: AppTypography.mono(size: 10, color: AppColors.textMuted),
+          // Content
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.auto_awesome, size: 14, color: AppColors.primary),
+                  const SizedBox(width: 6),
+                  Text(
+                    'HADITH OF THE DAY',
+                    style: AppTypography.body(
+                      color: AppColors.primary,
+                      size: 11,
+                      weight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                text,
+                textAlign: TextAlign.left,
+                style: AppTypography.body(
+                  size: 14,
+                  color: AppColors.textPrimary,
+                  height: 1.5,
+                  weight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                height: 1,
+                width: double.infinity,
+                color: AppColors.border.withValues(alpha: 0.5),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    attribution,
+                    style: AppTypography.mono(
+                      size: 11,
+                      color: AppColors.textSecondary,
+                      weight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
       ),
