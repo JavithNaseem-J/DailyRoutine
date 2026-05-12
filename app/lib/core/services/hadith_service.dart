@@ -44,21 +44,26 @@ class HadithService {
     }
 
     try {
-      // Randomly pick a book from Sahih Bukhari (1 to 97)
-      final book = Random().nextInt(97) + 1;
-      final url = 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/eng-bukhari/sections/$book.json';
-      
-      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        final hadiths = data['hadiths'] as List;
-        if (hadiths.isNotEmpty) {
-          final randomHadith = hadiths[Random().nextInt(hadiths.length)];
-          String text = randomHadith['text'];
-          // Clean up HTML/Markdown artifacts if any, and trim whitespace
-          text = text.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+      // Try up to 3 times to find a short hadith to ensure it fits the UI card
+      for (int i = 0; i < 3; i++) {
+        final book = Random().nextInt(97) + 1;
+        final url = 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/eng-bukhari/sections/$book.json';
+        
+        final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 3));
+        if (res.statusCode == 200) {
+          final data = jsonDecode(res.body);
+          final hadiths = data['hadiths'] as List;
           
-          if (text.isNotEmpty) {
+          // Filter for short hadiths (max ~4 lines)
+          final shortHadiths = hadiths.where((h) {
+            String t = h['text'].toString().replaceAll(RegExp(r'<[^>]*>'), '').trim();
+            return t.length > 20 && t.length <= 250;
+          }).toList();
+
+          if (shortHadiths.isNotEmpty) {
+            final randomHadith = shortHadiths[Random().nextInt(shortHadiths.length)];
+            String text = randomHadith['text'].toString().replaceAll(RegExp(r'<[^>]*>'), '').trim();
+            
             final hadithNumber = randomHadith['hadithnumber'];
             final attribution = 'Sahih al-Bukhari $hadithNumber';
 

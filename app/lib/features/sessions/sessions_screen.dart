@@ -688,22 +688,24 @@ class _TaskCard extends StatelessWidget {
         children: [
           // 1. Time Column
           SizedBox(
-            width: 40,
+            width: 55,
             child: Align(
               alignment: Alignment.centerRight,
-              child: Column(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
                 children: [
                   Text(
                     timePart,
                     style: AppTypography.body(
-                      size: 13,
+                      size: 12,
                       weight: FontWeight.w600,
                       color: AppColors.textPrimary,
                     ),
                   ),
-                  if (amPmPart.isNotEmpty)
+                  if (amPmPart.isNotEmpty) ...[
+                    const SizedBox(width: 2),
                     Text(
                       amPmPart,
                       style: AppTypography.body(
@@ -711,6 +713,7 @@ class _TaskCard extends StatelessWidget {
                         color: AppColors.textSecondary,
                       ),
                     ),
+                  ],
                 ],
               ),
             ),
@@ -801,8 +804,10 @@ class _TaskCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         task.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: AppTypography.body(
-                          size: 15,
+                          size: 14,
                           weight: FontWeight.w600,
                           color: isDone && !task.isBreak
                               ? Color(0xFF9CA3AF)
@@ -817,9 +822,9 @@ class _TaskCard extends StatelessWidget {
                     
                     // Duration & Menu
                     Text(
-                      '${task.durationMinutes} min',
+                      '${task.durationMinutes}m',
                       style: AppTypography.body(
-                        size: 13,
+                        size: 12,
                         weight: FontWeight.w500,
                         color: AppColors.textSecondary,
                       ),
