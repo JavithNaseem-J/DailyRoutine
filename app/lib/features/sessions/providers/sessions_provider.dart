@@ -207,6 +207,20 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
       newStatus = 'none';
     }
 
+    await _applyTaskStatusChange(current, taskId, newDone, newStatus);
+  }
+
+  Future<void> setExplicitTaskStatus(String taskId, String newStatus) async {
+    final current = state.value;
+    if (current == null) return;
+    
+    // newStatus should be 'on_time', 'late', 'skipped', or 'none'
+    bool newDone = (newStatus == 'on_time' || newStatus == 'late');
+    
+    await _applyTaskStatusChange(current, taskId, newDone, newStatus);
+  }
+
+  Future<void> _applyTaskStatusChange(SessionsState current, String taskId, bool newDone, String newStatus) async {
     final newDaily = current.dailyState.copyWith(
       taskStates: {...current.taskStates, taskId: newDone},
       taskStatus: {...current.dailyState.taskStatus, taskId: newStatus},

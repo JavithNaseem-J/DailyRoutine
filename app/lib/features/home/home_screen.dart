@@ -498,23 +498,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                 SizedBox(height: 20),
 
-                _InProgressSection(
-                  items: _progressItems,
-                  onAdd: _addProgressItem,
-                  onUpdate: _updateProgressItem,
-                  onDelete: _deleteProgressItem,
-                ),
-
-                SizedBox(height: 20),
-
-
-
                 _TaskBoard(
                   tasks: _quickTasks,
                   onAdd: _addQuickTask,
                   onDelete: _deleteQuickTask,
                   onToggle: _toggleQuickTask,
                   onUpdate: _updateQuickTask,
+                ),
+
+                SizedBox(height: 20),
+
+                _InProgressSection(
+                  items: _progressItems,
+                  onAdd: _addProgressItem,
+                  onUpdate: _updateProgressItem,
+                  onDelete: _deleteProgressItem,
                 ),
 
                 SizedBox(height: 32),

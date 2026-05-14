@@ -109,7 +109,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     }
   }
 
-  void _toggleTask(Task task) {
+  void _setTaskStatus(Task task, String status) {
     HapticFeedback.lightImpact();
 
     final focusState = ref.read(focusTimerProvider);
@@ -130,7 +130,11 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
       return;
     }
 
-    ref.read(sessionsProvider.notifier).toggleTask(task.id);
+    if (status == 'toggle') {
+      ref.read(sessionsProvider.notifier).toggleTask(task.id);
+    } else {
+      ref.read(sessionsProvider.notifier).setExplicitTaskStatus(task.id, status);
+    }
   }
 
   void _toggleBonus(String taskId) {
@@ -422,6 +426,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                     ),
                     data: (_) => PageView.builder(
                       controller: _pageController,
+                      physics: const NeverScrollableScrollPhysics(),
                       onPageChanged: _onPageChanged,
                       itemCount: sessions.length,
                       itemBuilder: (context, i) => _SessionPage(
@@ -430,7 +435,8 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                         taskStatus:
                             sessionsAsync.value?.dailyState.taskStatus ?? {},
                         bonusStates: bonusStates,
-                        onToggleTask: _toggleTask,
+                        onToggleTask: (task) => _setTaskStatus(task, 'toggle'),
+                        onSetStatus: _setTaskStatus,
                         onToggleBonus: _toggleBonus,
                         onLongPressTask: (task) =>
                             _showTaskOptions(task, sessions[i]),
@@ -565,6 +571,7 @@ class _SessionPage extends StatelessWidget {
     required this.taskStatus,
     required this.bonusStates,
     required this.onToggleTask,
+    required this.onSetStatus,
     required this.onToggleBonus,
     required this.onLongPressTask,
   });
@@ -574,6 +581,7 @@ class _SessionPage extends StatelessWidget {
   final Map<String, String> taskStatus;
   final Map<String, bool> bonusStates;
   final ValueChanged<Task> onToggleTask;
+  final void Function(Task, String) onSetStatus;
   final ValueChanged<String> onToggleBonus;
   final ValueChanged<Task> onLongPressTask;
 
@@ -601,6 +609,7 @@ class _SessionPage extends StatelessWidget {
             isFirst: index == 0,
             isLast: index == session.tasks.length - 1,
             onToggle: () => onToggleTask(task),
+            onSetStatus: onSetStatus,
             onLongPress: () => onLongPressTask(task),
           );
         }),
@@ -655,6 +664,7 @@ class _TaskCard extends StatelessWidget {
     required this.isFirst,
     required this.isLast,
     required this.onToggle,
+    required this.onSetStatus,
     required this.onLongPress,
   });
 
@@ -664,6 +674,7 @@ class _TaskCard extends StatelessWidget {
   final bool isFirst;
   final bool isLast;
   final VoidCallback onToggle;
+  final void Function(Task, String) onSetStatus;
   final VoidCallback onLongPress;
 
   IconData _getIconData(String name) {
@@ -785,30 +796,66 @@ class _TaskCard extends StatelessWidget {
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: task.isBreak ? AppColors.surfaceRaised : Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: task.isBreak
-                        ? Colors.transparent
-                        : Color(0xFFF3F4F6),
-                    width: 1.5,
+              child: GestureDetector(
+                onLongPress: task.isBreak ? null : () {
+                  HapticFeedback.mediumImpact();
+                  onSetStatus(task, 'skipped');
+                },
+                child: Dismissible(
+                  key: Key('task_${task.id}'),
+                  direction: task.isBreak ? DismissDirection.none : DismissDirection.horizontal,
+                  confirmDismiss: (direction) async {
+                    HapticFeedback.lightImpact();
+                    if (task.isBreak) return false;
+                    if (direction == DismissDirection.startToEnd) {
+                      onSetStatus(task, 'on_time');
+                    } else if (direction == DismissDirection.endToStart) {
+                      onSetStatus(task, 'late');
+                    }
+                    return false;
+                  },
+                  background: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.only(left: 20),
+                    decoration: BoxDecoration(
+                      color: Color(0xFF4ade80),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(Icons.check_circle_rounded, color: Colors.white),
                   ),
-                  boxShadow: task.isBreak
-                      ? []
-                      : [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.02),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                ),
+                  secondaryBackground: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    decoration: BoxDecoration(
+                      color: Color(0xFFEF4444),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(Icons.access_time_filled_rounded, color: Colors.white),
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: task.isBreak ? AppColors.surfaceRaised : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: task.isBreak
+                            ? Colors.transparent
+                            : Color(0xFFF3F4F6),
+                        width: 1.5,
+                      ),
+                      boxShadow: task.isBreak
+                          ? []
+                          : [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.02),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                    ),
                 child: Row(
                   children: [
                     // Icon Box
@@ -833,37 +880,43 @@ class _TaskCard extends StatelessWidget {
 
                     // Title
                     Expanded(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Text(
-                          task.title,
-                          style:
-                              AppTypography.body(
-                                size: 14,
-                                weight: FontWeight.w600,
-                                color:
-                                    (isDone || taskStatus == 'skipped') &&
-                                        !task.isBreak
-                                    ? Color(0xFF9CA3AF)
-                                    : AppColors.textPrimary,
-                              ).copyWith(
-                                decoration:
-                                    (isDone || taskStatus == 'skipped') &&
-                                        !task.isBreak
-                                    ? TextDecoration.lineThrough
-                                    : TextDecoration.none,
-                              ),
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 8.0), // Gap to push 20m slightly right
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Text(
+                            task.title,
+                            style:
+                                AppTypography.body(
+                                  size: 14,
+                                  weight: FontWeight.w600,
+                                  color:
+                                      (isDone || taskStatus == 'skipped') &&
+                                          !task.isBreak
+                                      ? Color(0xFF9CA3AF)
+                                      : AppColors.textPrimary,
+                                ).copyWith(
+                                  decoration:
+                                      (isDone || taskStatus == 'skipped') &&
+                                          !task.isBreak
+                                      ? TextDecoration.lineThrough
+                                      : TextDecoration.none,
+                                ),
+                          ),
                         ),
                       ),
                     ),
 
                     // Duration & Menu
-                    Text(
-                      '${task.durationMinutes}m',
-                      style: AppTypography.body(
-                        size: 12,
-                        weight: FontWeight.w500,
-                        color: AppColors.textSecondary,
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2.0), // Nudge down to visually align with task name baseline
+                      child: Text(
+                        '${task.durationMinutes}m',
+                        style: AppTypography.body(
+                          size: 12,
+                          weight: FontWeight.w500,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -885,9 +938,11 @@ class _TaskCard extends StatelessWidget {
               ),
             ),
           ),
-        ],
+        ),
       ),
-    );
+    ],
+  ),
+);
   }
 }
 // Session Complete Banner
