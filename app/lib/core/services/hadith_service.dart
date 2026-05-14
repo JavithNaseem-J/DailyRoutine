@@ -44,7 +44,7 @@ class HadithService {
     }
 
     try {
-      // Try up to 3 times to find a short hadith to ensure it fits the UI card
+      // Pick a random book and hadith
       for (int i = 0; i < 3; i++) {
         final book = Random().nextInt(97) + 1;
         final url = 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/eng-bukhari/sections/$book.json';
@@ -54,14 +54,14 @@ class HadithService {
           final data = jsonDecode(res.body);
           final hadiths = data['hadiths'] as List;
           
-          // Filter for short hadiths (max ~4 lines)
-          final shortHadiths = hadiths.where((h) {
+          // Filter for valid hadiths (not empty)
+          final validHadiths = hadiths.where((h) {
             String t = h['text'].toString().replaceAll(RegExp(r'<[^>]*>'), '').trim();
-            return t.length > 20 && t.length <= 250;
+            return t.length > 20;
           }).toList();
 
-          if (shortHadiths.isNotEmpty) {
-            final randomHadith = shortHadiths[Random().nextInt(shortHadiths.length)];
+          if (validHadiths.isNotEmpty) {
+            final randomHadith = validHadiths[Random().nextInt(validHadiths.length)];
             String text = randomHadith['text'].toString().replaceAll(RegExp(r'<[^>]*>'), '').trim();
             
             final hadithNumber = randomHadith['hadithnumber'];

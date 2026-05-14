@@ -62,7 +62,7 @@ abstract final class Hadiths {
   /// Returns today's hadith (rotates daily based on day of the year).
   static ({String text, String attribution}) today() {
     final now = DateTime.now();
-    final dayOfYear = int.parse(now.difference(DateTime(now.year, 1, 1)).inDays.toString());
+    final dayOfYear = now.difference(DateTime(now.year, 1, 1)).inDays;
     return _list[dayOfYear % _list.length];
   }
 }

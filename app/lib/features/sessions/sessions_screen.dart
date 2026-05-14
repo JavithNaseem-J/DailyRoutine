@@ -11,7 +11,6 @@ import 'add_task_sheet.dart';
 import 'providers/sessions_provider.dart';
 import '../focus/providers/focus_timer_provider.dart';
 
-
 class SessionsScreen extends ConsumerStatefulWidget {
   const SessionsScreen({super.key});
 
@@ -115,8 +114,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
 
     final focusState = ref.read(focusTimerProvider);
     final isThisTask = focusState.taskTitle == task.title;
-    final isTimerPaused = focusState.remainingSeconds > 0 && 
-                          focusState.remainingSeconds < focusState.totalSeconds;
+    final isTimerPaused =
+        focusState.remainingSeconds > 0 &&
+        focusState.remainingSeconds < focusState.totalSeconds;
 
     // Redirect if timer is actively running, OR if it's paused for THIS task.
     if (focusState.isRunning || (isThisTask && isTimerPaused)) {
@@ -159,7 +159,8 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
       ),
       builder: (ctx) => Container(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(ctx).padding.bottom + kBottomNavigationBarHeight,
+          bottom:
+              MediaQuery.of(ctx).padding.bottom + kBottomNavigationBarHeight,
         ),
         child: SafeArea(
           bottom: false,
@@ -195,9 +196,16 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.play_arrow_rounded, color: AppColors.textPrimary, size: 20),
+                      Icon(
+                        Icons.play_arrow_rounded,
+                        color: AppColors.textPrimary,
+                        size: 20,
+                      ),
                       const SizedBox(width: 12),
-                      Text('Start Focus Timer', style: AppTypography.body(size: 16)),
+                      Text(
+                        'Start Focus Timer',
+                        style: AppTypography.body(size: 16),
+                      ),
                     ],
                   ),
                 ),
@@ -214,7 +222,11 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.edit_rounded, color: AppColors.textPrimary, size: 20),
+                        Icon(
+                          Icons.edit_rounded,
+                          color: AppColors.textPrimary,
+                          size: 20,
+                        ),
                         const SizedBox(width: 12),
                         Text('Edit', style: AppTypography.body(size: 16)),
                       ],
@@ -235,9 +247,19 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.delete_outline_rounded, color: AppColors.moodLow, size: 20),
+                        Icon(
+                          Icons.delete_outline_rounded,
+                          color: AppColors.moodLow,
+                          size: 20,
+                        ),
                         const SizedBox(width: 12),
-                        Text('Delete', style: AppTypography.body(size: 16, color: AppColors.moodLow)),
+                        Text(
+                          'Delete',
+                          style: AppTypography.body(
+                            size: 16,
+                            color: AppColors.moodLow,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -250,7 +272,11 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.close_rounded, color: AppColors.textPrimary, size: 20),
+                      Icon(
+                        Icons.close_rounded,
+                        color: AppColors.textPrimary,
+                        size: 20,
+                      ),
                       const SizedBox(width: 12),
                       Text('Cancel', style: AppTypography.body(size: 16)),
                     ],
@@ -284,7 +310,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
       children: [
         Scaffold(
           backgroundColor: AppColors.background,
-          body: SafeArea(bottom: false, child: Column(
+          body: SafeArea(
+            bottom: false,
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Padding(
@@ -399,7 +427,8 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                       itemBuilder: (context, i) => _SessionPage(
                         session: sessions[i],
                         taskStates: taskStates,
-                        taskStatus: sessionsAsync.value?.dailyState.taskStatus ?? {},
+                        taskStatus:
+                            sessionsAsync.value?.dailyState.taskStatus ?? {},
                         bonusStates: bonusStates,
                         onToggleTask: _toggleTask,
                         onToggleBonus: _toggleBonus,
@@ -472,21 +501,15 @@ class _SessionPill extends StatelessWidget {
       } else if (percent >= 0.67) {
         bgColor = Color(0xFF3B82F6); // Stage 4
         textColor = Colors.white;
-        borderColor = isSelected
-            ? AppColors.textPrimary
-            : Color(0xFF3B82F6);
+        borderColor = isSelected ? AppColors.textPrimary : Color(0xFF3B82F6);
       } else if (percent >= 0.34) {
         bgColor = Color(0xFF93C5FD); // Stage 3
         textColor = AppColors.textPrimary;
-        borderColor = isSelected
-            ? AppColors.textPrimary
-            : Color(0xFF93C5FD);
+        borderColor = isSelected ? AppColors.textPrimary : Color(0xFF93C5FD);
       } else if (percent > 0.0) {
         bgColor = Color(0xFFDBEAFE); // Stage 2
         textColor = AppColors.textPrimary;
-        borderColor = isSelected
-            ? AppColors.textPrimary
-            : Color(0xFFDBEAFE);
+        borderColor = isSelected ? AppColors.textPrimary : Color(0xFFDBEAFE);
       } else {
         bgColor = AppColors.surfaceRaised; // Stage 1
         textColor = AppColors.textPrimary;
@@ -606,7 +629,7 @@ class _TimelinePainter extends CustomPainter {
     final double dashWidth = 4, dashSpace = 4;
     double startY = isFirst ? size.height / 2 : 0;
     final double endY = isLast ? size.height / 2 : size.height;
-    
+
     while (startY < endY) {
       canvas.drawLine(
         Offset(size.width / 2, startY),
@@ -670,16 +693,30 @@ class _TaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Parse time string for "5:00" and "am"
-    final timeStr = task.time.replaceAll(' ', '').toLowerCase();
-    String timePart = timeStr;
-    String amPmPart = '';
-    if (timeStr.contains('am')) {
-      timePart = timeStr.replaceAll('am', '');
-      amPmPart = 'am';
-    } else if (timeStr.contains('pm')) {
-      timePart = timeStr.replaceAll('pm', '');
-      amPmPart = 'pm';
+    final timeStr = task.time.toLowerCase().trim();
+    String formattedTime = timeStr;
+
+    // Convert legacy 12h to 24h if needed
+    if (timeStr.contains('am') || timeStr.contains('pm')) {
+      final isPm = timeStr.contains('pm');
+      var t = timeStr.replaceAll('am', '').replaceAll('pm', '').trim();
+      final parts = t.split(':');
+      if (parts.length == 2) {
+        int h = int.tryParse(parts[0]) ?? 0;
+        final m = parts[1];
+        if (isPm && h < 12) h += 12;
+        if (!isPm && h == 12) h = 0;
+        formattedTime = '${h.toString().padLeft(2, '0')}:$m';
+      } else {
+        formattedTime = t;
+      }
+    } else {
+      // Ensure leading zero
+      final parts = timeStr.split(':');
+      if (parts.length == 2) {
+        int h = int.tryParse(parts[0]) ?? 0;
+        formattedTime = '${h.toString().padLeft(2, '0')}:${parts[1]}';
+      }
     }
 
     return IntrinsicHeight(
@@ -688,37 +725,20 @@ class _TaskCard extends StatelessWidget {
         children: [
           // 1. Time Column
           SizedBox(
-            width: 55,
+            width: 45,
             child: Align(
               alignment: Alignment.centerRight,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    timePart,
-                    style: AppTypography.body(
-                      size: 12,
-                      weight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  if (amPmPart.isNotEmpty) ...[
-                    const SizedBox(width: 2),
-                    Text(
-                      amPmPart,
-                      style: AppTypography.body(
-                        size: 10,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ],
+              child: Text(
+                formattedTime,
+                style: AppTypography.body(
+                  size: 12,
+                  weight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
               ),
             ),
           ),
-          
+
           // 2. Timeline Graphic Column
           SizedBox(
             width: 32,
@@ -727,36 +747,38 @@ class _TaskCard extends StatelessWidget {
               child: Align(
                 alignment: Alignment.center,
                 child: GestureDetector(
-                    onTap: task.isBreak ? null : onToggle,
-                    behavior: HitTestBehavior.opaque,
-                    child: Container(
-                      width: task.isBreak ? 14 : 20,
-                      height: task.isBreak ? 14 : 20,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: task.isBreak 
-                            ? Color(0xFF9CA3AF)
-                            : isDone
-                                ? taskStatus == 'late'
-                                    ? Color(0xFFEF4444) // Red for late
-                                    : Color(0xFF4ade80) // Green for on_time
-                                : Colors.white,
-                        border: (isDone || task.isBreak)
-                            ? null
-                            : Border.all(
-                                color: Color(0xFFD1D5DB),
-                                width: 1.5,
-                              ),
-                      ),
-                      child: (isDone && !task.isBreak)
-                          ? const Icon(Icons.check, size: 12, color: Colors.white)
-                          : null,
+                  onTap: task.isBreak ? null : onToggle,
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    width: task.isBreak ? 12 : 16,
+                    height: task.isBreak ? 12 : 16,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: task.isBreak
+                          ? Color(0xFF9CA3AF)
+                          : isDone
+                          ? taskStatus == 'late'
+                                ? Color(0xFFEF4444) // Red for late
+                                : Color(0xFF4ade80) // Green for on_time
+                          : taskStatus == 'skipped'
+                          ? Color(0xFF9CA3AF) // Grey for skipped
+                          : Colors.white,
+                      border:
+                          (isDone || task.isBreak || taskStatus == 'skipped')
+                          ? null
+                          : Border.all(color: Color(0xFFD1D5DB), width: 1.5),
                     ),
+                    child: (isDone && !task.isBreak)
+                        ? const Icon(Icons.check, size: 10, color: Colors.white)
+                        : (!isDone && !task.isBreak && taskStatus == 'skipped')
+                        ? const Icon(Icons.close, size: 10, color: Colors.white)
+                        : null,
                   ),
                 ),
               ),
             ),
-          
+          ),
+
           const SizedBox(width: 8),
 
           // 3. Card Column
@@ -764,62 +786,77 @@ class _TaskCard extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 10),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: task.isBreak ? AppColors.surfaceRaised : Colors.white,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: task.isBreak ? Colors.transparent : Color(0xFFF3F4F6),
+                    color: task.isBreak
+                        ? Colors.transparent
+                        : Color(0xFFF3F4F6),
                     width: 1.5,
                   ),
-                  boxShadow: task.isBreak ? [] : [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.02),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    )
-                  ],
+                  boxShadow: task.isBreak
+                      ? []
+                      : [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.02),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                 ),
                 child: Row(
                   children: [
                     // Icon Box
                     Container(
-                      width: 38,
-                      height: 38,
+                      width: 32,
+                      height: 32,
                       decoration: BoxDecoration(
-                        color: task.isBreak 
-                            ? Colors.white.withValues(alpha: 0.5) 
+                        color: task.isBreak
+                            ? Colors.white.withValues(alpha: 0.5)
                             : Color(0xFFF3F4F6),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Icon(
                         _getIconData(task.iconName),
-                        size: 20,
-                        color: isDone && !task.isBreak ? Color(0xFF9CA3AF) : AppColors.textPrimary,
+                        size: 16,
+                        color: isDone && !task.isBreak
+                            ? Color(0xFF9CA3AF)
+                            : AppColors.textPrimary,
                       ),
                     ),
-                    const SizedBox(width: 14),
-                    
+                    const SizedBox(width: 10),
+
                     // Title
                     Expanded(
-                      child: Text(
-                        task.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.body(
-                          size: 14,
-                          weight: FontWeight.w600,
-                          color: isDone && !task.isBreak
-                              ? Color(0xFF9CA3AF)
-                              : AppColors.textPrimary,
-                        ).copyWith(
-                          decoration: isDone && !task.isBreak
-                              ? TextDecoration.lineThrough
-                              : TextDecoration.none,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Text(
+                          task.title,
+                          style:
+                              AppTypography.body(
+                                size: 14,
+                                weight: FontWeight.w600,
+                                color:
+                                    (isDone || taskStatus == 'skipped') &&
+                                        !task.isBreak
+                                    ? Color(0xFF9CA3AF)
+                                    : AppColors.textPrimary,
+                              ).copyWith(
+                                decoration:
+                                    (isDone || taskStatus == 'skipped') &&
+                                        !task.isBreak
+                                    ? TextDecoration.lineThrough
+                                    : TextDecoration.none,
+                              ),
                         ),
                       ),
                     ),
-                    
+
                     // Duration & Menu
                     Text(
                       '${task.durationMinutes}m',
@@ -831,7 +868,8 @@ class _TaskCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     GestureDetector(
-                      onTap: onLongPress, // Using onTap instead of onLongPress for the 3-dot menu!
+                      onTap:
+                          onLongPress, // Using onTap instead of onLongPress for the 3-dot menu!
                       behavior: HitTestBehavior.opaque,
                       child: Padding(
                         padding: const EdgeInsets.all(4.0),
@@ -904,10 +942,3 @@ class _SessionCompleteBanner extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-
-

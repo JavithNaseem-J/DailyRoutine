@@ -26,6 +26,7 @@ class SupabaseService {
         'bonus_states': state.bonusStates,
         if (state.mood != null) 'mood': state.mood,
         'focus_minutes': state.focusMinutes,
+        'focus_sessions': state.focusSessions,
         'project_minutes': state.projectMinutes,
         'prayer_states': state.prayerStates,
       }, onConflict: 'device_id, date');
@@ -52,6 +53,9 @@ class SupabaseService {
         bonusStates: _castBoolMap(res['bonus_states']),
         mood: res['mood'] as String?,
         focusMinutes: res['focus_minutes'] as int? ?? 0,
+        focusSessions: (res['focus_sessions'] as List<dynamic>? ?? [])
+            .map((e) => (e as num).toInt())
+            .toList(),
         projectMinutes: (res['project_minutes'] as Map<String, dynamic>? ?? {})
             .map((k, v) => MapEntry(k, (v as num).toInt())),
         prayerStates: _castBoolMap(res['prayer_states']),

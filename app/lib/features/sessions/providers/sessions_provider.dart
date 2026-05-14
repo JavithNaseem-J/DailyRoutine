@@ -168,10 +168,15 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     final current = state.value;
     if (current == null) return;
 
-    final newDone = !(current.taskStates[taskId] ?? false);
+    final currentDone = current.taskStates[taskId] ?? false;
+    final currentStatus = current.dailyState.taskStatus[taskId] ?? 'none';
+
+    bool newDone = false;
     String newStatus = 'none';
 
-    if (newDone) {
+    if (!currentDone && currentStatus != 'skipped') {
+      // Pending -> Completed
+      newDone = true;
       Task? targetTask;
       for (final s in current.sessions) {
         targetTask = s.tasks.where((t) => t.id == taskId).firstOrNull;
@@ -189,7 +194,17 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
         } else {
           newStatus = 'late';
         }
+      } else {
+        newStatus = 'on_time';
       }
+    } else if (currentDone) {
+      // Completed -> Skipped
+      newDone = false;
+      newStatus = 'skipped';
+    } else if (currentStatus == 'skipped') {
+      // Skipped -> Pending
+      newDone = false;
+      newStatus = 'none';
     }
 
     final newDaily = current.dailyState.copyWith(
@@ -285,8 +300,13 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
       updatedProject[tag] = (updatedProject[tag] ?? 0) + minutes;
     }
 
+    // Append this individual session to the sessions log
+    final updatedSessions = List<int>.from(current.dailyState.focusSessions)
+      ..add(minutes);
+
     final newDaily = current.dailyState.copyWith(
       focusMinutes: current.dailyState.focusMinutes + minutes,
+      focusSessions: updatedSessions,
       projectMinutes: updatedProject,
     );
 

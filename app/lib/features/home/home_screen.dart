@@ -640,96 +640,125 @@ class _WeekStrip extends StatelessWidget {
 
 // Quote Card
 
-class _HadithCard extends StatelessWidget {
+class _HadithCard extends StatefulWidget {
   const _HadithCard({required this.text, required this.attribution});
   final String text;
   final String attribution;
 
   @override
+  State<_HadithCard> createState() => _HadithCardState();
+}
+
+class _HadithCardState extends State<_HadithCard> {
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-      decoration: BoxDecoration(
-        color: AppColors.cardSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // Watermark
-          Positioned(
-            top: -20,
-            left: -10,
-            child: Text(
-              '"',
-              style: TextStyle(
-                fontFamily: 'serif',
-                fontSize: 80,
-                color: AppColors.primary.withValues(alpha: 0.08),
-                height: 1.0,
-              ),
+    return GestureDetector(
+      onTap: () => setState(() => _expanded = !_expanded),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: AppColors.cardSurface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-          ),
-          // Content
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.auto_awesome, size: 14, color: AppColors.primary),
-                  const SizedBox(width: 6),
-                  Text(
-                    'HADITH OF THE DAY',
-                    style: AppTypography.body(
-                      color: AppColors.primary,
-                      size: 11,
-                      weight: FontWeight.w700,
-                    ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.auto_awesome, size: 14, color: AppColors.textPrimary),
+                const SizedBox(width: 8),
+                Text(
+                  'HADITH OF THE DAY',
+                  style: AppTypography.body(
+                    color: AppColors.textPrimary,
+                    size: 12,
+                    weight: FontWeight.w700,
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                text,
-                textAlign: TextAlign.left,
-                style: AppTypography.body(
-                  size: 14,
+                ),
+                const Spacer(),
+                Icon(
+                  _expanded ? Icons.arrow_drop_up : Icons.arrow_drop_down,
                   color: AppColors.textPrimary,
-                  height: 1.5,
-                  weight: FontWeight.w500,
+                ),
+              ],
+            ),
+            AnimatedCrossFade(
+              firstChild: const SizedBox(width: double.infinity),
+              secondChild: Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Positioned(
+                          top: -20,
+                          left: -10,
+                          child: Text(
+                            '"',
+                            style: TextStyle(
+                              fontFamily: 'serif',
+                              fontSize: 80,
+                              color: AppColors.textSecondary.withValues(alpha: 0.15),
+                              height: 1.0,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          widget.text,
+                          textAlign: TextAlign.left,
+                          style: AppTypography.body(
+                            size: 14,
+                            color: AppColors.textPrimary,
+                            height: 1.5,
+                            weight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      height: 1,
+                      width: double.infinity,
+                      color: AppColors.border.withValues(alpha: 0.5),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(
+                          widget.attribution,
+                          style: AppTypography.mono(
+                            size: 11,
+                            color: AppColors.textSecondary,
+                            weight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-              Container(
-                height: 1,
-                width: double.infinity,
-                color: AppColors.border.withValues(alpha: 0.5),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text(
-                    attribution,
-                    style: AppTypography.mono(
-                      size: 11,
-                      color: AppColors.textSecondary,
-                      weight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
+              crossFadeState: _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+              duration: const Duration(milliseconds: 300),
+              sizeCurve: Curves.easeInOut,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -742,14 +771,13 @@ class _PrayerCard extends ConsumerWidget {
   final PrayerTimes todayPrayers;
 
   String _fmt(DateTime dt) {
-    final h = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+    final h = dt.hour.toString().padLeft(2, '0');
     final m = dt.minute.toString().padLeft(2, '0');
-    final ampm = dt.hour < 12 ? 'AM' : 'PM';
-    return '$h:$m $ampm';
+    return '$h:$m';
   }
 
   String _fmtShort(DateTime dt) {
-    final h = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+    final h = dt.hour.toString().padLeft(2, '0');
     final m = dt.minute.toString().padLeft(2, '0');
     return '$h:$m';
   }

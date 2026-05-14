@@ -87,19 +87,32 @@ class WeatherService {
   }
 
   Future<WeatherData?> getWeatherData({bool forceRefresh = false}) async {
+    double lat = sharedPrefs.getDouble('prayer_lat') ?? 25.2048; // Dubai default
+    double lng = sharedPrefs.getDouble('prayer_lng') ?? 55.2708;
+
+    final cachedLat = sharedPrefs.getDouble('weather_cached_lat');
+    final cachedLng = sharedPrefs.getDouble('weather_cached_lng');
+
+    bool locationChanged = false;
+    if (cachedLat != null && cachedLng != null) {
+      if ((cachedLat - lat).abs() > 0.01 || (cachedLng - lng).abs() > 0.01) {
+        locationChanged = true;
+      }
+    }
+
     final lastFetch = sharedPrefs.getInt('weather_last_fetch') ?? 0;
     final cachedStr = sharedPrefs.getString('weather_data_json');
     
     final now = DateTime.now().millisecondsSinceEpoch;
-    if (!forceRefresh && cachedStr != null && now - lastFetch < 3 * 60 * 60 * 1000) {
+    
+    // Check if cache is valid (within 30 minutes) AND location hasn't changed
+    if (!forceRefresh && cachedStr != null && !locationChanged && (now - lastFetch < 30 * 60 * 1000)) {
       try {
         return WeatherData.fromJson(jsonDecode(cachedStr));
       } catch (_) {}
     }
 
     try {
-      double lat = sharedPrefs.getDouble('prayer_lat') ?? 25.2048; // Dubai default
-      double lng = sharedPrefs.getDouble('prayer_lng') ?? 55.2708;
 
       final url = Uri.parse(
           'https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lng&current=relative_humidity_2m&daily=weathercode,temperature_2m_max,apparent_temperature_max&timezone=auto');
@@ -129,6 +142,8 @@ class WeatherService {
           
           await sharedPrefs.setString('weather_data_json', jsonEncode(wData.toJson()));
           await sharedPrefs.setInt('weather_last_fetch', now);
+          await sharedPrefs.setDouble('weather_cached_lat', lat);
+          await sharedPrefs.setDouble('weather_cached_lng', lng);
           
           return wData;
         }

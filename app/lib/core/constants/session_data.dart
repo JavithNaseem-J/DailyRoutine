@@ -15,7 +15,7 @@ abstract final class SessionData {
   static final _morning = Session(
     id: 'morning',
     name: 'Morning',
-    timeRange: '5:00 AM – 12:00 PM',
+    timeRange: '05:00 - 12:00',
     accentColor: AppColors.morning,
     tasks: [],
   );
@@ -23,7 +23,7 @@ abstract final class SessionData {
   static final _afternoon = Session(
     id: 'afternoon',
     name: 'Afternoon',
-    timeRange: '12:00 PM – 4:00 PM',
+    timeRange: '12:00 - 16:00',
     accentColor: AppColors.midday,
     tasks: [],
   );
@@ -31,7 +31,7 @@ abstract final class SessionData {
   static final _evening = Session(
     id: 'evening',
     name: 'Evening',
-    timeRange: '4:00 PM – 7:00 PM',
+    timeRange: '16:00 - 19:00',
     accentColor: AppColors.sunset,
     tasks: [],
   );
@@ -39,7 +39,7 @@ abstract final class SessionData {
   static final _night = Session(
     id: 'night',
     name: 'Night',
-    timeRange: '7:00 PM – 10:30 PM',
+    timeRange: '19:00 - 22:30',
     accentColor: AppColors.evening,
     tasks: [],
   );
@@ -52,7 +52,6 @@ abstract final class SessionData {
     tasks: [],
   );
 
-
   static Session? getById(String id) {
     try {
       return allSessions.firstWhere((s) => s.id == id);
@@ -61,18 +60,11 @@ abstract final class SessionData {
     }
   }
 
-  static List<Session> sessionsForToday({
-    bool isFriday = false,
-  }) {
+  static List<Session> sessionsForToday({bool isFriday = false}) {
     return allSessions.where((s) {
       if (s.isFridayOnly && !isFriday) return false;
       return true;
     }).toList();
   }
 
-  static List<String> get allTaskIds => [];
-
-  static List<String> taskIdsForToday({
-    bool isFriday = false,
-  }) => [];
 }

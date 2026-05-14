@@ -32,8 +32,6 @@ dependencies:
   geocoding: ^4.0.0  # used in settings_screen for prayer location display
   url_launcher: ^6.3.2 # used in settings_screen
   cached_network_image: ^3.4.1 # used in quran screen
-  # Removed (cleanup): riverpod (redundant with flutter_riverpod), cached_network_image,
-  # webview_flutter, intl — none imported in lib/
 
 dev_dependencies:
   flutter_test:

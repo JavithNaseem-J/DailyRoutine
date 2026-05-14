@@ -10,6 +10,7 @@ import '../../core/theme/app_typography.dart';
 import '../../main.dart' show deviceId;
 import '../sessions/providers/sessions_provider.dart';
 import '../../core/services/hive_service.dart';
+import '../../core/services/gamification_service.dart';
 
 Color _getStageColor(int pct) {
   if (pct >= 100) return AppColors.complete;
@@ -29,15 +30,28 @@ class StatsScreen extends ConsumerStatefulWidget {
 }
 
 class _StatsScreenState extends ConsumerState<StatsScreen> {
-  List<int> _heatmap = List.filled(DateTime(DateTime.now().year, DateTime.now().month + 1, 0).day, 0);
+  List<int> _heatmap = List.filled(
+    DateTime(DateTime.now().year, DateTime.now().month + 1, 0).day,
+    0,
+  );
 
   List<double> _weeklyData = List.filled(7, 0);
+  List<double> _disciplineHistory = List.filled(7, 0);
+  int _currentDisciplineScore = 0;
 
   int _currentStreak = 0;
   int _bestStreak = 0;
   int _totalFocusMinutes = 0;
+  int _longestFocusSession = 0;
+  int _totalFocusSessionsCount = 0;
   Map<String, int> _projectMinutesData = {};
-  Map<String, int> _prayerCounts = {'fajr': 0, 'dhuhr': 0, 'asr': 0, 'maghrib': 0, 'isha': 0};
+  Map<String, int> _prayerCounts = {
+    'fajr': 0,
+    'dhuhr': 0,
+    'asr': 0,
+    'maghrib': 0,
+    'isha': 0,
+  };
   bool _statsLoading = true;
 
   @override
@@ -52,18 +66,31 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       final localStates = hiveService.readAllDailyStates();
       final today = DateTime.now();
       int focusMin = 0;
+      int maxSession = 0;
+      int totalSessions = 0;
       Map<String, int> tagMins = {};
-      Map<String, int> pCounts = {'fajr': 0, 'dhuhr': 0, 'asr': 0, 'maghrib': 0, 'isha': 0};
+      Map<String, int> pCounts = {
+        'fajr': 0,
+        'dhuhr': 0,
+        'asr': 0,
+        'maghrib': 0,
+        'isha': 0,
+      };
 
       for (final s in localStates) {
         try {
           final dt = DateTime.parse(s.date);
           if (dt.month == today.month && dt.year == today.year) {
             focusMin += s.focusMinutes;
+            if (s.focusSessions.isNotEmpty) {
+              totalSessions += s.focusSessions.length;
+              final maxInDay = s.focusSessions.reduce((a, b) => a > b ? a : b);
+              if (maxInDay > maxSession) maxSession = maxInDay;
+            }
             s.projectMinutes.forEach((k, v) {
               tagMins[k] = (tagMins[k] ?? 0) + v;
             });
-            
+
             s.prayerStates.forEach((k, v) {
               if (v == true) {
                 pCounts[k] = (pCounts[k] ?? 0) + 1;
@@ -76,6 +103,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       if (mounted) {
         setState(() {
           _totalFocusMinutes = focusMin;
+          _longestFocusSession = maxSession;
+          _totalFocusSessionsCount = totalSessions;
           _projectMinutesData = tagMins;
           _prayerCounts = pCounts;
         });
@@ -93,6 +122,34 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       final streak = results[0] as Streak?;
       final history = results[1] as List<Map<String, dynamic>>;
       final history30 = results[2] as List<Map<String, dynamic>>;
+
+      // Discipline Score calculation
+      final localStatesEnd = hiveService.readAllDailyStates();
+      List<double> dHistory = List.filled(7, 0);
+      int currentDiscipline = 0;
+      for (final s in localStatesEnd) {
+        try {
+          final dt = DateTime.parse(s.date);
+          final diff = DateTime(
+            today.year,
+            today.month,
+            today.day,
+          ).difference(DateTime(dt.year, dt.month, dt.day)).inDays;
+          if (diff >= 0 && diff < 7) {
+            int tTasks = s.taskStatus.isNotEmpty
+                ? s.taskStatus.length
+                : 5; // fallback to 5
+            // for today, the build method will override it with actual totalTasks from sessionsProvider
+            int score = GamificationService.calculateDisciplineScore(
+              s,
+              currentStreak: streak?.currentStreak ?? 0,
+              totalScheduledTasks: tTasks,
+            );
+            dHistory[6 - diff] = score.toDouble();
+            if (diff == 0) currentDiscipline = score;
+          }
+        } catch (_) {}
+      }
 
       // Map history list -> Mon-indexed weekly bar data
       final weekly = List<double>.filled(7, 0);
@@ -126,6 +183,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         _heatmap = heatmap;
         _currentStreak = streak?.currentStreak ?? 0;
         _bestStreak = streak?.bestStreak ?? 0;
+        _disciplineHistory = dHistory;
+        _currentDisciplineScore = currentDiscipline;
       });
     } catch (_) {
       // Network or unexpected error
@@ -148,19 +207,54 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     final dayIdx = DateTime.now().weekday - 1;
     final liveHeatmap = List<int>.from(_heatmap);
     final liveWeekly = List<double>.from(_weeklyData);
+    final liveDisciplineHistory = List<double>.from(_disciplineHistory);
+    int realScore = _currentDisciplineScore;
+
     if (!_statsLoading) {
+      // Re-calculate today's using dynamic totalTasks
+      final todayStr =
+          "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+      final todayState = hiveService.readDailyState(todayStr);
+      realScore = GamificationService.calculateDisciplineScore(
+        todayState,
+        currentStreak: _currentStreak,
+        totalScheduledTasks: totalTasks,
+      );
+      if (liveDisciplineHistory.isNotEmpty) {
+        liveDisciplineHistory[6] = realScore.toDouble();
+      }
+
       if (liveHeatmap.isNotEmpty) {
-        int todayIdx = DateTime.now().day - 1;
-        if (todayIdx < liveHeatmap.length) liveHeatmap[todayIdx] = completionPct;
+        final todayIdx = DateTime.now().day - 1;
+        if (todayIdx < liveHeatmap.length) {
+          liveHeatmap[todayIdx] = completionPct;
+        }
       }
       if (liveWeekly.isNotEmpty && dayIdx >= 0 && dayIdx < 7) {
         liveWeekly[dayIdx] = completionPct.toDouble();
       }
     }
 
+    int onTimeCount = 0;
+    int lateCount = 0;
+    final todayStrTemp =
+        "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+    final todayStateTemp = hiveService.readDailyState(todayStrTemp);
+
+    todayStateTemp.taskStatus.forEach((_, status) {
+      if (status == 'on_time') {
+        onTimeCount++;
+      } else if (status == 'late') {
+        lateCount++;
+      }
+    });
+
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(bottom: false, child: ListView(padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
+      body: SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
           children: [
             SizedBox(height: 16),
 
@@ -185,13 +279,23 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
             Builder(
               builder: (context) {
-                String insight = "Consistency is key! Keep up the great work.";
-                if (_currentStreak > 2) {
-                  insight = "You're on fire! 🔥 A $_currentStreak-day streak is excellent.";
-                } else if (completionPct > 80) {
-                  insight = "Fantastic effort today! You're crushing your tasks.";
-                } else if (_totalFocusMinutes > 0) {
-                  insight = "You've accumulated $_totalFocusMinutes minutes of deep focus this month!";
+                final level = GamificationService.getProductivityLevel(realScore);
+                String insight;
+
+                if (realScore >= 91) {
+                  insight = 'Elite performance! 🏆 Score: $realScore/100. You\'re in peak discipline mode.';
+                } else if (_currentStreak > 2 && realScore >= 76) {
+                  insight = 'Disciplined & consistent! 🔥 $_currentStreak-day streak + score $realScore/100.';
+                } else if (completionPct > 80 && realScore >= 51) {
+                  insight = 'Focused level reached! Great task completion ($completionPct%) today.';
+                } else if (_totalFocusSessionsCount > 1) {
+                  insight = '$_totalFocusSessionsCount deep-work sessions logged. Longest: ${_longestFocusSession}m. Keep it up!';
+                } else if (_totalFocusMinutes > 30) {
+                  insight = '$_totalFocusMinutes min of focus this month. Level: $level — keep building momentum.';
+                } else if (_currentStreak > 0) {
+                  insight = '$_currentStreak-day streak active. Score: $realScore/100. Don\'t break the chain!';
+                } else {
+                  insight = 'Level: $level. Score $realScore/100 — consistency is the foundation of excellence.';
                 }
 
                 return Container(
@@ -200,17 +304,23 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   decoration: BoxDecoration(
                     color: AppColors.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.2),
+                    ),
                   ),
                   child: Row(
                     children: [
                       Container(
-                        padding: EdgeInsets.all(8),
+                        padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
                           color: AppColors.primary.withValues(alpha: 0.2),
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 20),
+                        child: Icon(
+                          Icons.auto_awesome_rounded,
+                          color: AppColors.primary,
+                          size: 20,
+                        ),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -218,13 +328,21 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'AI Insights',
-                              style: AppTypography.body(size: 12, weight: FontWeight.w700, color: AppColors.primary),
+                              'Daily Insight',
+                              style: AppTypography.body(
+                                size: 12,
+                                weight: FontWeight.w700,
+                                color: AppColors.primary,
+                              ),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               insight,
-                              style: AppTypography.body(size: 14, color: AppColors.textPrimary, weight: FontWeight.w500),
+                              style: AppTypography.body(
+                                size: 14,
+                                color: AppColors.textPrimary,
+                                weight: FontWeight.w500,
+                              ),
                             ),
                           ],
                         ),
@@ -235,6 +353,14 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               },
             ),
 
+            _DisciplineScoreCard(
+              score: realScore,
+              history: liveDisciplineHistory,
+            ),
+            const SizedBox(height: 16),
+            _ProductivityLevelMeter(score: realScore),
+            const SizedBox(height: 16),
+
             IntrinsicHeight(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -243,6 +369,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     child: _CompletionRingCard(
                       completionPct: completionPct,
                       totalTasks: totalTasks,
+                      onTimeCount: onTimeCount,
+                      lateCount: lateCount,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -263,14 +391,16 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
             SizedBox(height: 16),
 
-            _FocusCard(totalMinutes: _totalFocusMinutes),
+            _FocusCard(
+              totalMinutes: _totalFocusMinutes,
+              longestSession: _longestFocusSession,
+              totalSessions: _totalFocusSessionsCount,
+            ),
 
             const SizedBox(
               height: 16,
             ), // Ã¢â€â‚¬Ã¢â€â‚¬ Weekly progress bar chart Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
-            _WeeklyChart(
-              data: liveWeekly,
-            ),
+            _WeeklyChart(data: liveWeekly),
 
             SizedBox(height: 16),
 
@@ -281,9 +411,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
             SizedBox(height: 16),
 
-            _HeatmapGrid(
-              values: liveHeatmap,
-            ),
+            _HeatmapGrid(values: liveHeatmap),
 
             SizedBox(height: 32),
           ],
@@ -315,11 +443,19 @@ class _PrayerConsistencyCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.mosque_rounded, size: 20, color: AppColors.textSecondary),
+              Icon(
+                Icons.mosque_rounded,
+                size: 20,
+                color: AppColors.textSecondary,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Prayer',
-                style: AppTypography.body(size: 14, weight: FontWeight.w600, color: AppColors.textPrimary),
+                style: AppTypography.body(
+                  size: 14,
+                  weight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
               ),
             ],
           ),
@@ -327,45 +463,47 @@ class _PrayerConsistencyCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: List.generate(5, (i) {
-               final count = prayerCounts[prayers[i]] ?? 0;
-               final intensity = (DateTime.now().day > 0 ? count / DateTime.now().day : 0.0).clamp(0.0, 1.0);
-               final pct = (intensity * 100).round();
-               return Column(
-                 mainAxisSize: MainAxisSize.min,
-                 children: [
-                   SizedBox(
-                     width: 36,
-                     height: 36,
-                     child: CustomPaint(
-                       painter: _GradientArcPainter(
-                         fraction: intensity,
-                         strokeWidth: 4,
-                       ),
-                       child: Center(
-                         child: Text(
-                           '$pct%',
-                           style: AppTypography.mono(
-                             size: 10,
-                             weight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                           ),
-                         ),
-                       ),
-                     ),
-                   ),
-                   SizedBox(height: 8),
-                   Text(
-                     labels[i],
-                     style: AppTypography.mono(
-                       size: 11,
-                       weight: FontWeight.w600,
-                       color: AppColors.textSecondary,
-                     ),
-                   ),
-                 ],
-               );
+              final count = prayerCounts[prayers[i]] ?? 0;
+              final intensity =
+                  (DateTime.now().day > 0 ? count / DateTime.now().day : 0.0)
+                      .clamp(0.0, 1.0);
+              final pct = (intensity * 100).round();
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: CustomPaint(
+                      painter: _GradientArcPainter(
+                        fraction: intensity,
+                        strokeWidth: 4,
+                      ),
+                      child: Center(
+                        child: Text(
+                          '$pct%',
+                          style: AppTypography.mono(
+                            size: 10,
+                            weight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    labels[i],
+                    style: AppTypography.mono(
+                      size: 11,
+                      weight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              );
             }),
-          )
+          ),
         ],
       ),
     );
@@ -378,13 +516,20 @@ class _CompletionRingCard extends StatelessWidget {
   const _CompletionRingCard({
     required this.completionPct,
     required this.totalTasks,
+    required this.onTimeCount,
+    required this.lateCount,
   });
 
   final int completionPct;
   final int totalTasks;
+  final int onTimeCount;
+  final int lateCount;
 
   @override
   Widget build(BuildContext context) {
+    final onTimeFraction = totalTasks == 0 ? 0.0 : onTimeCount / totalTasks;
+    final lateFraction = totalTasks == 0 ? 0.0 : lateCount / totalTasks;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -400,8 +545,10 @@ class _CompletionRingCard extends StatelessWidget {
             height: 90,
             child: CustomPaint(
               painter: _RingPainter(
-                fraction: completionPct / 100,
-                ringColor: AppColors.complete,
+                onTimeFraction: onTimeFraction,
+                lateFraction: lateFraction,
+                onTimeColor: AppColors.complete,
+                lateColor: Colors.redAccent,
                 trackColor: AppColors.surfaceRaised,
                 strokeWidth: 8,
               ),
@@ -415,7 +562,7 @@ class _CompletionRingCard extends StatelessWidget {
               ),
             ),
           ),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
           Text(
             '$totalTasks tasks today',
             style: AppTypography.label(color: AppColors.textMuted),
@@ -426,18 +573,20 @@ class _CompletionRingCard extends StatelessWidget {
   }
 }
 
-// Ring Painter (shared by completion + streak)
-
 class _RingPainter extends CustomPainter {
   const _RingPainter({
-    required this.fraction,
-    required this.ringColor,
+    required this.onTimeFraction,
+    required this.lateFraction,
+    required this.onTimeColor,
+    required this.lateColor,
     required this.trackColor,
     required this.strokeWidth,
   });
 
-  final double fraction;
-  final Color ringColor;
+  final double onTimeFraction;
+  final double lateFraction;
+  final Color onTimeColor;
+  final Color lateColor;
   final Color trackColor;
   final double strokeWidth;
 
@@ -448,11 +597,11 @@ class _RingPainter extends CustomPainter {
     final radius = (size.width - strokeWidth) / 2;
     final rect = Rect.fromCircle(center: Offset(cx, cy), radius: radius);
 
-    // Track
+    // Track (background circle)
     canvas.drawArc(
       rect,
-      -1.5708, // -Ã â‚¬/2 (top)
-      6.2832, // full circle
+      -1.5708, // -pi/2
+      6.2832,
       false,
       Paint()
         ..color = trackColor
@@ -461,25 +610,42 @@ class _RingPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round,
     );
 
-    // Fill arc
-    if (fraction > 0) {
+    final totalFraction = onTimeFraction + lateFraction;
+    if (totalFraction > 0) {
       canvas.drawArc(
         rect,
         -1.5708,
-        6.2832 * fraction,
+        6.2832 * totalFraction,
         false,
         Paint()
-          ..color = ringColor
+          ..color = lateColor
           ..style = PaintingStyle.stroke
           ..strokeWidth = strokeWidth
           ..strokeCap = StrokeCap.round,
       );
+
+      if (onTimeFraction > 0) {
+        canvas.drawArc(
+          rect,
+          -1.5708,
+          6.2832 * onTimeFraction,
+          false,
+          Paint()
+            ..color = onTimeColor
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = strokeWidth
+            ..strokeCap = StrokeCap.round,
+        );
+      }
     }
   }
 
   @override
   bool shouldRepaint(_RingPainter old) =>
-      old.fraction != fraction || old.ringColor != ringColor;
+      old.onTimeFraction != onTimeFraction ||
+      old.lateFraction != lateFraction ||
+      old.onTimeColor != onTimeColor ||
+      old.lateColor != lateColor;
 }
 
 // Streak Card
@@ -547,7 +713,9 @@ class _StreakCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.complete.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.complete.withValues(alpha: 0.3)),
+              border: Border.all(
+                color: AppColors.complete.withValues(alpha: 0.3),
+              ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -578,9 +746,7 @@ class _StreakCard extends StatelessWidget {
 // Weekly Bar Chart
 
 class _WeeklyChart extends StatelessWidget {
-  const _WeeklyChart({
-    required this.data,
-  });
+  const _WeeklyChart({required this.data});
 
   final List<double> data;
 
@@ -609,6 +775,23 @@ class _WeeklyChart extends StatelessWidget {
                   weight: FontWeight.w600,
                   color: AppColors.textPrimary,
                 ),
+              ),
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: AppColors.complete,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Completion %',
+                    style: AppTypography.label(color: AppColors.textMuted),
+                  ),
+                ],
               ),
             ],
           ),
@@ -692,8 +875,6 @@ class _WeeklyChart extends StatelessWidget {
   }
 }
 
-
-
 // Heatmap Grid  (30 days view)
 
 class _HeatmapGrid extends StatelessWidget {
@@ -717,7 +898,7 @@ class _HeatmapGrid extends StatelessWidget {
       final color = _getStageColor(values[i]);
       // NEW-BUG-009 fix: consistent with _getStageColor thresholds (0-33% = light bg)
       final isLightBg = values[i] < 34;
-      
+
       cells.add(
         Tooltip(
           message: 'Day ${i + 1}',
@@ -726,7 +907,9 @@ class _HeatmapGrid extends StatelessWidget {
             decoration: BoxDecoration(
               color: color,
               borderRadius: BorderRadius.circular(4),
-              border: values[i] == 0 ? Border.all(color: AppColors.border) : null,
+              border: values[i] == 0
+                  ? Border.all(color: AppColors.border)
+                  : null,
             ),
             child: Text(
               '${i + 1}',
@@ -801,12 +984,17 @@ class _HeatmapGrid extends StatelessWidget {
   }
 }
 
-
 // Focus Card
 
 class _FocusCard extends StatelessWidget {
-  const _FocusCard({required this.totalMinutes});
+  const _FocusCard({
+    required this.totalMinutes,
+    required this.longestSession,
+    required this.totalSessions,
+  });
   final int totalMinutes;
+  final int longestSession;
+  final int totalSessions;
 
   @override
   Widget build(BuildContext context) {
@@ -890,8 +1078,33 @@ class _FocusCard extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildMiniStat('Longest Session', '${longestSession}m'),
+              _buildMiniStat('Total Sessions', '$totalSessions'),
+            ],
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildMiniStat(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: AppTypography.body(size: 12, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: AppTypography.sectionTitle(color: AppColors.textPrimary),
+        ),
+      ],
     );
   }
 }
@@ -918,7 +1131,7 @@ class _FocusAllocationCard extends StatelessWidget {
     // Limit to top 5 projects
     final displayEntries = sortedEntries.take(5).toList();
     final chartTotal = displayEntries.fold<int>(0, (sum, e) => sum + e.value);
-    
+
     // Assign specific colors to common tags or cycle colors
     final colors = [
       AppColors.primary,
@@ -987,7 +1200,7 @@ class _FocusAllocationCard extends StatelessWidget {
                 final entry = displayEntries[i];
                 final entryKey = entry.key;
                 final pct = (entry.value / chartTotal * 100).toStringAsFixed(1);
-                
+
                 return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1049,10 +1262,7 @@ class _GradientArcPainter extends CustomPainter {
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [
-          AppColors.complete,
-          AppColors.complete.withValues(alpha: 0.6),
-        ],
+        colors: [AppColors.complete, AppColors.complete.withValues(alpha: 0.6)],
       ).createShader(rect)
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth
@@ -1071,6 +1281,133 @@ class _GradientArcPainter extends CustomPainter {
   bool shouldRepaint(_GradientArcPainter old) => old.fraction != fraction;
 }
 
+class _DisciplineScoreCard extends StatelessWidget {
+  const _DisciplineScoreCard({required this.score, required this.history});
+  final int score;
+  final List<double> history;
 
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.cardSurface,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.shield_outlined, color: AppColors.primary, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Discipline Score',
+                style: AppTypography.sectionTitle(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Text(
+                score.toString(),
+                style: AppTypography.screenTitle(
+                  color: AppColors.textPrimary,
+                ).copyWith(fontSize: 48),
+              ),
+              const SizedBox(width: 24),
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: LineChart(
+                    LineChartData(
+                      gridData: FlGridData(show: false),
+                      titlesData: FlTitlesData(show: false),
+                      borderData: FlBorderData(show: false),
+                      lineBarsData: [
+                        LineChartBarData(
+                          spots: history
+                              .asMap()
+                              .entries
+                              .map((e) => FlSpot(e.key.toDouble(), e.value))
+                              .toList(),
+                          isCurved: true,
+                          color: AppColors.primary,
+                          barWidth: 3,
+                          isStrokeCapRound: true,
+                          dotData: FlDotData(show: false),
+                          belowBarData: BarAreaData(
+                            show: true,
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                          ),
+                        ),
+                      ],
+                      minY: 0,
+                      maxY: 100,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
 
+class _ProductivityLevelMeter extends StatelessWidget {
+  const _ProductivityLevelMeter({required this.score});
+  final int score;
 
+  @override
+  Widget build(BuildContext context) {
+    final level = GamificationService.getProductivityLevel(score);
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.cardSurface,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.stars_rounded, color: AppColors.primary, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Level: $level',
+                    style: AppTypography.sectionTitle(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                '$score / 100',
+                style: AppTypography.body(color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: score / 100,
+              minHeight: 12,
+              backgroundColor: AppColors.surfaceRaised,
+              color: AppColors.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

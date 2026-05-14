@@ -91,7 +91,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         setState(() => _isLocating = false);
         final bool openSettings = await _showConfirm(
           title: 'Location Disabled',
-          message: 'Location services are disabled. Would you like to enable them in settings?',
+          message:
+              'Location services are disabled. Would you like to enable them in settings?',
         );
         if (openSettings) {
           await Geolocator.openLocationSettings();
@@ -106,37 +107,49 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           throw Exception('Location permissions are denied');
         }
       }
-      
+
       if (permission == LocationPermission.deniedForever) {
         setState(() => _isLocating = false);
         final bool openSettings = await _showConfirm(
           title: 'Permission Denied',
-          message: 'Location permissions are permanently denied. Please enable them in app settings.',
+          message:
+              'Location permissions are permanently denied. Please enable them in app settings.',
         );
         if (openSettings) {
           await Geolocator.openAppSettings();
         }
         return;
-      } 
+      }
 
       Position position = await Geolocator.getCurrentPosition();
-      
+
       await sharedPrefs.setDouble('prayer_lat', position.latitude);
       await sharedPrefs.setDouble('prayer_lng', position.longitude);
 
       List<Placemark> placemarks = [];
       try {
-        placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
+        placemarks = await placemarkFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
       } catch (e) {
         // Geocoding may not be supported on this platform (e.g., Web)
       }
-      
+
       String newLocation = 'Unknown Location';
       if (placemarks.isNotEmpty) {
         final place = placemarks.first;
-        final city = place.locality ?? place.subAdministrativeArea ?? place.administrativeArea ?? '';
+        final city =
+            place.locality ??
+            place.subAdministrativeArea ??
+            place.administrativeArea ??
+            '';
         final country = place.country ?? '';
-        newLocation = city.isNotEmpty && country.isNotEmpty ? '$city, $country' : city.isNotEmpty ? city : country;
+        newLocation = city.isNotEmpty && country.isNotEmpty
+            ? '$city, $country'
+            : city.isNotEmpty
+            ? city
+            : country;
         if (newLocation.isEmpty) newLocation = 'GPS Location';
       }
 
@@ -153,7 +166,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}')),
+          SnackBar(
+            content: Text(
+              'Error: ${e.toString().replaceAll('Exception: ', '')}',
+            ),
+          ),
         );
       }
     } finally {
@@ -171,13 +188,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final picked = await showTimePicker(
       context: context,
       initialTime: initial,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        child: child!,
+      ),
     );
 
     if (picked != null) {
       final h = picked.hour.toString().padLeft(2, '0');
       final m = picked.minute.toString().padLeft(2, '0');
       final formatted = '$h:$m';
-      
+
       setState(() {
         _manualTimes[key] = formatted;
       });
@@ -396,8 +417,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           : ListView(
               padding: const EdgeInsets.all(20),
               children: [
-
-
                 const _SectionHeader(title: 'Notifications'),
                 _SettingsTile(
                   icon: Icons.notifications_active_outlined,
@@ -429,8 +448,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       child: CupertinoSegmentedControl<String>(
                         groupValue: _prayerMode,
                         children: {
-                          'auto': Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Text('Automatic', style: AppTypography.body(size: 13, color: _prayerMode == 'auto' ? Colors.white : AppColors.primary))),
-                          'manual': Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Text('Manual', style: AppTypography.body(size: 13, color: _prayerMode == 'manual' ? Colors.white : AppColors.primary))),
+                          'auto': Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: Text(
+                              'Automatic',
+                              style: AppTypography.body(
+                                size: 13,
+                                color: _prayerMode == 'auto'
+                                    ? Colors.white
+                                    : AppColors.primary,
+                              ),
+                            ),
+                          ),
+                          'manual': Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: Text(
+                              'Manual',
+                              style: AppTypography.body(
+                                size: 13,
+                                color: _prayerMode == 'manual'
+                                    ? Colors.white
+                                    : AppColors.primary,
+                              ),
+                            ),
+                          ),
                         },
                         onValueChanged: (val) async {
                           setState(() => _prayerMode = val);
@@ -450,11 +491,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     title: 'Location',
                     subtitle: _prayerLocation,
                     onTap: _isLocating ? null : _changeLocation,
-                    trailing: _isLocating 
+                    trailing: _isLocating
                         ? SizedBox(
-                            width: 16, 
-                            height: 16, 
-                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primary,
+                            ),
                           )
                         : Icon(
                             Icons.chevron_right,
@@ -473,11 +517,51 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                   ),
                 ] else ...[
-                  _SettingsTile(icon: Icons.wb_twilight, title: 'Fajr', trailing: Text(_manualTimes['fajr']!, style: AppTypography.mono(color: AppColors.primary)), onTap: () => _pickManualTime('fajr')),
-                  _SettingsTile(icon: Icons.wb_sunny_rounded, title: 'Dhuhr', trailing: Text(_manualTimes['dhuhr']!, style: AppTypography.mono(color: AppColors.primary)), onTap: () => _pickManualTime('dhuhr')),
-                  _SettingsTile(icon: Icons.wb_sunny_outlined, title: 'Asr', trailing: Text(_manualTimes['asr']!, style: AppTypography.mono(color: AppColors.primary)), onTap: () => _pickManualTime('asr')),
-                  _SettingsTile(icon: Icons.cloud_outlined, title: 'Maghrib', trailing: Text(_manualTimes['maghrib']!, style: AppTypography.mono(color: AppColors.primary)), onTap: () => _pickManualTime('maghrib')),
-                  _SettingsTile(icon: Icons.nights_stay_outlined, title: 'Isha', trailing: Text(_manualTimes['isha']!, style: AppTypography.mono(color: AppColors.primary)), onTap: () => _pickManualTime('isha')),
+                  _SettingsTile(
+                    icon: Icons.wb_twilight,
+                    title: 'Fajr',
+                    trailing: Text(
+                      _manualTimes['fajr']!,
+                      style: AppTypography.mono(color: AppColors.primary),
+                    ),
+                    onTap: () => _pickManualTime('fajr'),
+                  ),
+                  _SettingsTile(
+                    icon: Icons.wb_sunny_rounded,
+                    title: 'Dhuhr',
+                    trailing: Text(
+                      _manualTimes['dhuhr']!,
+                      style: AppTypography.mono(color: AppColors.primary),
+                    ),
+                    onTap: () => _pickManualTime('dhuhr'),
+                  ),
+                  _SettingsTile(
+                    icon: Icons.wb_sunny_outlined,
+                    title: 'Asr',
+                    trailing: Text(
+                      _manualTimes['asr']!,
+                      style: AppTypography.mono(color: AppColors.primary),
+                    ),
+                    onTap: () => _pickManualTime('asr'),
+                  ),
+                  _SettingsTile(
+                    icon: Icons.cloud_outlined,
+                    title: 'Maghrib',
+                    trailing: Text(
+                      _manualTimes['maghrib']!,
+                      style: AppTypography.mono(color: AppColors.primary),
+                    ),
+                    onTap: () => _pickManualTime('maghrib'),
+                  ),
+                  _SettingsTile(
+                    icon: Icons.nights_stay_outlined,
+                    title: 'Isha',
+                    trailing: Text(
+                      _manualTimes['isha']!,
+                      style: AppTypography.mono(color: AppColors.primary),
+                    ),
+                    onTap: () => _pickManualTime('isha'),
+                  ),
                 ],
 
                 SizedBox(height: 24),
@@ -524,17 +608,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     SizedBox(height: 32),
                     GestureDetector(
                       onTap: () async {
-                        final uri = Uri.parse('https://javithnaseem.netlify.app');
+                        final uri = Uri.parse(
+                          'https://javithnaseem.netlify.app',
+                        );
                         try {
-                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          await launchUrl(
+                            uri,
+                            mode: LaunchMode.externalApplication,
+                          );
                         } catch (_) {
                           try {
-                            await launchUrl(uri, mode: LaunchMode.platformDefault);
+                            await launchUrl(
+                              uri,
+                              mode: LaunchMode.platformDefault,
+                            );
                           } catch (_) {}
                         }
                       },
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.primary.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(20),
@@ -669,15 +764,10 @@ class _SettingsTile extends StatelessWidget {
               const SizedBox(width: 8),
               trailing!,
             ] else if (onTap != null)
-              Icon(
-                Icons.chevron_right,
-                size: 18,
-                color: AppColors.textMuted,
-              ),
+              Icon(Icons.chevron_right, size: 18, color: AppColors.textMuted),
           ],
         ),
       ),
     );
   }
 }
-

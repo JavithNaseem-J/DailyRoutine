@@ -9,11 +9,13 @@ class DailyState {
     Map<String, bool>? bonusStates,
     this.mood,
     this.focusMinutes = 0,
+    List<int>? focusSessions,
     Map<String, int>? projectMinutes,
     Map<String, bool>? prayerStates,
   }) : taskStates = taskStates ?? {},
        taskStatus = taskStatus ?? {},
        bonusStates = bonusStates ?? {},
+       focusSessions = focusSessions ?? [],
        projectMinutes = projectMinutes ?? {},
        prayerStates = prayerStates ?? {};
 
@@ -23,6 +25,7 @@ class DailyState {
   Map<String, bool> bonusStates; // taskId → bonusDone
   String? mood; // "low" | "mid" | "high"
   int focusMinutes; // Total focus timer minutes logged today
+  List<int> focusSessions; // Individual session durations (minutes)
   Map<String, int> projectMinutes; // tagId → minutes
   Map<String, bool> prayerStates; // prayerName → done
 
@@ -32,6 +35,7 @@ class DailyState {
     Map<String, bool>? bonusStates,
     String? mood,
     int? focusMinutes,
+    List<int>? focusSessions,
     Map<String, int>? projectMinutes,
     Map<String, bool>? prayerStates,
   }) => DailyState(
@@ -41,12 +45,13 @@ class DailyState {
     bonusStates: bonusStates ?? Map.from(this.bonusStates),
     mood: mood ?? this.mood,
     focusMinutes: focusMinutes ?? this.focusMinutes,
+    focusSessions: focusSessions ?? List.from(this.focusSessions),
     projectMinutes: projectMinutes ?? Map.from(this.projectMinutes),
     prayerStates: prayerStates ?? Map.from(this.prayerStates),
   );
 
   factory DailyState.empty(String date) =>
-      DailyState(date: date, taskStates: {}, taskStatus: {}, bonusStates: {}, prayerStates: {});
+      DailyState(date: date, taskStates: {}, taskStatus: {}, bonusStates: {}, focusSessions: [], prayerStates: {});
 
   factory DailyState.fromJson(Map<String, dynamic> json) => DailyState(
     date: json['date'] as String,
@@ -61,6 +66,7 @@ class DailyState {
     ),
     mood: json['mood'] as String?,
     focusMinutes: json['focus_minutes'] as int? ?? 0,
+    focusSessions: (json['focus_sessions'] as List<dynamic>? ?? []).map((e) => (e as num).toInt()).toList(),
     projectMinutes: (json['project_minutes'] as Map<String, dynamic>? ?? {}).map(
       (k, v) => MapEntry(k, (v as num).toInt()),
     ),
@@ -76,6 +82,7 @@ class DailyState {
     'bonus_states': bonusStates,
     if (mood != null) 'mood': mood,
     'focus_minutes': focusMinutes,
+    'focus_sessions': focusSessions,
     'project_minutes': projectMinutes,
     'prayer_states': prayerStates,
   };

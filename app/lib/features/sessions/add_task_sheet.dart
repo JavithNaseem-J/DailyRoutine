@@ -155,14 +155,9 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
     final title = _titleController.text.trim();
     if (title.isEmpty) return;
 
-    final isPm = _selectedTime.hour >= 12;
-    final h = _selectedTime.hour == 0 
-        ? 12 
-        : _selectedTime.hour > 12 
-            ? _selectedTime.hour - 12 
-            : _selectedTime.hour;
+    final h = _selectedTime.hour.toString().padLeft(2, '0');
     final m = _selectedTime.minute.toString().padLeft(2, '0');
-    final formattedTime = '$h:$m${isPm ? "pm" : "am"}';
+    final formattedTime = '$h:$m';
 
     if (widget.existingTask != null) {
       final updatedTask = widget.existingTask!.copyWith(
@@ -319,17 +314,23 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: isSelected ? AppColors.primary : AppColors.cardSurface,
+                      color: isSelected
+                          ? AppColors.primary
+                          : AppColors.cardSurface,
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: isSelected ? AppColors.primary : Colors.transparent,
+                        color: isSelected
+                            ? AppColors.primary
+                            : Colors.transparent,
                         width: 2,
                       ),
                     ),
                     child: Center(
                       child: Icon(
                         icon,
-                        color: isSelected ? Colors.white : AppColors.textSecondary,
+                        color: isSelected
+                            ? Colors.white
+                            : AppColors.textSecondary,
                         size: 20,
                       ),
                     ),
@@ -339,12 +340,18 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           // Break Toggle
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Mark as break', style: AppTypography.body(size: 14, color: AppColors.textPrimary)),
+              Text(
+                'Mark as break',
+                style: AppTypography.body(
+                  size: 14,
+                  color: AppColors.textPrimary,
+                ),
+              ),
               CupertinoSwitch(
                 value: _isBreak,
                 activeTrackColor: AppColors.primary,
@@ -404,6 +411,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                             ),
                             child: CupertinoDatePicker(
                               mode: CupertinoDatePickerMode.time,
+                              use24hFormat: true,
                               initialDateTime: _selectedTime,
                               minimumDate: _minTime,
                               maximumDate: _maxTime,
@@ -455,66 +463,87 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                                     Expanded(
                                       child: CupertinoPicker(
                                         itemExtent: 32,
-                                        scrollController: FixedExtentScrollController(
-                                          initialItem: _selectedDuration.inHours,
-                                        ),
-                                        selectionOverlay: const CupertinoPickerDefaultSelectionOverlay(
-                                          background: CupertinoColors.tertiarySystemFill,
-                                        ),
+                                        scrollController:
+                                            FixedExtentScrollController(
+                                              initialItem:
+                                                  _selectedDuration.inHours,
+                                            ),
+                                        selectionOverlay:
+                                            const CupertinoPickerDefaultSelectionOverlay(
+                                              background: CupertinoColors
+                                                  .tertiarySystemFill,
+                                            ),
                                         onSelectedItemChanged: (i) {
                                           setState(() {
                                             _selectedDuration = Duration(
-                                                hours: i,
-                                                minutes: _selectedDuration.inMinutes % 60);
+                                              hours: i,
+                                              minutes:
+                                                  _selectedDuration.inMinutes %
+                                                  60,
+                                            );
                                           });
                                         },
                                         children: List.generate(
-                                            24,
-                                            (i) => Center(
-                                                    child: Padding(
-                                                      padding: const EdgeInsets.only(right: 20),
-                                                      child: Text(
-                                                                                                    '$i',
-                                                                                                    style: AppTypography.body(
-                                                                                                      size: 18,
-                                                                                                      weight: FontWeight.w600,
-                                                                                                      color: AppColors.textPrimary,
-                                                                                                    ),
-                                                                                                  ),
-                                                    ))),
+                                          24,
+                                          (i) => Center(
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(
+                                                right: 20,
+                                              ),
+                                              child: Text(
+                                                '$i',
+                                                style: AppTypography.body(
+                                                  size: 18,
+                                                  weight: FontWeight.w600,
+                                                  color: AppColors.textPrimary,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                     ),
                                     Expanded(
                                       child: CupertinoPicker(
                                         itemExtent: 32,
-                                        scrollController: FixedExtentScrollController(
-                                          initialItem:
-                                              (_selectedDuration.inMinutes % 60) ~/ 5,
-                                        ),
-                                        selectionOverlay: const CupertinoPickerDefaultSelectionOverlay(
-                                          background: CupertinoColors.tertiarySystemFill,
-                                        ),
+                                        scrollController:
+                                            FixedExtentScrollController(
+                                              initialItem:
+                                                  (_selectedDuration.inMinutes %
+                                                      60) ~/
+                                                  5,
+                                            ),
+                                        selectionOverlay:
+                                            const CupertinoPickerDefaultSelectionOverlay(
+                                              background: CupertinoColors
+                                                  .tertiarySystemFill,
+                                            ),
                                         onSelectedItemChanged: (i) {
                                           setState(() {
                                             _selectedDuration = Duration(
-                                                hours: _selectedDuration.inHours,
-                                                minutes: i * 5);
+                                              hours: _selectedDuration.inHours,
+                                              minutes: i * 5,
+                                            );
                                           });
                                         },
                                         children: List.generate(
-                                            12,
-                                            (i) => Center(
-                                                    child: Padding(
-                                                      padding: const EdgeInsets.only(right: 20),
-                                                      child: Text(
-                                                                                                    '${i * 5}',
-                                                                                                    style: AppTypography.body(
-                                                                                                      size: 18,
-                                                                                                      weight: FontWeight.w600,
-                                                                                                      color: AppColors.textPrimary,
-                                                                                                    ),
-                                                                                                  ),
-                                                    ))),
+                                          12,
+                                          (i) => Center(
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(
+                                                right: 20,
+                                              ),
+                                              child: Text(
+                                                '${i * 5}',
+                                                style: AppTypography.body(
+                                                  size: 18,
+                                                  weight: FontWeight.w600,
+                                                  color: AppColors.textPrimary,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -529,16 +558,32 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                                         Expanded(
                                           child: Center(
                                             child: Padding(
-                                              padding: const EdgeInsets.only(left: 24),
-                                              child: Text('H', style: AppTypography.body(size: 18, weight: FontWeight.w600)),
+                                              padding: const EdgeInsets.only(
+                                                left: 24,
+                                              ),
+                                              child: Text(
+                                                'H',
+                                                style: AppTypography.body(
+                                                  size: 18,
+                                                  weight: FontWeight.w600,
+                                                ),
+                                              ),
                                             ),
                                           ),
                                         ),
                                         Expanded(
                                           child: Center(
                                             child: Padding(
-                                              padding: const EdgeInsets.only(left: 30),
-                                              child: Text('M', style: AppTypography.body(size: 18, weight: FontWeight.w600)),
+                                              padding: const EdgeInsets.only(
+                                                left: 30,
+                                              ),
+                                              child: Text(
+                                                'M',
+                                                style: AppTypography.body(
+                                                  size: 18,
+                                                  weight: FontWeight.w600,
+                                                ),
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -588,10 +633,3 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
     );
   }
 }
-
-
-
-
-
-
-
