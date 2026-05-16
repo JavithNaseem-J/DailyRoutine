@@ -75,19 +75,12 @@ Future<void> main() async {
         
         sharedPrefs = await SharedPreferences.getInstance();
         
+        // Use authenticated user ID if available, otherwise generate a local UUID.
+        // On login/signup, auth_screen.dart updates deviceId to the real user ID.
         final session = Supabase.instance.client.auth.currentSession;
         if (session != null) {
           await sharedPrefs.setString('deviceId', session.user.id);
-        } else {
-          try {
-            final res = await Supabase.instance.client.auth.signInAnonymously();
-            if (res.session != null) {
-              await sharedPrefs.setString('deviceId', res.session!.user.id);
-            }
-          } catch (_) {}
-        }
-        
-        if (!sharedPrefs.containsKey('deviceId')) {
+        } else if (!sharedPrefs.containsKey('deviceId')) {
           await sharedPrefs.setString('deviceId', const Uuid().v4());
         }
         deviceId = sharedPrefs.getString('deviceId')!;

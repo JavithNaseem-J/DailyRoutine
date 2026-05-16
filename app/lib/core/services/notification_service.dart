@@ -141,6 +141,41 @@ class NotificationService {
     }
   }
 
+  Future<void> scheduleFocusAlarm(String taskTitle, DateTime endTime) async {
+    if (kIsWeb) return;
+    try {
+      await _plugin.zonedSchedule(
+        id: 999,
+        title: 'Focus Complete!',
+        body: 'You have finished: $taskTitle',
+        scheduledDate: tz.TZDateTime.from(endTime, tz.local),
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'focus_channel',
+            'Focus Timers',
+            channelDescription: 'Alarm for focus sessions',
+            importance: Importance.max,
+            priority: Priority.max,
+            sound: RawResourceAndroidNotificationSound('timer_done'),
+            playSound: true,
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+            sound: 'timer_done.wav',
+          ),
+        ),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      );
+    } catch (_) {}
+  }
+
+  Future<void> cancelFocusAlarm() async {
+    if (kIsWeb) return;
+    await _plugin.cancel(id: 999);
+  }
+
   static const _sessionSchedule = [
     _S('morning', 'Morning', '5:00am', 'Morning habits time.'),
     _S('afternoon', 'Afternoon', '12:00pm', 'Afternoon build session.'),

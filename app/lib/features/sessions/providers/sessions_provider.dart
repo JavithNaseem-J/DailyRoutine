@@ -123,9 +123,17 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     final merged = DailyState(
       date: _todayKey,
       taskStates: {...localState.taskStates, ...remote.taskStates},
+      taskStatus: {...localState.taskStatus, ...remote.taskStatus},
       bonusStates: {...localState.bonusStates, ...remote.bonusStates},
       prayerStates: {...localState.prayerStates, ...remote.prayerStates},
       mood: remote.mood ?? localState.mood,
+      focusMinutes: remote.focusMinutes > localState.focusMinutes
+          ? remote.focusMinutes
+          : localState.focusMinutes,
+      focusSessions: remote.focusSessions.isNotEmpty
+          ? remote.focusSessions
+          : localState.focusSessions,
+      projectMinutes: {...localState.projectMinutes, ...remote.projectMinutes},
     );
 
     await hiveService.writeDailyState(merged);

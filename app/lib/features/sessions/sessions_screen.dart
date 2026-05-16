@@ -112,6 +112,17 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   void _setTaskStatus(Task task, String status) {
     HapticFeedback.lightImpact();
 
+    if (status == 'focus') {
+      context.push(
+        '/focus',
+        extra: {
+          'taskTitle': task.title,
+          'durationMinutes': task.durationMinutes,
+        },
+      );
+      return;
+    }
+
     final focusState = ref.read(focusTimerProvider);
     final isThisTask = focusState.taskTitle == task.title;
     final isTimerPaused =
@@ -183,37 +194,6 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              InkWell(
-                onTap: () {
-                  Navigator.pop(ctx);
-                  context.push(
-                    '/focus',
-                    extra: {
-                      'taskTitle': task.title,
-                      'durationMinutes': task.durationMinutes,
-                    },
-                  );
-                },
-                child: Container(
-                  height: 56,
-                  alignment: Alignment.center,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.play_arrow_rounded,
-                        color: AppColors.textPrimary,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Start Focus Timer',
-                        style: AppTypography.body(size: 16),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
               if (task.id.startsWith('custom_'))
                 InkWell(
                   onTap: () {
@@ -656,7 +636,7 @@ class _TimelinePainter extends CustomPainter {
 
 // Task Card (Timeline Style)
 
-class _TaskCard extends StatelessWidget {
+class _TaskCard extends StatefulWidget {
   const _TaskCard({
     required this.task,
     required this.isDone,
@@ -676,6 +656,52 @@ class _TaskCard extends StatelessWidget {
   final VoidCallback onToggle;
   final void Function(Task, String) onSetStatus;
   final VoidCallback onLongPress;
+
+  @override
+  State<_TaskCard> createState() => _TaskCardState();
+}
+
+class _TaskCardState extends State<_TaskCard> with SingleTickerProviderStateMixin {
+  bool _isExpanded = false;
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250),
+    );
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _toggleExpanded() {
+    setState(() {
+      _isExpanded = !_isExpanded;
+    });
+    if (_isExpanded) {
+      _controller.forward();
+    } else {
+      _controller.reverse();
+    }
+  }
+
+  void _closeExpanded() {
+    if (_isExpanded) {
+      setState(() => _isExpanded = false);
+      _controller.reverse();
+    }
+  }
 
   IconData _getIconData(String name) {
     const Map<String, IconData> icons = {
@@ -704,10 +730,9 @@ class _TaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final timeStr = task.time.toLowerCase().trim();
+    final timeStr = widget.task.time.toLowerCase().trim();
     String formattedTime = timeStr;
 
-    // Convert legacy 12h to 24h if needed
     if (timeStr.contains('am') || timeStr.contains('pm')) {
       final isPm = timeStr.contains('pm');
       var t = timeStr.replaceAll('am', '').replaceAll('pm', '').trim();
@@ -722,7 +747,6 @@ class _TaskCard extends StatelessWidget {
         formattedTime = t;
       }
     } else {
-      // Ensure leading zero
       final parts = timeStr.split(':');
       if (parts.length == 2) {
         int h = int.tryParse(parts[0]) ?? 0;
@@ -734,9 +758,8 @@ class _TaskCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 1. Time Column
           SizedBox(
-            width: 45,
+            width: 50,
             child: Align(
               alignment: Alignment.centerRight,
               child: Text(
@@ -749,39 +772,37 @@ class _TaskCard extends StatelessWidget {
               ),
             ),
           ),
-
-          // 2. Timeline Graphic Column
           SizedBox(
             width: 32,
             child: CustomPaint(
-              painter: _TimelinePainter(isFirst: isFirst, isLast: isLast),
+              painter: _TimelinePainter(isFirst: widget.isFirst, isLast: widget.isLast),
               child: Align(
                 alignment: Alignment.center,
                 child: GestureDetector(
-                  onTap: task.isBreak ? null : onToggle,
+                  onTap: widget.task.isBreak ? null : widget.onToggle,
                   behavior: HitTestBehavior.opaque,
                   child: Container(
-                    width: task.isBreak ? 12 : 16,
-                    height: task.isBreak ? 12 : 16,
+                    width: widget.task.isBreak ? 12 : 16,
+                    height: widget.task.isBreak ? 12 : 16,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: task.isBreak
+                      color: widget.task.isBreak
                           ? Color(0xFF9CA3AF)
-                          : isDone
-                          ? taskStatus == 'late'
-                                ? Color(0xFFEF4444) // Red for late
-                                : Color(0xFF4ade80) // Green for on_time
-                          : taskStatus == 'skipped'
-                          ? Color(0xFF9CA3AF) // Grey for skipped
+                          : widget.isDone
+                          ? widget.taskStatus == 'late'
+                                ? Color(0xFFEF4444)
+                                : Color(0xFF4ade80)
+                          : widget.taskStatus == 'skipped'
+                          ? Color(0xFF9CA3AF)
                           : Colors.white,
                       border:
-                          (isDone || task.isBreak || taskStatus == 'skipped')
+                          (widget.isDone || widget.task.isBreak || widget.taskStatus == 'skipped')
                           ? null
                           : Border.all(color: Color(0xFFD1D5DB), width: 1.5),
                     ),
-                    child: (isDone && !task.isBreak)
+                    child: (widget.isDone && !widget.task.isBreak)
                         ? const Icon(Icons.check, size: 10, color: Colors.white)
-                        : (!isDone && !task.isBreak && taskStatus == 'skipped')
+                        : (!widget.isDone && !widget.task.isBreak && widget.taskStatus == 'skipped')
                         ? const Icon(Icons.close, size: 10, color: Colors.white)
                         : null,
                   ),
@@ -789,162 +810,197 @@ class _TaskCard extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(width: 8),
-
-          // 3. Card Column
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 10),
               child: GestureDetector(
-                onLongPress: task.isBreak ? null : () {
+                onLongPress: widget.task.isBreak ? null : () {
                   HapticFeedback.mediumImpact();
-                  onSetStatus(task, 'skipped');
+                  widget.onLongPress();
                 },
-                child: Dismissible(
-                  key: Key('task_${task.id}'),
-                  direction: task.isBreak ? DismissDirection.none : DismissDirection.horizontal,
-                  confirmDismiss: (direction) async {
-                    HapticFeedback.lightImpact();
-                    if (task.isBreak) return false;
-                    if (direction == DismissDirection.startToEnd) {
-                      onSetStatus(task, 'on_time');
-                    } else if (direction == DismissDirection.endToStart) {
-                      onSetStatus(task, 'late');
-                    }
-                    return false;
-                  },
-                  background: Container(
-                    alignment: Alignment.centerLeft,
-                    padding: const EdgeInsets.only(left: 20),
-                    decoration: BoxDecoration(
-                      color: Color(0xFF4ade80),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Icon(Icons.check_circle_rounded, color: Colors.white),
+                onTap: widget.task.isBreak ? null : () {
+                  HapticFeedback.lightImpact();
+                  _toggleExpanded();
+                },
+                child: Container(
+                  clipBehavior: Clip.hardEdge,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
                   ),
-                  secondaryBackground: Container(
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 20),
-                    decoration: BoxDecoration(
-                      color: Color(0xFFEF4444),
-                      borderRadius: BorderRadius.circular(16),
+                  decoration: BoxDecoration(
+                    color: widget.task.isBreak ? AppColors.surfaceRaised : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: widget.task.isBreak ? Colors.transparent : Color(0xFFF3F4F6),
+                      width: 1.5,
                     ),
-                    child: const Icon(Icons.access_time_filled_rounded, color: Colors.white),
+                    boxShadow: widget.task.isBreak
+                        ? []
+                        : [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.02),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                   ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: task.isBreak ? AppColors.surfaceRaised : Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: task.isBreak
-                            ? Colors.transparent
-                            : Color(0xFFF3F4F6),
-                        width: 1.5,
-                      ),
-                      boxShadow: task.isBreak
-                          ? []
-                          : [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.02),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                    ),
-                child: Row(
-                  children: [
-                    // Icon Box
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: task.isBreak
-                            ? Colors.white.withValues(alpha: 0.5)
-                            : Color(0xFFF3F4F6),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        _getIconData(task.iconName),
-                        size: 16,
-                        color: isDone && !task.isBreak
-                            ? Color(0xFF9CA3AF)
-                            : AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-
-                    // Title
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: 8.0), // Gap to push 20m slightly right
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Text(
-                            task.title,
-                            style:
-                                AppTypography.body(
-                                  size: 14,
-                                  weight: FontWeight.w600,
-                                  color:
-                                      (isDone || taskStatus == 'skipped') &&
-                                          !task.isBreak
-                                      ? Color(0xFF9CA3AF)
-                                      : AppColors.textPrimary,
-                                ).copyWith(
-                                  decoration:
-                                      (isDone || taskStatus == 'skipped') &&
-                                          !task.isBreak
-                                      ? TextDecoration.lineThrough
-                                      : TextDecoration.none,
-                                ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: widget.task.isBreak
+                                  ? Colors.white.withValues(alpha: 0.5)
+                                  : Color(0xFFF3F4F6),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              _getIconData(widget.task.iconName),
+                              size: 16,
+                              color: widget.isDone && !widget.task.isBreak
+                                  ? Color(0xFF9CA3AF)
+                                  : AppColors.textPrimary,
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 8.0),
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Text(
+                                  widget.task.title,
+                                  style: AppTypography.body(
+                                    size: 14,
+                                    weight: FontWeight.w600,
+                                    color: (widget.isDone || widget.taskStatus == 'skipped') && !widget.task.isBreak
+                                        ? Color(0xFF9CA3AF)
+                                        : AppColors.textPrimary,
+                                  ).copyWith(
+                                    decoration: (widget.isDone || widget.taskStatus == 'skipped') && !widget.task.isBreak
+                                        ? TextDecoration.lineThrough
+                                        : TextDecoration.none,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2.0),
+                            child: Text(
+                              '${widget.task.durationMinutes}m',
+                              style: AppTypography.body(
+                                size: 12,
+                                weight: FontWeight.w500,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
+                      if (!widget.task.isBreak)
+                        SizeTransition(
+                          sizeFactor: _animation,
+                          axisAlignment: -1.0,
+                          child: Padding(
+                                  padding: const EdgeInsets.only(top: 16.0),
+                                  child: Column(
+                                    children: [
+                                      Container(
+                                        height: 1,
+                                        width: double.infinity,
+                                        color: AppColors.border.withValues(alpha: 0.5),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                        children: [
 
-                    // Duration & Menu
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2.0), // Nudge down to visually align with task name baseline
-                      child: Text(
-                        '${task.durationMinutes}m',
-                        style: AppTypography.body(
-                          size: 12,
-                          weight: FontWeight.w500,
-                          color: AppColors.textSecondary,
+                                          _TrayButton(
+                                            icon: Icons.check_circle_rounded,
+                                            label: 'On Time',
+                                            color: Color(0xFF4ade80),
+                                            onTap: () {
+                                              _closeExpanded();
+                                              widget.onSetStatus(widget.task, 'on_time');
+                                            },
+                                          ),
+                                          _TrayButton(
+                                            icon: Icons.access_time_filled_rounded,
+                                            label: 'Delayed',
+                                            color: Color(0xFFEF4444),
+                                            onTap: () {
+                                              _closeExpanded();
+                                              widget.onSetStatus(widget.task, 'late');
+                                            },
+                                          ),
+                                          _TrayButton(
+                                            icon: Icons.skip_next_rounded,
+                                            label: 'Skip',
+                                            color: Color(0xFF9CA3AF),
+                                            onTap: () {
+                                              _closeExpanded();
+                                              widget.onSetStatus(widget.task, 'skipped');
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap:
-                          onLongPress, // Using onTap instead of onLongPress for the 3-dot menu!
-                      behavior: HitTestBehavior.opaque,
-                      child: Padding(
-                        padding: const EdgeInsets.all(4.0),
-                        child: Icon(
-                          Icons.more_vert_rounded,
-                          color: AppColors.textSecondary,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
+        ],
       ),
-    ],
-  ),
-);
+    );
   }
 }
+
+class _TrayButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _TrayButton({required this.icon, required this.label, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: AppTypography.body(size: 11, weight: FontWeight.w600, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // Session Complete Banner
 
 class _SessionCompleteBanner extends StatelessWidget {
@@ -997,3 +1053,5 @@ class _SessionCompleteBanner extends StatelessWidget {
     );
   }
 }
+
+

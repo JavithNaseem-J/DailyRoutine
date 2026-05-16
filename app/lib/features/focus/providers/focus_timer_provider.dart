@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/services/notification_service.dart';
 
 class FocusTimerState {
   final bool isRunning;
@@ -72,6 +73,10 @@ class FocusTimerNotifier extends Notifier<FocusTimerState> {
     if (state.isRunning) return;
     state = state.copyWith(isRunning: true);
     
+    // Schedule robust background alarm
+    final endTime = DateTime.now().add(Duration(seconds: state.remainingSeconds));
+    notificationService.scheduleFocusAlarm(state.taskTitle, endTime);
+    
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (state.remainingSeconds > 0) {
@@ -85,11 +90,13 @@ class FocusTimerNotifier extends Notifier<FocusTimerState> {
 
   void pauseTimer() {
     _timer?.cancel();
+    notificationService.cancelFocusAlarm();
     state = state.copyWith(isRunning: false);
   }
 
   void stopTimer() {
     _timer?.cancel();
+    notificationService.cancelFocusAlarm();
     state = state.copyWith(
       isRunning: false,
       remainingSeconds: state.totalSeconds,
@@ -148,7 +155,8 @@ class FocusTimerNotifier extends Notifier<FocusTimerState> {
         stopTimer();
         onComplete();
       } else {
-        state = state.copyWith(remainingSeconds: newRemaining);
+        // Fix: must set isRunning to false so startTimer actually runs
+        state = state.copyWith(remainingSeconds: newRemaining, isRunning: false);
         startTimer(onComplete: onComplete);
       }
     }

@@ -102,6 +102,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
   }
 
   void _onTimerComplete() {
+    if (!mounted) return;
     _pulseController.stop();
     HapticFeedback.heavyImpact();
     _audioPlayer.play(
