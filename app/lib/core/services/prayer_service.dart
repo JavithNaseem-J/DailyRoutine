@@ -56,15 +56,14 @@ class PrayerService {
     );
   }
 
-  PrayerTimes getTodayPrayerTimes({PrayerTimes? overrides}) {
+  PrayerTimes getTodayPrayerTimes() {
     return getPrayerTimesForDate(DateTime.now());
   }
 
   ({String name, DateTime adhaan, DateTime prayerStart}) getPrayerData(
-    DateTime now, {
-    PrayerTimes? overrides,
-  }) {
-    final times = getTodayPrayerTimes(overrides: overrides);
+    DateTime now,
+  ) {
+    final times = getTodayPrayerTimes();
     final prayers = times.asOrderedList();
 
     for (final prayer in prayers) {
