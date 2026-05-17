@@ -226,8 +226,7 @@ class SupabaseService {
   Future<void> resetAllData(String deviceId) async {
     try {
       await _db.from('daily_state').delete().eq('device_id', deviceId);
-      await _db.from('quick_tasks').delete().eq('device_id', deviceId);
-      await _db.from('custom_tasks').delete().eq('device_id', deviceId);
+      await _db.from('quick_tasks').update({'done': false}).eq('device_id', deviceId);
       await _db.from('stats_history').delete().eq('device_id', deviceId);
       await _db.from('streak').delete().eq('device_id', deviceId);
       

@@ -64,19 +64,9 @@ class StreakService {
         currentStreak: newCurrent,
         bestStreak: newBest,
       );
-    } else {
-      // Un-completing — unmark today, decrement if it was counted
-      if (strip[todayIndex] == true) {
-        strip[todayIndex] = false;
-        final newCurrent = (current.currentStreak - 1).clamp(0, 999);
-        current = Streak(
-          deviceId: deviceId,
-          weekStrip: strip,
-          currentStreak: newCurrent,
-          bestStreak: current.bestStreak,
-        );
-      }
     }
+    // Note: Once the 50% threshold is reached for the day, 
+    // the streak is locked in and will not be revoked if completion drops below 50%.
 
     _upsertStreak(current);
     return current;

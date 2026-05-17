@@ -128,6 +128,11 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
       _minTime = null;
       _maxTime = null;
     }
+
+    // Default to the start time of the session instead of "now" if possible.
+    if (_minTime != null) {
+      _selectedTime = _minTime!;
+    }
   }
 
   DateTime? _parseTimeStrToDate(String t) {

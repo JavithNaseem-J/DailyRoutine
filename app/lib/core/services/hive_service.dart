@@ -134,8 +134,24 @@ class HiveService {
   Future<void> clearAll() async {
     if (!_initialized) return;
     await _dailyStateBox?.clear();
-    await _quickTasksBox?.clear();
-    await _customTasksBox?.clear();
+    
+    // Uncheck all quick tasks instead of clearing them
+    if (_quickTasksBox != null) {
+      for (final key in _quickTasksBox!.keys) {
+        final raw = _quickTasksBox!.get(key);
+        if (raw != null) {
+          try {
+            final list = jsonDecode(raw) as List;
+            final updated = list.map((e) {
+              final map = Map<String, dynamic>.from(e as Map);
+              map['done'] = false;
+              return map;
+            }).toList();
+            await _quickTasksBox!.put(key, jsonEncode(updated));
+          } catch (_) {}
+        }
+      }
+    }
   }
 }
 

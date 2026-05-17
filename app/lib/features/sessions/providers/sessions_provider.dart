@@ -269,9 +269,9 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     supabaseService.upsertDailyState(newDaily, deviceId).catchError((_) {});
 
     // Update streak (fire-and-forget)
-    final allDone = _areAllTasksDone(newDaily);
+    final streakAchieved = _isStreakAchieved(newDaily);
     streakService
-        .onTaskToggled(allTasksDone: allDone)
+        .onTaskToggled(allTasksDone: streakAchieved)
         .catchError((_) => Streak.empty(deviceId));
 
     // Record stats history (fire-and-forget)
@@ -281,15 +281,17 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
         .catchError((_) {});
   }
 
-  bool _areAllTasksDone(DailyState daily) {
+  bool _isStreakAchieved(DailyState daily) {
     final current = state.value;
     if (current == null) return false;
     final allIds = current.sessions
         .expand((s) => s.tasks)
         .map((t) => t.id)
         .toList();
-    return allIds.isNotEmpty &&
-        allIds.every((id) => daily.taskStates[id] == true);
+    if (allIds.isEmpty) return false;
+    final doneCount = allIds.where((id) => daily.taskStates[id] == true).length;
+    final pct = ((doneCount / allIds.length) * 100).round();
+    return pct >= 50;
   }
 
 
