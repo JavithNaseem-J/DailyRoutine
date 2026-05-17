@@ -115,33 +115,63 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
 
   Future<void> _refreshFromSupabase(
     DailyState localState,
-    List<Session> sessions,
+    List<Session> defaultSessions,
   ) async {
     final remote = await supabaseService.fetchDailyState(_todayKey, deviceId);
-    if (remote == null) return;
+    final remoteCustomTasks = await supabaseService.fetchCustomTasks(deviceId);
+    
+    // Save custom tasks locally
+    await hiveService.writeCustomTasks(remoteCustomTasks);
 
-    final merged = DailyState(
-      date: _todayKey,
-      taskStates: {...localState.taskStates, ...remote.taskStates},
-      taskStatus: {...localState.taskStatus, ...remote.taskStatus},
-      bonusStates: {...localState.bonusStates, ...remote.bonusStates},
-      prayerStates: {...localState.prayerStates, ...remote.prayerStates},
-      mood: remote.mood ?? localState.mood,
-      focusMinutes: remote.focusMinutes > localState.focusMinutes
-          ? remote.focusMinutes
-          : localState.focusMinutes,
-      focusSessions: remote.focusSessions.isNotEmpty
-          ? remote.focusSessions
-          : localState.focusSessions,
-      projectMinutes: {...localState.projectMinutes, ...remote.projectMinutes},
-    );
+    DailyState merged;
+    if (remote == null) {
+      merged = localState;
+    } else {
+      merged = DailyState(
+        date: _todayKey,
+        taskStates: {...localState.taskStates, ...remote.taskStates},
+        taskStatus: {...localState.taskStatus, ...remote.taskStatus},
+        bonusStates: {...localState.bonusStates, ...remote.bonusStates},
+        prayerStates: {...localState.prayerStates, ...remote.prayerStates},
+        mood: remote.mood ?? localState.mood,
+        focusMinutes: remote.focusMinutes > localState.focusMinutes
+            ? remote.focusMinutes
+            : localState.focusMinutes,
+        focusSessions: remote.focusSessions.isNotEmpty
+            ? remote.focusSessions
+            : localState.focusSessions,
+        projectMinutes: {...localState.projectMinutes, ...remote.projectMinutes},
+      );
+      await hiveService.writeDailyState(merged);
+    }
 
-    await hiveService.writeDailyState(merged);
-
-    // Riverpod 3: state.value
     final current = state.value;
     if (current != null) {
-      state = AsyncData(current.copyWith(dailyState: merged));
+      // Rebuild sessions with the updated custom tasks
+      final baseSessions = SessionData.sessionsForToday(
+        isFriday: DateTime.now().weekday == DateTime.friday,
+      );
+      final updatedSessions = baseSessions.map((s) {
+        final relevantTasks = remoteCustomTasks
+            .where((t) => t.sessionId == s.id)
+            .toList();
+        relevantTasks.sort(
+          (a, b) => _parseTime(a.time).compareTo(_parseTime(b.time)),
+        );
+        return Session(
+          id: s.id,
+          name: s.name,
+          timeRange: s.timeRange,
+          accentColor: s.accentColor,
+          tasks: [...s.tasks, ...relevantTasks],
+          isFridayOnly: s.isFridayOnly,
+        );
+      }).toList();
+
+      state = AsyncData(current.copyWith(
+        dailyState: merged,
+        sessions: updatedSessions,
+      ));
     }
   }
 
@@ -342,6 +372,7 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     final currentTasks = hiveService.readCustomTasks();
     currentTasks.add(task);
     await hiveService.writeCustomTasks(currentTasks);
+    supabaseService.upsertCustomTask(task, deviceId).catchError((_) {});
 
     final current = state.value;
     if (current == null) return;
@@ -373,6 +404,7 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     if (idx != -1) {
       customTasks[idx] = updatedTask;
       await hiveService.writeCustomTasks(customTasks);
+      supabaseService.upsertCustomTask(updatedTask, deviceId).catchError((_) {});
     }
 
     final current = state.value;
@@ -430,6 +462,7 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     final customTasks = hiveService.readCustomTasks();
     customTasks.removeWhere((t) => t.id == taskId);
     await hiveService.writeCustomTasks(customTasks);
+    supabaseService.deleteCustomTask(taskId).catchError((_) {});
 
     final current = state.value;
     if (current == null) return;

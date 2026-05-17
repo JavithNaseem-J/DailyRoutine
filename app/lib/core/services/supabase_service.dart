@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import '../models/daily_state.dart';
 import '../models/quick_task.dart';
+import '../models/session.dart';
 
 // SupabaseService — remote persistence
 // All rows keyed by deviceId (UUID from SharedPreferences).
@@ -118,9 +119,57 @@ class SupabaseService {
     }
   }
 
+  Future<List<Task>> fetchCustomTasks(String deviceId) async {
+    try {
+      final res = await _db
+          .from('custom_tasks')
+          .select()
+          .eq('device_id', deviceId)
+          .order('created_at');
 
+      return (res as List).map((e) {
+        return Task(
+          id: e['id'],
+          sessionId: e['session_id'],
+          title: e['title'],
+          time: e['time'] ?? '',
+          durationMinutes: e['duration_minutes'] ?? 15,
+          tip: e['tip'] ?? 'Custom task',
+          isBreak: e['is_break'] ?? false,
+          iconName: e['icon_name'] ?? 'star',
+        );
+      }).toList();
+    } catch (e, st) {
+      Sentry.captureException(e, stackTrace: st);
+      return [];
+    }
+  }
 
+  Future<void> upsertCustomTask(Task task, String deviceId) async {
+    try {
+      await _db.from('custom_tasks').upsert({
+        'id': task.id,
+        'device_id': deviceId,
+        'session_id': task.sessionId,
+        'title': task.title,
+        'time': task.time,
+        'duration_minutes': task.durationMinutes,
+        'tip': task.tip,
+        'is_break': task.isBreak,
+        'icon_name': task.iconName,
+      });
+    } catch (e, st) {
+      Sentry.captureException(e, stackTrace: st);
+    }
+  }
 
+  Future<void> deleteCustomTask(String taskId) async {
+    try {
+      await _db.from('custom_tasks').delete().eq('id', taskId);
+    } catch (e, st) {
+      Sentry.captureException(e, stackTrace: st);
+    }
+  }
   Future<void> upsertStatsHistory(
     String dateKey,
     int completionPct,
@@ -178,6 +227,7 @@ class SupabaseService {
     try {
       await _db.from('daily_state').delete().eq('device_id', deviceId);
       await _db.from('quick_tasks').delete().eq('device_id', deviceId);
+      await _db.from('custom_tasks').delete().eq('device_id', deviceId);
       await _db.from('stats_history').delete().eq('device_id', deviceId);
       await _db.from('streak').delete().eq('device_id', deviceId);
       

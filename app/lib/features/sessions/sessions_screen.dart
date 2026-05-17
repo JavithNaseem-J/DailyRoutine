@@ -194,6 +194,28 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+              InkWell(
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _setTaskStatus(task, 'focus');
+                  },
+                  child: Container(
+                    height: 56,
+                    alignment: Alignment.center,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.timer_outlined,
+                          color: AppColors.textPrimary,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Text('Timer', style: AppTypography.body(size: 16)),
+                      ],
+                    ),
+                  ),
+                ),
               if (task.id.startsWith('custom_'))
                 InkWell(
                   onTap: () {
@@ -779,7 +801,7 @@ class _TaskCardState extends State<_TaskCard> with SingleTickerProviderStateMixi
               child: Align(
                 alignment: Alignment.center,
                 child: GestureDetector(
-                  onTap: widget.task.isBreak ? null : widget.onToggle,
+                  onTap: null,
                   behavior: HitTestBehavior.opaque,
                   child: Container(
                     width: widget.task.isBreak ? 12 : 16,
@@ -921,7 +943,15 @@ class _TaskCardState extends State<_TaskCard> with SingleTickerProviderStateMixi
                                       Row(
                                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                                         children: [
-
+                                          _TrayButton(
+                                            icon: Icons.refresh_rounded,
+                                            label: 'Clear',
+                                            color: AppColors.textSecondary,
+                                            onTap: () {
+                                              _closeExpanded();
+                                              widget.onSetStatus(widget.task, 'none');
+                                            },
+                                          ),
                                           _TrayButton(
                                             icon: Icons.check_circle_rounded,
                                             label: 'On Time',

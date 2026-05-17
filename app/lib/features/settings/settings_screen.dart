@@ -12,6 +12,8 @@ import '../../core/services/supabase_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
+import '../sessions/providers/sessions_provider.dart';
 import '../../main.dart' show deviceId, sharedPrefs;
 
 // Settings Screen — Phase 4.5
@@ -336,12 +338,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final today = dateService.todayKey();
     await hiveService.writeDailyState(DailyState.empty(today));
 
+    // Invalidate providers so UI reloads from empty state
+    ref.invalidate(sessionsProvider);
+    ref.invalidate(completionPctProvider);
+
     setState(() => _isResetting = false);
 
     if (mounted) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('All data reset.')));
+      ).showSnackBar(const SnackBar(content: Text('All data reset. Starting fresh.')));
+      
+      // Navigate to home to force the stats screen and home screen to re-init
+      context.go('/');
     }
   }
 
