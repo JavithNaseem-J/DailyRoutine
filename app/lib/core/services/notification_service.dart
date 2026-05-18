@@ -89,13 +89,21 @@ class NotificationService {
 
     if (prayerAlertsEnabled) {
       final prayers = prayerService.getTodayPrayerTimes();
-      for (final p in [('Fajr', prayers.fajr), ('Asr', prayers.asr)]) {
-        DateTime alertTime = p.$2.subtract(const Duration(minutes: 10));
+      final allPrayers = [
+        ('Fajr',    prayers.fajr,    '🌅', 'The adhan was called — it\'s time to pray Fajr.'),
+        ('Dhuhr',   prayers.dhuhr,   '☀️',  'It\'s Dhuhr time. Step away and pray.'),
+        ('Asr',     prayers.asr,     '🌤️', 'Asr is here. Don\'t delay your prayer.'),
+        ('Maghrib', prayers.maghrib, '🌇', 'The sun has set — pray Maghrib now.'),
+        ('Isha',    prayers.isha,    '🌙', 'Isha time. End your day with prayer.'),
+      ];
+      for (final p in allPrayers) {
+        // Fire 10 minutes AFTER the prayer time (adhan → iqama window)
+        DateTime alertTime = p.$2.add(const Duration(minutes: 10));
         if (alertTime.isBefore(now)) alertTime = alertTime.add(const Duration(days: 1));
         await _zoned(
           id: notifId++,
-          title: '${p.$1} in 10 minutes',
-          body: 'Prepare for prayer.',
+          title: '${p.$3} ${p.$1} — Time to Pray',
+          body: p.$4,
           when: alertTime,
         );
       }

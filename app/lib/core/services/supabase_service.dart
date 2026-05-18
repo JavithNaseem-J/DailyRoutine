@@ -136,6 +136,7 @@ class SupabaseService {
           durationMinutes: e['duration_minutes'] ?? 15,
           tip: e['tip'] ?? 'Custom task',
           isBreak: e['is_break'] ?? false,
+          hasSessionTimer: e['has_session_timer'] ?? false,
           iconName: e['icon_name'] ?? 'star',
         );
       }).toList();
@@ -156,6 +157,7 @@ class SupabaseService {
         'duration_minutes': task.durationMinutes,
         'tip': task.tip,
         'is_break': task.isBreak,
+        'has_session_timer': task.hasSessionTimer,
         'icon_name': task.iconName,
       });
     } catch (e, st) {

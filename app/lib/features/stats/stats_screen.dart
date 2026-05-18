@@ -201,7 +201,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     final sessionsList = sessionsAsync.value?.sessions ?? [];
     int totalTasks = 0;
     for (var s in sessionsList) {
-      totalTasks += s.tasks.length;
+      totalTasks += s.tasks.where((t) => !t.isBreak).length;
     }
 
     final dayIdx = DateTime.now().weekday - 1;

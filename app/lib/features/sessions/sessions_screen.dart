@@ -359,10 +359,11 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                     separatorBuilder: (_, __) => const SizedBox(width: 8),
                     itemBuilder: (context, i) {
                       final s = sessions[i];
-                      final doneCount = s.tasks
+                      final validTasks = s.tasks.where((t) => !t.isBreak).toList();
+                      final doneCount = validTasks
                           .where((t) => taskStates[t.id] == true)
                           .length;
-                      final total = s.tasks.length;
+                      final total = validTasks.length;
                       final percent = total == 0 ? 0.0 : doneCount / total;
 
                       final now = TimeOfDay.now();
@@ -922,15 +923,16 @@ class _TaskCardState extends State<_TaskCard> with SingleTickerProviderStateMixi
                                       Row(
                                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                                         children: [
-                                          _TrayButton(
-                                            icon: Icons.timer_outlined,
-                                            label: 'Focus',
-                                            color: AppColors.textPrimary,
-                                            onTap: () {
-                                              _closeExpanded();
-                                              widget.onSetStatus(widget.task, 'focus');
-                                            },
-                                          ),
+                                          if (widget.task.hasSessionTimer)
+                                            _TrayButton(
+                                              icon: Icons.timer_outlined,
+                                              label: 'Focus',
+                                              color: AppColors.textPrimary,
+                                              onTap: () {
+                                                _closeExpanded();
+                                                widget.onSetStatus(widget.task, 'focus');
+                                              },
+                                            ),
                                           _TrayButton(
                                             icon: Icons.check_circle_rounded,
                                             label: 'On Time',
@@ -989,22 +991,13 @@ class _TrayButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 22),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            style: AppTypography.body(size: 11, weight: FontWeight.w600, color: color),
-          ),
-        ],
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: color, size: 24),
       ),
     );
   }

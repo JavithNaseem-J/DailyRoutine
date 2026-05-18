@@ -25,6 +25,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
   late Session _selectedSession;
   final _titleController = TextEditingController();
   bool _isBreak = false;
+  bool _hasSessionTimer = false;
   String _selectedIconName = 'star';
 
   static const Map<String, IconData> _appIcons = {
@@ -97,6 +98,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
         minutes: widget.existingTask!.durationMinutes,
       );
       _isBreak = widget.existingTask!.isBreak;
+      _hasSessionTimer = widget.existingTask!.hasSessionTimer;
       _selectedIconName = widget.existingTask!.iconName;
     }
   }
@@ -171,6 +173,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
         durationMinutes: _selectedDuration.inMinutes,
         sessionId: _selectedSession.id,
         isBreak: _isBreak,
+        hasSessionTimer: _hasSessionTimer,
         iconName: _selectedIconName,
       );
       ref
@@ -185,6 +188,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
         durationMinutes: _selectedDuration.inMinutes,
         tip: 'Custom task',
         isBreak: _isBreak,
+        hasSessionTimer: _hasSessionTimer,
         iconName: _selectedIconName,
       );
       ref.read(sessionsProvider.notifier).addCustomTask(newTask);
@@ -361,6 +365,19 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                 value: _isBreak,
                 activeTrackColor: AppColors.primary,
                 onChanged: (val) => setState(() => _isBreak = val),
+              ),
+              const SizedBox(width: 16),
+              Text(
+                'Focus Timer',
+                style: AppTypography.body(
+                  size: 14,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              CupertinoSwitch(
+                value: _hasSessionTimer,
+                activeTrackColor: AppColors.primary,
+                onChanged: (val) => setState(() => _hasSessionTimer = val),
               ),
             ],
           ),

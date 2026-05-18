@@ -36,11 +36,12 @@ class SessionsState {
       (s) => s.id == sessionId,
       orElse: () => sessions.first,
     );
-    final taskIds = session.tasks.map((t) => t.id).toList();
-    final doneCount = taskIds.where((id) => taskStates[id] == true).length;
+    final validTasks = session.tasks.where((t) => !t.isBreak).map((t) => t.id).toList();
+    if (validTasks.isEmpty) return SessionPillState.empty;
+    final doneCount = validTasks.where((id) => taskStates[id] == true).length;
     if (doneCount == 0) return SessionPillState.empty;
-    if (doneCount == taskIds.length) return SessionPillState.complete;
-    if (doneCount / taskIds.length >= 0.5) return SessionPillState.halfway;
+    if (doneCount == validTasks.length) return SessionPillState.complete;
+    if (doneCount / validTasks.length >= 0.5) return SessionPillState.halfway;
     return SessionPillState.started;
   }
 
@@ -48,10 +49,14 @@ class SessionsState {
       pillState(sessionId) == SessionPillState.complete;
 
   int get completionPct {
-    final allIds = sessions.expand((s) => s.tasks).map((t) => t.id).toList();
-    if (allIds.isEmpty) return 0;
-    final doneCount = allIds.where((id) => taskStates[id] == true).length;
-    return ((doneCount / allIds.length) * 100).round();
+    final validTasks = sessions
+        .expand((s) => s.tasks)
+        .where((t) => !t.isBreak)
+        .map((t) => t.id)
+        .toList();
+    if (validTasks.isEmpty) return 0;
+    final doneCount = validTasks.where((id) => taskStates[id] == true).length;
+    return ((doneCount / validTasks.length) * 100).round();
   }
 
   // BUG-002 fix: return null instead of crashing when sessions is empty
@@ -284,13 +289,14 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
   bool _isStreakAchieved(DailyState daily) {
     final current = state.value;
     if (current == null) return false;
-    final allIds = current.sessions
+    final validTasks = current.sessions
         .expand((s) => s.tasks)
+        .where((t) => !t.isBreak)
         .map((t) => t.id)
         .toList();
-    if (allIds.isEmpty) return false;
-    final doneCount = allIds.where((id) => daily.taskStates[id] == true).length;
-    final pct = ((doneCount / allIds.length) * 100).round();
+    if (validTasks.isEmpty) return false;
+    final doneCount = validTasks.where((id) => daily.taskStates[id] == true).length;
+    final pct = ((doneCount / validTasks.length) * 100).round();
     return pct >= 50;
   }
 
