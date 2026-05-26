@@ -8,6 +8,8 @@ import 'package:uuid/uuid.dart';
 import 'core/services/hive_service.dart';
 import 'core/services/lifecycle_service.dart';
 import 'core/services/notification_service.dart';
+import 'core/services/connectivity_service.dart';
+import 'core/supabase_client.dart';
 import 'app.dart';
 
 /// Global shared preferences + deviceId — accessed throughout the app.
@@ -77,7 +79,7 @@ Future<void> main() async {
         
         // Use authenticated user ID if available, otherwise generate a local UUID.
         // On login/signup, auth_screen.dart updates deviceId to the real user ID.
-        final session = Supabase.instance.client.auth.currentSession;
+        final session = supabaseClient.auth.currentSession;
         if (session != null) {
           await sharedPrefs.setString('deviceId', session.user.id);
         } else if (!sharedPrefs.containsKey('deviceId')) {
@@ -88,6 +90,7 @@ Future<void> main() async {
         await hiveService.init();
 
         lifecycleService.init();
+        connectivityService.init();
         await notificationService.init();
         final sessionReminders = sharedPrefs.getBool('sessionReminders') ?? true;
         final prayerAlerts = sharedPrefs.getBool('prayerAlerts') ?? true;

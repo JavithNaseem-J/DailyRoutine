@@ -3,6 +3,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import '../models/daily_state.dart';
 import '../models/quick_task.dart';
 import '../models/session.dart';
+import '../supabase_client.dart';
 
 // SupabaseService — remote persistence
 // All rows keyed by deviceId (UUID from SharedPreferences).
@@ -14,8 +15,7 @@ class SupabaseService {
   factory SupabaseService() => _instance;
   SupabaseService._();
 
-  SupabaseClient get _db => Supabase.instance.client;
-
+  SupabaseClient get _db => supabaseClient;
 
   Future<void> upsertDailyState(DailyState state, String deviceId) async {
     try {
@@ -52,13 +52,16 @@ class SupabaseService {
         taskStates: _castBoolMap(res['task_states']),
         taskStatus: _castStringMap(res['task_status']),
         bonusStates: _castBoolMap(res['bonus_states']),
-        mood: res['mood'] as String?,
-        focusMinutes: res['focus_minutes'] as int? ?? 0,
+        mood: res['mood']?.toString(),
+        focusMinutes:
+            int.tryParse(res['focus_minutes']?.toString() ?? '0') ?? 0,
         focusSessions: (res['focus_sessions'] as List<dynamic>? ?? [])
-            .map((e) => (e as num).toInt())
+            .map((e) => int.tryParse(e?.toString() ?? '0') ?? 0)
             .toList(),
-        projectMinutes: (res['project_minutes'] as Map<String, dynamic>? ?? {})
-            .map((k, v) => MapEntry(k, (v as num).toInt())),
+        projectMinutes: (res['project_minutes'] as Map? ?? {}).map(
+          (k, v) =>
+              MapEntry(k.toString(), int.tryParse(v?.toString() ?? '0') ?? 0),
+        ),
         prayerStates: _castBoolMap(res['prayer_states']),
       );
     } catch (e, st) {
@@ -66,7 +69,6 @@ class SupabaseService {
       return null;
     }
   }
-
 
   Future<void> upsertQuickTask(QuickTask task, String deviceId) async {
     try {
@@ -172,6 +174,7 @@ class SupabaseService {
       Sentry.captureException(e, stackTrace: st);
     }
   }
+
   Future<void> upsertStatsHistory(
     String dateKey,
     int completionPct,
@@ -214,7 +217,7 @@ class SupabaseService {
       final from = DateTime.now().subtract(const Duration(days: 30));
       final res = await _db
           .from('daily_state')
-          .select('date, task_states')
+          .select('date, task_states, task_status')
           .eq('device_id', deviceId)
           .gte('date', from.toIso8601String().split('T').first)
           .order('date');
@@ -228,10 +231,13 @@ class SupabaseService {
   Future<void> resetAllData(String deviceId) async {
     try {
       await _db.from('daily_state').delete().eq('device_id', deviceId);
-      await _db.from('quick_tasks').update({'done': false}).eq('device_id', deviceId);
+      await _db
+          .from('quick_tasks')
+          .update({'done': false})
+          .eq('device_id', deviceId);
       await _db.from('stats_history').delete().eq('device_id', deviceId);
       await _db.from('streak').delete().eq('device_id', deviceId);
-      
+
       // Seed a fresh empty streak so fetchStreak() has a valid record going forward
       await _db.from('streak').upsert({
         'device_id': deviceId,
@@ -243,7 +249,6 @@ class SupabaseService {
       Sentry.captureException(e, stackTrace: st);
     }
   }
-
 
   // BUG-018 fix: safe cast handles both bool and int (0/1) from Postgres
   Map<String, bool> _castBoolMap(dynamic raw) {

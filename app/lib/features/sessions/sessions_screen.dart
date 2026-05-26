@@ -144,7 +144,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     if (status == 'toggle') {
       ref.read(sessionsProvider.notifier).toggleTask(task.id);
     } else {
-      ref.read(sessionsProvider.notifier).setExplicitTaskStatus(task.id, status);
+      ref
+          .read(sessionsProvider.notifier)
+          .setExplicitTaskStatus(task.id, status);
     }
   }
 
@@ -195,60 +197,58 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
               ),
               const SizedBox(height: 16),
 
-              if (task.id.startsWith('custom_'))
-                InkWell(
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _editTask(task, session);
-                  },
-                  child: Container(
-                    height: 56,
-                    alignment: Alignment.center,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.edit_rounded,
-                          color: AppColors.textPrimary,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Text('Edit', style: AppTypography.body(size: 16)),
-                      ],
-                    ),
+              InkWell(
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _editTask(task, session);
+                },
+                child: Container(
+                  height: 56,
+                  alignment: Alignment.center,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.edit_rounded,
+                        color: AppColors.textPrimary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Text('Edit', style: AppTypography.body(size: 16)),
+                    ],
                   ),
                 ),
-              if (task.id.startsWith('custom_'))
-                InkWell(
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    ref
-                        .read(sessionsProvider.notifier)
-                        .deleteCustomTask(task.id, session.id);
-                  },
-                  child: Container(
-                    height: 56,
-                    alignment: Alignment.center,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.delete_outline_rounded,
+              ),
+              InkWell(
+                onTap: () {
+                  Navigator.pop(ctx);
+                  ref
+                      .read(sessionsProvider.notifier)
+                      .deleteCustomTask(task.id, session.id);
+                },
+                child: Container(
+                  height: 56,
+                  alignment: Alignment.center,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.delete_outline_rounded,
+                        color: AppColors.moodLow,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Delete',
+                        style: AppTypography.body(
+                          size: 16,
                           color: AppColors.moodLow,
-                          size: 20,
                         ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Delete',
-                          style: AppTypography.body(
-                            size: 16,
-                            color: AppColors.moodLow,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
+              ),
               InkWell(
                 onTap: () => Navigator.pop(ctx),
                 child: Container(
@@ -289,6 +289,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     final safeIndex = _currentIndex.clamp(0, sessions.length - 1);
     final session = sessions[safeIndex];
     final taskStates = sessionsAsync.value?.taskStates ?? {};
+    final taskStatus = sessionsAsync.value?.dailyState.taskStatus ?? {};
     final bonusStates = sessionsAsync.value?.bonusStates ?? {};
 
     return Stack(
@@ -359,12 +360,17 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                     separatorBuilder: (_, __) => const SizedBox(width: 8),
                     itemBuilder: (context, i) {
                       final s = sessions[i];
-                      final validTasks = s.tasks.where((t) => !t.isBreak).toList();
+                      final validTasks = s.tasks
+                          .where((t) => !t.isBreak)
+                          .toList();
                       final doneCount = validTasks
                           .where((t) => taskStates[t.id] == true)
                           .length;
-                      final total = validTasks.length;
-                      final percent = total == 0 ? 0.0 : doneCount / total;
+                      final skippedCount = validTasks
+                          .where((t) => taskStatus[t.id] == 'skipped')
+                          .length;
+                      final total = validTasks.length - skippedCount;
+                      final percent = total <= 0 ? 0.0 : doneCount / total;
 
                       final now = TimeOfDay.now();
                       final nowMin = now.hour * 60 + now.minute;
@@ -499,7 +505,7 @@ class _SessionPill extends StatelessWidget {
         textColor = AppColors.textPrimary;
         borderColor = isSelected ? AppColors.textPrimary : Color(0xFFDBEAFE);
       } else {
-        bgColor = AppColors.surfaceRaised; // Stage 1
+        bgColor = Colors.white; // Stage 1
         textColor = AppColors.textPrimary;
         borderColor = isSelected ? AppColors.textPrimary : AppColors.border;
       }
@@ -569,10 +575,13 @@ class _SessionPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final doneCount = session.tasks
-        .where((t) => taskStates[t.id] == true)
+    final validTasks = session.tasks.where((t) => !t.isBreak).toList();
+    final doneCount = validTasks.where((t) => taskStates[t.id] == true).length;
+    final skippedCount = validTasks
+        .where((t) => taskStatus[t.id] == 'skipped')
         .length;
-    final isAllDone = doneCount == session.tasks.length;
+    final totalValid = validTasks.length - skippedCount;
+    final isAllDone = totalValid > 0 && doneCount == totalValid;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 120),
@@ -663,7 +672,8 @@ class _TaskCard extends StatefulWidget {
   State<_TaskCard> createState() => _TaskCardState();
 }
 
-class _TaskCardState extends State<_TaskCard> with SingleTickerProviderStateMixin {
+class _TaskCardState extends State<_TaskCard>
+    with SingleTickerProviderStateMixin {
   bool _isExpanded = false;
   late final AnimationController _controller;
   late final Animation<double> _animation;
@@ -777,7 +787,10 @@ class _TaskCardState extends State<_TaskCard> with SingleTickerProviderStateMixi
           SizedBox(
             width: 32,
             child: CustomPaint(
-              painter: _TimelinePainter(isFirst: widget.isFirst, isLast: widget.isLast),
+              painter: _TimelinePainter(
+                isFirst: widget.isFirst,
+                isLast: widget.isLast,
+              ),
               child: Align(
                 alignment: Alignment.center,
                 child: GestureDetector(
@@ -795,16 +808,20 @@ class _TaskCardState extends State<_TaskCard> with SingleTickerProviderStateMixi
                                 ? Color(0xFFEF4444)
                                 : Color(0xFF4ade80)
                           : widget.taskStatus == 'skipped'
-                          ? Color(0xFF9CA3AF)
+                          ? Colors.black
                           : Colors.white,
                       border:
-                          (widget.isDone || widget.task.isBreak || widget.taskStatus == 'skipped')
+                          (widget.isDone ||
+                              widget.task.isBreak ||
+                              widget.taskStatus == 'skipped')
                           ? null
                           : Border.all(color: Color(0xFFD1D5DB), width: 1.5),
                     ),
                     child: (widget.isDone && !widget.task.isBreak)
                         ? const Icon(Icons.check, size: 10, color: Colors.white)
-                        : (!widget.isDone && !widget.task.isBreak && widget.taskStatus == 'skipped')
+                        : (!widget.isDone &&
+                              !widget.task.isBreak &&
+                              widget.taskStatus == 'skipped')
                         ? const Icon(Icons.close, size: 10, color: Colors.white)
                         : null,
                   ),
@@ -821,10 +838,12 @@ class _TaskCardState extends State<_TaskCard> with SingleTickerProviderStateMixi
                   HapticFeedback.mediumImpact();
                   widget.onLongPress();
                 },
-                onTap: widget.task.isBreak ? null : () {
-                  HapticFeedback.lightImpact();
-                  _toggleExpanded();
-                },
+                onTap: widget.task.isBreak
+                    ? null
+                    : () {
+                        HapticFeedback.lightImpact();
+                        _toggleExpanded();
+                      },
                 child: Container(
                   clipBehavior: Clip.hardEdge,
                   padding: const EdgeInsets.symmetric(
@@ -832,10 +851,16 @@ class _TaskCardState extends State<_TaskCard> with SingleTickerProviderStateMixi
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: widget.task.isBreak ? AppColors.surfaceRaised : Colors.white,
+                    color: widget.task.isBreak
+                        ? AppColors.surfaceRaised
+                        : (widget.taskStatus == 'skipped'
+                            ? const Color(0xFFF3F4F6)
+                            : Colors.white),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: widget.task.isBreak ? Colors.transparent : Color(0xFFF3F4F6),
+                      color: widget.task.isBreak
+                          ? Colors.transparent
+                          : Color(0xFFF3F4F6),
                       width: 1.5,
                     ),
                     boxShadow: widget.task.isBreak
@@ -878,17 +903,26 @@ class _TaskCardState extends State<_TaskCard> with SingleTickerProviderStateMixi
                                 scrollDirection: Axis.horizontal,
                                 child: Text(
                                   widget.task.title,
-                                  style: AppTypography.body(
-                                    size: 14,
-                                    weight: FontWeight.w600,
-                                    color: (widget.isDone || widget.taskStatus == 'skipped') && !widget.task.isBreak
-                                        ? Color(0xFF9CA3AF)
-                                        : AppColors.textPrimary,
-                                  ).copyWith(
-                                    decoration: (widget.isDone || widget.taskStatus == 'skipped') && !widget.task.isBreak
-                                        ? TextDecoration.lineThrough
-                                        : TextDecoration.none,
-                                  ),
+                                  style:
+                                      AppTypography.body(
+                                        size: 14,
+                                        weight: FontWeight.w600,
+                                        color:
+                                            (widget.isDone ||
+                                                    widget.taskStatus ==
+                                                        'skipped') &&
+                                                !widget.task.isBreak
+                                            ? Color(0xFF9CA3AF)
+                                            : AppColors.textPrimary,
+                                      ).copyWith(
+                                        decoration:
+                                            (widget.isDone ||
+                                                    widget.taskStatus ==
+                                                        'skipped') &&
+                                                !widget.task.isBreak
+                                            ? TextDecoration.lineThrough
+                                            : TextDecoration.none,
+                                      ),
                                 ),
                               ),
                             ),
@@ -911,60 +945,72 @@ class _TaskCardState extends State<_TaskCard> with SingleTickerProviderStateMixi
                           sizeFactor: _animation,
                           axisAlignment: -1.0,
                           child: Padding(
-                                  padding: const EdgeInsets.only(top: 16.0),
-                                  child: Column(
-                                    children: [
-                                      Container(
-                                        height: 1,
-                                        width: double.infinity,
-                                        color: AppColors.border.withValues(alpha: 0.5),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                        children: [
-                                          if (widget.task.hasSessionTimer)
-                                            _TrayButton(
-                                              icon: Icons.timer_outlined,
-                                              label: 'Focus',
-                                              color: AppColors.textPrimary,
-                                              onTap: () {
-                                                _closeExpanded();
-                                                widget.onSetStatus(widget.task, 'focus');
-                                              },
-                                            ),
-                                          _TrayButton(
-                                            icon: Icons.check_circle_rounded,
-                                            label: 'On Time',
-                                            color: Color(0xFF4ade80),
-                                            onTap: () {
-                                              _closeExpanded();
-                                              widget.onSetStatus(widget.task, 'on_time');
-                                            },
-                                          ),
-                                          _TrayButton(
-                                            icon: Icons.access_time_filled_rounded,
-                                            label: 'Delayed',
-                                            color: Color(0xFFEF4444),
-                                            onTap: () {
-                                              _closeExpanded();
-                                              widget.onSetStatus(widget.task, 'late');
-                                            },
-                                          ),
-                                          _TrayButton(
-                                            icon: Icons.skip_next_rounded,
-                                            label: 'Skip',
-                                            color: Color(0xFF9CA3AF),
-                                            onTap: () {
-                                              _closeExpanded();
-                                              widget.onSetStatus(widget.task, 'skipped');
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    ],
+                            padding: const EdgeInsets.only(top: 16.0),
+                            child: Column(
+                              children: [
+                                Container(
+                                  height: 1,
+                                  width: double.infinity,
+                                  color: AppColors.border.withValues(
+                                    alpha: 0.5,
                                   ),
                                 ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceEvenly,
+                                  children: [
+                                    if (widget.task.hasSessionTimer)
+                                      _TrayButton(
+                                        icon: Icons.timer_outlined,
+                                        label: 'Focus',
+                                        color: AppColors.textPrimary,
+                                        onTap: () {
+                                          _closeExpanded();
+                                          widget.onSetStatus(
+                                            widget.task,
+                                            'focus',
+                                          );
+                                        },
+                                      ),
+                                    _TrayButton(
+                                      icon: Icons.check_circle_rounded,
+                                      label: 'On Time',
+                                      color: Color(0xFF4ade80),
+                                      onTap: () {
+                                        _closeExpanded();
+                                        widget.onSetStatus(
+                                          widget.task,
+                                          'on_time',
+                                        );
+                                      },
+                                    ),
+                                    _TrayButton(
+                                      icon: Icons.access_time_filled_rounded,
+                                      label: 'Delayed',
+                                      color: Color(0xFFEF4444),
+                                      onTap: () {
+                                        _closeExpanded();
+                                        widget.onSetStatus(widget.task, 'late');
+                                      },
+                                    ),
+                                    _TrayButton(
+                                      icon: Icons.skip_next_rounded,
+                                      label: 'Skip',
+                                      color: Color(0xFF9CA3AF),
+                                      onTap: () {
+                                        _closeExpanded();
+                                        widget.onSetStatus(
+                                          widget.task,
+                                          'skipped',
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                     ],
                   ),
@@ -984,7 +1030,12 @@ class _TrayButton extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
 
-  const _TrayButton({required this.icon, required this.label, required this.color, required this.onTap});
+  const _TrayButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1055,5 +1106,3 @@ class _SessionCompleteBanner extends StatelessWidget {
     );
   }
 }
-
-

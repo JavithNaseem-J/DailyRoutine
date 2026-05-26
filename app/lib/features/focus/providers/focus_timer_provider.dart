@@ -76,6 +76,7 @@ class FocusTimerNotifier extends Notifier<FocusTimerState> {
     // Schedule robust background alarm
     final endTime = DateTime.now().add(Duration(seconds: state.remainingSeconds));
     notificationService.scheduleFocusAlarm(state.taskTitle, endTime);
+    notificationService.showOngoingFocus(state.taskTitle);
     
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -91,12 +92,14 @@ class FocusTimerNotifier extends Notifier<FocusTimerState> {
   void pauseTimer() {
     _timer?.cancel();
     notificationService.cancelFocusAlarm();
+    notificationService.cancelOngoingFocus();
     state = state.copyWith(isRunning: false);
   }
 
   void stopTimer() {
     _timer?.cancel();
     notificationService.cancelFocusAlarm();
+    notificationService.cancelOngoingFocus();
     state = state.copyWith(
       isRunning: false,
       remainingSeconds: state.totalSeconds,

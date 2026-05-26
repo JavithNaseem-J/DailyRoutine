@@ -1,37 +1,58 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'core/supabase_client.dart';
+import 'package:uuid/uuid.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/app_colors.dart';
-
+import 'core/services/hive_service.dart';
 import 'features/home/home_screen.dart';
 import 'features/sessions/sessions_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/stats/stats_screen.dart';
-import 'features/quran/quran_screen.dart';
 import 'features/focus/focus_screen.dart';
 import 'features/auth/auth_screen.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'features/sessions/providers/sessions_provider.dart';
+import 'main.dart' show deviceId, sharedPrefs;
 
-class DailyRoutineApp extends StatefulWidget {
+class DailyRoutineApp extends ConsumerStatefulWidget {
   const DailyRoutineApp({super.key});
 
   @override
-  State<DailyRoutineApp> createState() => _DailyRoutineAppState();
+  ConsumerState<DailyRoutineApp> createState() => _DailyRoutineAppState();
 }
 
-// NEW-BUG-004 fix: listen for session expiry and redirect to /auth
-class _DailyRoutineAppState extends State<DailyRoutineApp> {
+class _DailyRoutineAppState extends ConsumerState<DailyRoutineApp> {
   StreamSubscription<AuthState>? _authSub;
 
   @override
   void initState() {
     super.initState();
-    _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+    _authSub = supabaseClient.auth.onAuthStateChange.listen((data) async {
       final event = data.event;
-      if (event == AuthChangeEvent.signedOut ||
-          (event == AuthChangeEvent.tokenRefreshed && data.session == null)) {
-        if (mounted) _router.go('/auth');
+      final session = data.session;
+
+      if (session != null) {
+        if (deviceId != session.user.id) {
+          await sharedPrefs.setString('deviceId', session.user.id);
+          deviceId = session.user.id;
+          ref.invalidate(sessionsProvider);
+        }
+      } else {
+        if (event == AuthChangeEvent.signedOut || 
+            (event == AuthChangeEvent.tokenRefreshed && session == null)) {
+          final newId = const Uuid().v4();
+          await sharedPrefs.setString('deviceId', newId);
+          deviceId = newId;
+
+          await hiveService.clearAll();
+          await hiveService.writeCustomTasks([]);
+          ref.invalidate(sessionsProvider);
+
+          if (mounted) appRouter.go('/auth');
+        }
       }
     });
   }
@@ -45,17 +66,17 @@ class _DailyRoutineAppState extends State<DailyRoutineApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'Yawmi',
+      title: 'FocusFlow',
       theme: AppTheme.theme(),
       debugShowCheckedModeBanner: false,
-      routerConfig: _router,
+      routerConfig: appRouter,
     );
   }
 }
 
 // GoRouter — ShellRoute with 3-tab bottom nav
 
-final _router = GoRouter(
+final appRouter = GoRouter(
   initialLocation: '/home',
   // NEW-BUG-003 fix: handle unknown routes with a friendly fallback screen
   errorBuilder: (context, state) => Scaffold(
@@ -82,7 +103,7 @@ final _router = GoRouter(
     ),
   ),
   redirect: (context, state) {
-    final session = Supabase.instance.client.auth.currentSession;
+    final session = supabaseClient.auth.currentSession;
     final isAuthRoute = state.matchedLocation == '/auth';
 
     if (session == null && !isAuthRoute) return '/auth';
@@ -142,15 +163,6 @@ final _router = GoRouter(
     GoRoute(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),
-    ),
-    // Quran Reader — full-screen, no bottom nav
-    GoRoute(
-      path: '/quran/reader',
-      builder: (context, state) {
-        final extra = state.extra as Map<String, dynamic>?;
-        final page = extra?['page'] as int? ?? 1;
-        return QuranScreen(initialPage: page);
-      },
     ),
   ],
 );

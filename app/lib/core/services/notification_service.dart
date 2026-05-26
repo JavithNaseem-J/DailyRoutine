@@ -3,6 +3,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 import 'prayer_service.dart';
+import '../../app.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._();
@@ -49,6 +50,16 @@ class NotificationService {
           requestSoundPermission: true,
         ),
       ),
+      onDidReceiveNotificationResponse: (response) {
+        if (response.payload != null && response.payload!.startsWith('focus|')) {
+          final parts = response.payload!.split('|');
+          if (parts.length >= 2) {
+            appRouter.push('/focus', extra: {
+              'taskTitle': parts[1],
+            });
+          }
+        }
+      },
     );
 
     // BUG-016 fix: removed redundant !kIsWeb guard; init() already returns early on web
@@ -184,11 +195,43 @@ class NotificationService {
     await _plugin.cancel(id: 999);
   }
 
+  Future<void> showOngoingFocus(String taskTitle) async {
+    if (kIsWeb) return;
+    try {
+      await _plugin.show(
+        id: 998,
+        title: 'Focus Timer Active',
+        body: taskTitle,
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'focus_ongoing_channel',
+            'Active Focus',
+            channelDescription: 'Ongoing focus timer',
+            importance: Importance.low,
+            priority: Priority.low,
+            ongoing: true,
+            autoCancel: false,
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: false,
+            presentBadge: false,
+            presentSound: false,
+          ),
+        ),
+        payload: 'focus|$taskTitle',
+      );
+    } catch (_) {}
+  }
+
+  Future<void> cancelOngoingFocus() async {
+    if (kIsWeb) return;
+    await _plugin.cancel(id: 998);
+  }
+
   static const _sessionSchedule = [
     _S('morning', 'Morning', '5:00am', 'Morning habits time.'),
-    _S('afternoon', 'Afternoon', '12:00pm', 'Afternoon build session.'),
-    _S('evening', 'Evening', '4:00pm', 'Evening wind-down.'),
-    _S('night', 'Night', '7:00pm', 'Night routine.'),
+    _S('afternoon', 'Afternoon', '11:00am', 'Afternoon build session.'),
+    _S('night', 'Night', '5:00pm', 'Night routine.'),
   ];
 }
 

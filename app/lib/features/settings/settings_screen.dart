@@ -15,6 +15,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:go_router/go_router.dart';
 import '../sessions/providers/sessions_provider.dart';
 import '../../main.dart' show deviceId, sharedPrefs;
+import 'package:uuid/uuid.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 
 // Settings Screen — Phase 4.5
 
@@ -350,7 +353,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ).showSnackBar(const SnackBar(content: Text('All data reset. Starting fresh.')));
       
       // Navigate to home to force the stats screen and home screen to re-init
-      context.go('/');
+    }
+  }
+
+  Future<void> _signOut() async {
+    final confirm = await _showConfirm(
+      title: 'Sign Out',
+      message: 'Are you sure you want to sign out?',
+    );
+    if (!confirm) return;
+
+    await Supabase.instance.client.auth.signOut();
+    final newId = const Uuid().v4();
+    await sharedPrefs.setString('deviceId', newId);
+    deviceId = newId;
+
+    // Reset local cache to empty state
+    await hiveService.clearAll();
+    await hiveService.writeCustomTasks([]);
+
+    // Invalidate providers
+    ref.invalidate(sessionsProvider);
+    ref.invalidate(completionPctProvider);
+
+    if (mounted) {
+      context.go('/auth');
     }
   }
 
@@ -591,6 +618,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   title: 'Reset everything',
                   titleColor: Color(0xFFD44060),
                   onTap: _showResetAllDialog,
+                ),
+                _SettingsTile(
+                  icon: Icons.logout_rounded,
+                  title: 'Sign out',
+                  onTap: _signOut,
                 ),
 
                 SizedBox(height: 52),

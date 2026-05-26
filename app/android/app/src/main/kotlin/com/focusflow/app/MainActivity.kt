@@ -1,4 +1,4 @@
-package com.naseem.yawmi
+package com.focusflow.app
 
 import io.flutter.embedding.android.FlutterActivity
 

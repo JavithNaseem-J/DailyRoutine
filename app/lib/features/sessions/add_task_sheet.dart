@@ -5,6 +5,7 @@ import '../../core/constants/session_data.dart';
 import '../../core/models/session.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
+import 'package:uuid/uuid.dart';
 import 'providers/sessions_provider.dart';
 
 class AddTaskSheet extends ConsumerStatefulWidget {
@@ -181,7 +182,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
           .editCustomTask(updatedTask, widget.existingTask!.sessionId);
     } else {
       final newTask = Task(
-        id: 'custom_${DateTime.now().millisecondsSinceEpoch}',
+        id: const Uuid().v4(),
         sessionId: _selectedSession.id,
         title: title,
         time: formattedTime,

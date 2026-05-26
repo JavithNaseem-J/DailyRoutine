@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:confetti/confetti.dart';
-import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/models/prayer_times.dart';
@@ -19,7 +18,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../sessions/providers/sessions_provider.dart';
 import '../../main.dart' show deviceId, sharedPrefs;
-import 'package:quran/quran.dart' as quran;
+import '../../core/services/connectivity_service.dart';
 import 'widgets/schedule_sheet.dart';
 
 
@@ -29,7 +28,7 @@ class ProgressItem {
 
   final String id;
   String name;
-  int progress; // 0ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“100
+  int progress; // 0ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ100
   String note;
 
   factory ProgressItem.fromJson(Map<String, dynamic> j) => ProgressItem(
@@ -76,10 +75,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   WeatherData? _weatherData;
   HadithData? _dailyHadith;
+  bool _isOnline = true;
+  StreamSubscription<bool>? _connectivitySub;
 
   @override
   void initState() {
     super.initState();
+    _isOnline = connectivityService.isConnected;
+    _connectivitySub = connectivityService.onConnectivityChanged.listen((connected) {
+      if (mounted) setState(() => _isOnline = connected);
+    });
     _confettiController = ConfettiController(
       duration: const Duration(seconds: 2),
     );
@@ -103,6 +108,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   void dispose() {
+    _connectivitySub?.cancel();
     _confettiController.dispose();
     _prayerTimer.cancel();
     
@@ -340,50 +346,87 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           child: Stack(
             children: [
-              // Background Watermark (Decorative Clouds)
+              // Background Watermarks (Stars, Thunder, Rain, Clouds)
+              // Cloud 1
               Positioned(
-                right: -20,
-                bottom: -10,
-                child: Icon(
-                  Icons.cloud,
-                  size: 130,
-                  color: AppColors.textSecondary.withValues(alpha: 0.06),
-                ),
-              ),
-              Positioned(
-                right: 40,
-                bottom: -30,
+                left: -10,
+                top: 15,
                 child: Transform.rotate(
-                  angle: -0.1,
+                  angle: -0.15,
                   child: Icon(
-                    Icons.cloud,
-                    size: 90,
+                    Icons.cloud_outlined,
+                    size: 40,
                     color: AppColors.textSecondary.withValues(alpha: 0.04),
                   ),
                 ),
               ),
+              // Cloud 2
               Positioned(
-                left: 60,
-                top: -20,
+                right: 90,
+                top: -10,
                 child: Transform.rotate(
-                  angle: 0.2,
+                  angle: 0.1,
                   child: Icon(
                     Icons.cloud,
-                    size: 70,
+                    size: 32,
                     color: AppColors.textSecondary.withValues(alpha: 0.03),
                   ),
                 ),
               ),
+              // Star 1
               Positioned(
-                left: -15,
-                top: 10,
+                right: 25,
+                top: 5,
+                child: Icon(
+                  Icons.star_rounded,
+                  size: 26,
+                  color: AppColors.textSecondary.withValues(alpha: 0.05),
+                ),
+              ),
+              // Star 2
+              Positioned(
+                right: 130,
+                bottom: 8,
+                child: Icon(
+                  Icons.star_outline_rounded,
+                  size: 16,
+                  color: AppColors.textSecondary.withValues(alpha: 0.04),
+                ),
+              ),
+              // Thunder
+              Positioned(
+                right: -5,
+                bottom: -5,
                 child: Transform.rotate(
-                  angle: -0.15,
+                  angle: 0.25,
                   child: Icon(
-                    Icons.cloud,
-                    size: 50,
+                    Icons.bolt_rounded,
+                    size: 42,
+                    color: AppColors.textSecondary.withValues(alpha: 0.05),
+                  ),
+                ),
+              ),
+              // Rain 1
+              Positioned(
+                left: 75,
+                top: -8,
+                child: Transform.rotate(
+                  angle: -0.2,
+                  child: Icon(
+                    Icons.water_drop_outlined,
+                    size: 28,
                     color: AppColors.textSecondary.withValues(alpha: 0.04),
                   ),
+                ),
+              ),
+              // Rain 2
+              Positioned(
+                left: 150,
+                bottom: -10,
+                child: Icon(
+                  Icons.water_drop_rounded,
+                  size: 20,
+                  color: AppColors.textSecondary.withValues(alpha: 0.04),
                 ),
               ),
               // Main Content
@@ -464,6 +507,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           body: SafeArea(bottom: false, child: ListView(padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
               children: [
                 SizedBox(height: 16),
+                if (!_isOnline)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFDF2F2),
+                      border: Border.all(color: const Color(0xFFFDE8E8)),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.cloud_off_rounded,
+                          color: Color(0xFFE02424),
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Offline Mode. Content will sync to cloud when you reconnect.',
+                            style: AppTypography.body(
+                              size: 13,
+                              weight: FontWeight.w600,
+                              color: const Color(0xFF9B1C1C),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 buildHeader(),
 
                 SizedBox(height: 16),
@@ -491,12 +564,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 SizedBox(height: 16),
 
                 _PrayerCard(prayer: _prayerData, todayPrayers: _todayPrayers),
-
-                SizedBox(height: 20),
-
-                const _QuranCard(),
-
-                SizedBox(height: 20),
+                const SizedBox(height: 24),
 
                 _TaskBoard(
                   tasks: _quickTasks,
@@ -985,7 +1053,7 @@ class _PrayerCard extends ConsumerWidget {
 
 // In Progress Section
 
-// In Progress â€” horizontal scroll, colorful cards
+// In Progress Ã¢â‚¬â€ horizontal scroll, colorful cards
 
 class _InProgressSection extends StatelessWidget {
   const _InProgressSection({
@@ -1436,7 +1504,7 @@ class _ProgressCardState extends State<_ProgressCard> {
                       ),
                     ),
 
-                    // PROGRESS BAR â€” drag/tap zone at the bottom of the column
+                    // PROGRESS BAR Ã¢â‚¬â€ drag/tap zone at the bottom of the column
                     GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onPanUpdate: _isEditing ? (d) {
@@ -1789,7 +1857,7 @@ class _QuadrantSheetState extends State<_QuadrantSheet> {
     }
     // Use the task created & persisted by the parent so both share the same UUID.
     // Previously a second QuickTask with a NEW uuid was created here, causing
-    // toggle/delete to silently fail in the parent (wrong id) → ghost task bug.
+    // toggle/delete to silently fail in the parent (wrong id) â†’ ghost task bug.
     final newTask = widget.onAdd(text, widget.isUrgent, widget.isImportant);
     setState(() => _localAll = [..._localAll, newTask]);
     widget.controller.clear();
@@ -1890,7 +1958,7 @@ class _QuadrantSheetState extends State<_QuadrantSheet> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
-                'No tasks yet — add one below!',
+                'No tasks yet â€” add one below!',
                 style:
                     AppTypography.body(size: 14, color: AppColors.textMuted),
               ),
@@ -2016,7 +2084,7 @@ class _MatrixTaskChipState extends State<_MatrixTaskChip> {
     } else if (cur == 'P4') {
       next = 'P5';
     } else {
-      next = null; // P5 → clear
+      next = null; // P5 â†’ clear
     }
     widget.onUpdate(widget.task.copyWith(priority: next));
   }
@@ -2098,7 +2166,7 @@ class _MatrixTaskChipState extends State<_MatrixTaskChip> {
 
   Widget? _buildMetaBadge() {
     switch (widget.quadrantIndex) {
-      // Do it → priority flag
+      // Do it â†’ priority flag
       case 0:
         final p = widget.task.priority;
         // P1=Red, P2=Orange, P3=Blue, P4=Purple, P5=Green, null=muted
@@ -2139,7 +2207,7 @@ class _MatrixTaskChipState extends State<_MatrixTaskChip> {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  p ?? 'P—',
+                  p ?? 'Pâ€”',
                   style: AppTypography.mono(
                     size: 11,
                     weight: FontWeight.w700,
@@ -2152,7 +2220,7 @@ class _MatrixTaskChipState extends State<_MatrixTaskChip> {
         );
 
 
-      // Schedule it → deadline date
+      // Schedule it â†’ deadline date
       case 1:
         final dl = widget.task.deadline;
         String label = 'Date';
@@ -2211,7 +2279,7 @@ class _MatrixTaskChipState extends State<_MatrixTaskChip> {
           ),
         );
 
-      // Delegate it → person name (sujood icon for prayer context)
+      // Delegate it â†’ person name (sujood icon for prayer context)
       case 2:
         final name = widget.task.delegatee;
         return GestureDetector(
@@ -2357,283 +2425,6 @@ class _MatrixTaskChipState extends State<_MatrixTaskChip> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-
-
-// Quran Card
-
-class _QuranCard extends StatefulWidget {
-  const _QuranCard();
-
-  @override
-  State<_QuranCard> createState() => _QuranCardState();
-}
-
-class _QuranCardState extends State<_QuranCard> {
-  bool _expanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final bStrs = sharedPrefs.getStringList('quran_bookmarks') ?? [];
-    final bookmarks = bStrs.map((e) => int.tryParse(e)).whereType<int>().toList();
-    bookmarks.sort((a,b) => b.compareTo(a));
-
-    final lastPage = sharedPrefs.getInt('quran_last_page') ?? 1;
-    final progressPage = bookmarks.isNotEmpty ? bookmarks.first : 0;
-
-    final pageData = quran.getPageData(lastPage);
-    final surahNum = pageData.isNotEmpty ? pageData.first['surah'] as int : 1;
-    final ayahNum = pageData.isNotEmpty ? pageData.first['start'] as int : 1;
-    final surahName = quran.getSurahName(surahNum);
-    final juz = quran.getJuzNumber(surahNum, ayahNum);
-
-    return GestureDetector(
-      onTap: () {
-        setState(() => _expanded = !_expanded);
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        width: double.infinity,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF232526), Color(0xFF111111)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF111111).withValues(alpha: 0.3),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Stack(
-              children: [
-                Positioned(
-                  right: -30,
-                  bottom: -30,
-                  child: Icon(
-                    Icons.menu_book_rounded,
-                    size: 160,
-                    color: Colors.white.withValues(alpha: 0.03),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.white.withValues(alpha: 0.15),
-                                Colors.white.withValues(alpha: 0.05),
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                          ),
-                          child: const Icon(Icons.auto_stories_rounded, color: Colors.white, size: 24),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                surahName,
-                                style: AppTypography.body(
-                                  size: 16,
-                                  weight: FontWeight.w800,
-                                  color: Colors.white,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Juz $juz • Pg $lastPage',
-                                style: AppTypography.body(
-                                  size: 12,
-                                  color: Colors.white60,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 12),
-                              Container(
-                                height: 4,
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                                child: FractionallySizedBox(
-                                  alignment: Alignment.centerLeft,
-                                  widthFactor: progressPage / 604,
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFACC15),
-                                      borderRadius: BorderRadius.circular(2),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: const Color(0xFFFACC15).withValues(alpha: 0.4),
-                                          blurRadius: 8,
-                                        )
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Icon(
-                          _expanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
-                          color: Colors.white54,
-                          size: 28,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            
-            if (_expanded)
-              Container(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Bookmarks & History',
-                      style: AppTypography.body(size: 13, weight: FontWeight.w600, color: Colors.white70),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      height: 80,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: bookmarks.length + 1,
-                        itemBuilder: (context, index) {
-                          if (index == 0) {
-                            return _buildBookmarkCard(
-                              context, 
-                              page: lastPage, 
-                              isCurrent: true,
-                              onTap: () async {
-                                await context.push('/quran/reader', extra: {'page': lastPage});
-                                setState(() {});
-                              }
-                            );
-                          }
-                          final page = bookmarks[index - 1];
-                          return _buildBookmarkCard(
-                            context, 
-                            page: page, 
-                            isCurrent: false,
-                            onTap: () async {
-                              await context.push('/quran/reader', extra: {'page': page});
-                              setState(() {});
-                            }
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBookmarkCard(BuildContext context, {required int page, required bool isCurrent, required VoidCallback onTap}) {
-    final pageData = quran.getPageData(page);
-    final surahNum = pageData.isNotEmpty ? pageData.first['surah'] as int : 1;
-    final surahName = quran.getSurahName(surahNum);
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 110,
-        margin: const EdgeInsets.only(right: 12),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isCurrent ? const Color(0xFFFACC15).withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.05),
-          border: Border.all(
-            color: isCurrent ? const Color(0xFFFACC15).withValues(alpha: 0.5) : Colors.white.withValues(alpha: 0.1),
-          ),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  isCurrent ? Icons.menu_book_rounded : Icons.bookmark_rounded,
-                  size: 14,
-                  color: isCurrent ? const Color(0xFFFACC15) : Colors.white60,
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    isCurrent ? 'Current' : 'Saved',
-                    style: AppTypography.mono(
-                      size: 10,
-                      weight: FontWeight.w600,
-                      color: isCurrent ? const Color(0xFFFACC15) : Colors.white60,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            const Spacer(),
-            Text(
-              surahName,
-              style: AppTypography.body(
-                size: 13,
-                weight: FontWeight.w700,
-                color: Colors.white,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Page $page',
-              style: AppTypography.body(
-                size: 11,
-                color: Colors.white54,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

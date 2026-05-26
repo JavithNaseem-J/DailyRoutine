@@ -36,12 +36,23 @@ class SessionsState {
       (s) => s.id == sessionId,
       orElse: () => sessions.first,
     );
-    final validTasks = session.tasks.where((t) => !t.isBreak).map((t) => t.id).toList();
+    final validTasks = session.tasks
+        .where((t) => !t.isBreak)
+        .map((t) => t.id)
+        .toList();
     if (validTasks.isEmpty) return SessionPillState.empty;
     final doneCount = validTasks.where((id) => taskStates[id] == true).length;
-    if (doneCount == 0) return SessionPillState.empty;
-    if (doneCount == validTasks.length) return SessionPillState.complete;
-    if (doneCount / validTasks.length >= 0.5) return SessionPillState.halfway;
+    final skippedCount = validTasks
+        .where((id) => dailyState.taskStatus[id] == 'skipped')
+        .length;
+    final totalValid = validTasks.length - skippedCount;
+    if (totalValid == 0) {
+      return skippedCount > 0
+          ? SessionPillState.complete
+          : SessionPillState.empty;
+    }
+    if (doneCount == totalValid) return SessionPillState.complete;
+    if (doneCount / totalValid >= 0.5) return SessionPillState.halfway;
     return SessionPillState.started;
   }
 
@@ -56,7 +67,12 @@ class SessionsState {
         .toList();
     if (validTasks.isEmpty) return 0;
     final doneCount = validTasks.where((id) => taskStates[id] == true).length;
-    return ((doneCount / validTasks.length) * 100).round();
+    final skippedCount = validTasks
+        .where((id) => dailyState.taskStatus[id] == 'skipped')
+        .length;
+    final totalValid = validTasks.length - skippedCount;
+    if (totalValid <= 0) return 0;
+    return ((doneCount / totalValid) * 100).round();
   }
 
   // BUG-002 fix: return null instead of crashing when sessions is empty
@@ -124,9 +140,31 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
   ) async {
     final remote = await supabaseService.fetchDailyState(_todayKey, deviceId);
     final remoteCustomTasks = await supabaseService.fetchCustomTasks(deviceId);
+    final localCustomTasks = hiveService.readCustomTasks();
+
+    // Merge remote and local custom tasks:
+    // If a task exists in both, remote should win.
+    // If a task exists only locally, upload it to remote!
+    final Map<String, Task> mergedMap = {};
+    for (final task in localCustomTasks) {
+      mergedMap[task.id] = task;
+    }
+    for (final task in remoteCustomTasks) {
+      mergedMap[task.id] = task;
+    }
     
-    // Save custom tasks locally
-    await hiveService.writeCustomTasks(remoteCustomTasks);
+    final mergedList = mergedMap.values.toList();
+    
+    // Upload local-only tasks to remote
+    for (final task in localCustomTasks) {
+      final existsOnRemote = remoteCustomTasks.any((t) => t.id == task.id);
+      if (!existsOnRemote) {
+        await supabaseService.upsertCustomTask(task, deviceId).catchError((_) {});
+      }
+    }
+    
+    // Save merged to Hive
+    await hiveService.writeCustomTasks(mergedList);
 
     DailyState merged;
     if (remote == null) {
@@ -145,7 +183,10 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
         focusSessions: remote.focusSessions.isNotEmpty
             ? remote.focusSessions
             : localState.focusSessions,
-        projectMinutes: {...localState.projectMinutes, ...remote.projectMinutes},
+        projectMinutes: {
+          ...localState.projectMinutes,
+          ...remote.projectMinutes,
+        },
       );
       await hiveService.writeDailyState(merged);
     }
@@ -157,7 +198,7 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
         isFriday: DateTime.now().weekday == DateTime.friday,
       );
       final updatedSessions = baseSessions.map((s) {
-        final relevantTasks = remoteCustomTasks
+        final relevantTasks = mergedList
             .where((t) => t.sessionId == s.id)
             .toList();
         relevantTasks.sort(
@@ -173,10 +214,9 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
         );
       }).toList();
 
-      state = AsyncData(current.copyWith(
-        dailyState: merged,
-        sessions: updatedSessions,
-      ));
+      state = AsyncData(
+        current.copyWith(dailyState: merged, sessions: updatedSessions),
+      );
     }
   }
 
@@ -184,7 +224,10 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     final now = TimeOfDay.now();
     final nowMin = now.hour * 60 + now.minute;
     for (final s in sessions) {
-      final range = s.timeRange.split(RegExp(r'\s*[-–—]\s*')).map((p) => p.trim()).toList();
+      final range = s.timeRange
+          .split(RegExp(r'\s*[-–—]\s*'))
+          .map((p) => p.trim())
+          .toList();
       if (range.length != 2) continue;
       if (nowMin >= _parseTime(range[0]) && nowMin < _parseTime(range[1])) {
         return s.id;
@@ -205,7 +248,6 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     if (!isPm && h == 12) h = 0;
     return h * 60 + m;
   }
-
 
   Future<void> toggleTask(String taskId) async {
     final current = state.value;
@@ -256,14 +298,19 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
   Future<void> setExplicitTaskStatus(String taskId, String newStatus) async {
     final current = state.value;
     if (current == null) return;
-    
+
     // newStatus should be 'on_time', 'late', 'skipped', or 'none'
     bool newDone = (newStatus == 'on_time' || newStatus == 'late');
-    
+
     await _applyTaskStatusChange(current, taskId, newDone, newStatus);
   }
 
-  Future<void> _applyTaskStatusChange(SessionsState current, String taskId, bool newDone, String newStatus) async {
+  Future<void> _applyTaskStatusChange(
+    SessionsState current,
+    String taskId,
+    bool newDone,
+    String newStatus,
+  ) async {
     final newDaily = current.dailyState.copyWith(
       taskStates: {...current.taskStates, taskId: newDone},
       taskStatus: {...current.dailyState.taskStatus, taskId: newStatus},
@@ -295,11 +342,12 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
         .map((t) => t.id)
         .toList();
     if (validTasks.isEmpty) return false;
-    final doneCount = validTasks.where((id) => daily.taskStates[id] == true).length;
+    final doneCount = validTasks
+        .where((id) => daily.taskStates[id] == true)
+        .length;
     final pct = ((doneCount / validTasks.length) * 100).round();
     return pct >= 50;
   }
-
 
   Future<void> toggleBonus(String taskId) async {
     final current = state.value;
@@ -316,7 +364,6 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     await hiveService.writeDailyState(newDaily);
     supabaseService.upsertDailyState(newDaily, deviceId).catchError((_) {});
   }
-
 
   Future<void> togglePrayer(String prayerName) async {
     final current = state.value;
@@ -335,7 +382,6 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     supabaseService.upsertDailyState(newDaily, deviceId).catchError((_) {});
   }
 
-
   // BUG-005 fix: use copyWith so prayerStates and all fields are preserved
   Future<void> setMood(String mood) async {
     final current = state.value;
@@ -347,7 +393,6 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     await hiveService.writeDailyState(newDaily);
     supabaseService.upsertDailyState(newDaily, deviceId).catchError((_) {});
   }
-
 
   Future<void> addFocusMinutes(int minutes, {String? tag}) async {
     final current = state.value;
@@ -374,7 +419,6 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     await hiveService.writeDailyState(newDaily);
     supabaseService.upsertDailyState(newDaily, deviceId).catchError((_) {});
   }
-
 
   Future<void> addCustomTask(Task task) async {
     final currentTasks = hiveService.readCustomTasks();
@@ -412,7 +456,9 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     if (idx != -1) {
       customTasks[idx] = updatedTask;
       await hiveService.writeCustomTasks(customTasks);
-      supabaseService.upsertCustomTask(updatedTask, deviceId).catchError((_) {});
+      supabaseService
+          .upsertCustomTask(updatedTask, deviceId)
+          .catchError((_) {});
     }
 
     final current = state.value;
@@ -507,9 +553,3 @@ final completionPctProvider = Provider<int>((ref) {
 final activeSessionProvider = Provider<Session?>((ref) {
   return ref.watch(sessionsProvider).value?.activeSession;
 });
-
-
-
-
-
-

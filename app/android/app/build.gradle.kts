@@ -14,7 +14,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.naseem.yawmi"
+    namespace = "com.focusflow.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -29,8 +29,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.naseem.yawmi"
-        minSdk = 21
+        applicationId = "com.focusflow.app"
+        this.minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -74,4 +74,4 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
-}
+}

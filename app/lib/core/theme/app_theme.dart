@@ -23,10 +23,10 @@ abstract final class AppTheme {
       textTheme: GoogleFonts.plusJakartaSansTextTheme(),
       cardTheme: CardThemeData(
         color: AppColors.cardSurface,
-        shadowColor: Color(0x14000000),
-        elevation: 2,
+        shadowColor: const Color(0x0A000000),
+        elevation: 4,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderRadius: BorderRadius.all(Radius.circular(20)),
         ),
         margin: EdgeInsets.zero,
       ),

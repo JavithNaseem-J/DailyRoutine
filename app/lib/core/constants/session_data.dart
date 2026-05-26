@@ -7,7 +7,6 @@ abstract final class SessionData {
   static List<Session> get allSessions => [
     _morning,
     _afternoon,
-    _evening,
     _night,
     _weekend,
   ];
@@ -15,7 +14,7 @@ abstract final class SessionData {
   static final _morning = Session(
     id: 'morning',
     name: 'Morning',
-    timeRange: '05:00 - 12:00',
+    timeRange: '05:00 - 11:00',
     accentColor: AppColors.morning,
     tasks: [],
   );
@@ -23,23 +22,15 @@ abstract final class SessionData {
   static final _afternoon = Session(
     id: 'afternoon',
     name: 'Afternoon',
-    timeRange: '12:00 - 16:00',
+    timeRange: '11:00 - 17:00',
     accentColor: AppColors.midday,
-    tasks: [],
-  );
-
-  static final _evening = Session(
-    id: 'evening',
-    name: 'Evening',
-    timeRange: '16:00 - 19:00',
-    accentColor: AppColors.sunset,
     tasks: [],
   );
 
   static final _night = Session(
     id: 'night',
     name: 'Night',
-    timeRange: '19:00 - 22:30',
+    timeRange: '17:00 - 23:00',
     accentColor: AppColors.evening,
     tasks: [],
   );

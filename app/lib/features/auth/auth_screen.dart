@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/supabase_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../main.dart';
@@ -50,18 +51,18 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() => _isLoading = true);
     try {
       if (_isSignUp) {
-        await Supabase.instance.client.auth.signUp(
+        await supabaseClient.auth.signUp(
           email: email,
           password: password,
         );
       } else {
-        await Supabase.instance.client.auth.signInWithPassword(
+        await supabaseClient.auth.signInWithPassword(
           email: email,
           password: password,
         );
       }
 
-      final user = Supabase.instance.client.auth.currentUser;
+      final user = supabaseClient.auth.currentUser;
       if (user != null) {
         // Sync local device ID to the authenticated user's ID
         await sharedPrefs.setString('deviceId', user.id);
