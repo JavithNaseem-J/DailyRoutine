@@ -1,4 +1,4 @@
-# Yawmi — The Mindful Daily Routine Planner
+# Yawmi --- The Mindful Daily Routine Planner
 
 Yawmi (Arabic for "My Day") is a beautifully designed, high-performance daily routine planner built with Flutter. It seamlessly merges deep-work concepts, Islamic prayer rhythms, and a local-first offline architecture into a single cohesive experience.
 
