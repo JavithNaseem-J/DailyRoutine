@@ -699,7 +699,7 @@ class _LevelTodayStreakCard extends StatelessWidget {
                               onTimeFraction: onTimeFraction,
                               lateFraction:   lateFraction,
                               onTimeColor:    AppColors.complete,
-                              lateColor:      Colors.redAccent,
+                              lateColor:      const Color(0xFFF59E0B),
                               trackColor:     AppColors.surfaceRaised,
                               strokeWidth:    9,
                             ),
@@ -1489,20 +1489,6 @@ class _SwipeableWeeklyChartState extends State<_SwipeableWeeklyChart> {
               ),
               Row(
                 children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: AppColors.complete,
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Completion %',
-                    style: AppTypography.body(size: 11, color: AppColors.textMuted),
-                  ),
-                  const SizedBox(width: 12),
                   GestureDetector(
                     onTap: _currentPage < _totalWeeks - 1
                         ? () => _controller.nextPage(
@@ -1520,7 +1506,7 @@ class _SwipeableWeeklyChartState extends State<_SwipeableWeeklyChart> {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    _weekLabel(_currentPage),
+                    '${_currentPage + 1}',
                     style: AppTypography.label(color: AppColors.textSecondary),
                   ),
                   const SizedBox(width: 4),

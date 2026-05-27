@@ -75,11 +75,13 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     t = t.toLowerCase().replaceAll(' ', '');
     if (t == 'allday' || t.isEmpty) return 0;
     final isPm = t.contains('pm');
+    final isAm = t.contains('am');
     t = t.replaceAll('pm', '').replaceAll('am', '');
     final p = t.split(':');
     int h = int.tryParse(p[0]) ?? 0;
     final m = p.length > 1 ? int.tryParse(p[1]) ?? 0 : 0;
     if (isPm && h != 12) h += 12;
+    if (isAm && h == 12) h = 0;
     return h * 60 + m;
   }
 
@@ -797,33 +799,32 @@ class _TaskCardState extends State<_TaskCard>
                   onTap: null,
                   behavior: HitTestBehavior.opaque,
                   child: Container(
-                    width: widget.task.isBreak ? 12 : 16,
-                    height: widget.task.isBreak ? 12 : 16,
+                    width: 16,
+                    height: 16,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: widget.task.isBreak
-                          ? Color(0xFF9CA3AF)
-                          : widget.isDone
-                          ? widget.taskStatus == 'late'
-                                ? Color(0xFFEF4444)
-                                : Color(0xFF4ade80)
-                          : widget.taskStatus == 'skipped'
                           ? Colors.black
-                          : Colors.white,
-                      border:
-                          (widget.isDone ||
+                          : widget.isDone
+                              ? widget.taskStatus == 'late'
+                                  ? const Color(0xFFF59E0B)
+                                  : const Color(0xFF4ADE80)
+                              : widget.taskStatus == 'skipped'
+                                  ? const Color(0xFFEF4444)
+                                  : Colors.white,
+                      border: (widget.isDone ||
                               widget.task.isBreak ||
                               widget.taskStatus == 'skipped')
                           ? null
-                          : Border.all(color: Color(0xFFD1D5DB), width: 1.5),
+                          : Border.all(color: const Color(0xFFD1D5DB), width: 1.5),
                     ),
-                    child: (widget.isDone && !widget.task.isBreak)
-                        ? const Icon(Icons.check, size: 10, color: Colors.white)
-                        : (!widget.isDone &&
-                              !widget.task.isBreak &&
-                              widget.taskStatus == 'skipped')
-                        ? const Icon(Icons.close, size: 10, color: Colors.white)
-                        : null,
+                    child: widget.task.isBreak
+                        ? null
+                        : widget.isDone
+                            ? const Icon(Icons.check, size: 10, color: Colors.white)
+                            : widget.taskStatus == 'skipped'
+                                ? const Icon(Icons.close, size: 10, color: Colors.white)
+                                : null,
                   ),
                 ),
               ),
@@ -851,27 +852,21 @@ class _TaskCardState extends State<_TaskCard>
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: widget.task.isBreak
-                        ? AppColors.surfaceRaised
-                        : (widget.taskStatus == 'skipped'
-                            ? const Color(0xFFF3F4F6)
-                            : Colors.white),
+                    color: widget.taskStatus == 'skipped'
+                        ? const Color(0xFFF3F4F6)
+                        : Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: widget.task.isBreak
-                          ? Colors.transparent
-                          : Color(0xFFF3F4F6),
+                      color: const Color(0xFFF3F4F6),
                       width: 1.5,
                     ),
-                    boxShadow: widget.task.isBreak
-                        ? []
-                        : [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.02),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.02),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -882,9 +877,7 @@ class _TaskCardState extends State<_TaskCard>
                             width: 32,
                             height: 32,
                             decoration: BoxDecoration(
-                              color: widget.task.isBreak
-                                  ? Colors.white.withValues(alpha: 0.5)
-                                  : Color(0xFFF3F4F6),
+                              color: const Color(0xFFF3F4F6),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Icon(
@@ -976,7 +969,7 @@ class _TaskCardState extends State<_TaskCard>
                                     _TrayButton(
                                       icon: Icons.check_circle_rounded,
                                       label: 'On Time',
-                                      color: Color(0xFF4ade80),
+                                      color: const Color(0xFF4ade80),
                                       onTap: () {
                                         _closeExpanded();
                                         widget.onSetStatus(
@@ -988,7 +981,7 @@ class _TaskCardState extends State<_TaskCard>
                                     _TrayButton(
                                       icon: Icons.access_time_filled_rounded,
                                       label: 'Delayed',
-                                      color: Color(0xFFEF4444),
+                                      color: const Color(0xFFF59E0B),
                                       onTap: () {
                                         _closeExpanded();
                                         widget.onSetStatus(widget.task, 'late');
@@ -997,7 +990,7 @@ class _TaskCardState extends State<_TaskCard>
                                     _TrayButton(
                                       icon: Icons.skip_next_rounded,
                                       label: 'Skip',
-                                      color: Color(0xFF9CA3AF),
+                                      color: const Color(0xFFEF4444),
                                       onTap: () {
                                         _closeExpanded();
                                         widget.onSetStatus(

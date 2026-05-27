@@ -356,7 +356,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   child: Icon(
                     Icons.cloud_outlined,
                     size: 40,
-                    color: AppColors.textSecondary.withValues(alpha: 0.04),
+                    color: AppColors.textSecondary.withValues(alpha: 0.15),
                   ),
                 ),
               ),
@@ -369,7 +369,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   child: Icon(
                     Icons.cloud,
                     size: 32,
-                    color: AppColors.textSecondary.withValues(alpha: 0.03),
+                    color: AppColors.textSecondary.withValues(alpha: 0.15),
                   ),
                 ),
               ),
@@ -380,7 +380,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: Icon(
                   Icons.star_rounded,
                   size: 26,
-                  color: AppColors.textSecondary.withValues(alpha: 0.05),
+                  color: AppColors.textSecondary.withValues(alpha: 0.15),
                 ),
               ),
               // Star 2
@@ -390,7 +390,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: Icon(
                   Icons.star_outline_rounded,
                   size: 16,
-                  color: AppColors.textSecondary.withValues(alpha: 0.04),
+                  color: AppColors.textSecondary.withValues(alpha: 0.15),
                 ),
               ),
               // Thunder
@@ -402,7 +402,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   child: Icon(
                     Icons.bolt_rounded,
                     size: 42,
-                    color: AppColors.textSecondary.withValues(alpha: 0.05),
+                    color: AppColors.textSecondary.withValues(alpha: 0.15),
                   ),
                 ),
               ),
@@ -415,7 +415,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   child: Icon(
                     Icons.water_drop_outlined,
                     size: 28,
-                    color: AppColors.textSecondary.withValues(alpha: 0.04),
+                    color: AppColors.textSecondary.withValues(alpha: 0.15),
                   ),
                 ),
               ),
@@ -426,7 +426,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: Icon(
                   Icons.water_drop_rounded,
                   size: 20,
-                  color: AppColors.textSecondary.withValues(alpha: 0.04),
+                  color: AppColors.textSecondary.withValues(alpha: 0.15),
                 ),
               ),
               // Main Content
@@ -880,7 +880,7 @@ class _PrayerCard extends ConsumerWidget {
             child: Icon(
               Icons.mosque_rounded,
               size: 160,
-              color: Colors.white.withValues(alpha: 0.03),
+              color: Colors.white.withValues(alpha: 0.15),
             ),
           ),
           Padding(

@@ -36,8 +36,8 @@ class GamificationService {
 
     int totalValidTasks = totalScheduledTasks - skippedTasks;
 
-    if (totalScheduledTasks == 0) return 40.0;
-    if (totalValidTasks <= 0) return 40.0;
+    if (totalScheduledTasks == 0) return 0.0;
+    if (totalValidTasks <= 0) return 0.0;
 
     return (completedTasks / totalValidTasks).clamp(0.0, 1.0) * 40.0;
   }

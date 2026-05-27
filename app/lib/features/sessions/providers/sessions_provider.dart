@@ -240,12 +240,13 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     t = t.toLowerCase().replaceAll(' ', '');
     if (t == 'allday' || t.isEmpty) return 0;
     final isPm = t.contains('pm');
+    final isAm = t.contains('am');
     t = t.replaceAll('pm', '').replaceAll('am', '');
     final p = t.split(':');
     int h = int.tryParse(p[0]) ?? 0;
     final m = p.length > 1 ? int.tryParse(p[1]) ?? 0 : 0;
     if (isPm && h != 12) h += 12;
-    if (!isPm && h == 12) h = 0;
+    if (isAm && h == 12) h = 0;
     return h * 60 + m;
   }
 

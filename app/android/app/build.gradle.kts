@@ -14,7 +14,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.focusflow.app"
+    namespace = "com.yawmi.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -29,7 +29,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.focusflow.app"
+        applicationId = "com.yawmi.app"
         this.minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
