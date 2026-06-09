@@ -36,7 +36,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     0,
   );
 
-  List<double> _weeklyData = List.filled(7, 0);
   List<double> _disciplineHistory = List.filled(7, 0);
   int _currentDisciplineScore = 0;
 
@@ -66,6 +65,301 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   void initState() {
     super.initState();
     _loadRealData();
+  }
+
+  void _showDayDetails(BuildContext context, DateTime date) {
+    final dateStr =
+        "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+
+    final dailyState = hiveService.readDailyState(dateStr);
+
+    final today = DateTime.now();
+    final isToday = date.year == today.year &&
+        date.month == today.month &&
+        date.day == today.day;
+
+    int totalTasksCount = 0;
+    int doneOnTime = 0;
+    int doneLate = 0;
+    int skipped = 0;
+    int pending = 0;
+    int completionPctVal = 0;
+
+    if (isToday) {
+      final sessionsList = ref.read(sessionsProvider).value?.sessions ?? [];
+      final validTasks = sessionsList
+          .expand((s) => s.tasks)
+          .where((t) => !t.isBreak)
+          .toList();
+      totalTasksCount = validTasks.length;
+
+      for (final t in validTasks) {
+        final isDone = dailyState.taskStates[t.id] == true;
+        final status = dailyState.taskStatus[t.id] ?? 'none';
+        if (isDone) {
+          if (status == 'late') {
+            doneLate++;
+          } else {
+            doneOnTime++;
+          }
+        } else if (status == 'skipped') {
+          skipped++;
+        } else {
+          pending++;
+        }
+      }
+      completionPctVal = ref.read(completionPctProvider);
+    } else {
+      final allTaskIds = {
+        ...dailyState.taskStates.keys,
+        ...dailyState.taskStatus.keys
+      };
+
+      for (final id in allTaskIds) {
+        final isDone = dailyState.taskStates[id] == true;
+        final status = dailyState.taskStatus[id] ?? 'none';
+        if (isDone) {
+          if (status == 'late') {
+            doneLate++;
+          } else {
+            doneOnTime++;
+          }
+        } else if (status == 'skipped') {
+          skipped++;
+        } else {
+          pending++;
+        }
+      }
+      totalTasksCount = doneOnTime + doneLate + skipped + pending;
+
+      final double? mapPct = _dailyCompletionMap[dateStr];
+      if (mapPct != null) {
+        completionPctVal = mapPct.toInt();
+      } else {
+        final doneCount = doneOnTime + doneLate;
+        final totalValid = totalTasksCount - skipped;
+        completionPctVal =
+            totalValid > 0 ? ((doneCount / totalValid) * 100).round() : 0;
+      }
+    }
+
+    final List<String> weekdays = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday'
+    ];
+    final List<String> months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December'
+    ];
+    final dateFormatted =
+        "${weekdays[date.weekday - 1]}, ${months[date.month - 1]} ${date.day}, ${date.year}";
+
+    showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      backgroundColor: AppColors.cardSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  dateFormatted,
+                  style: AppTypography.body(
+                    size: 13,
+                    weight: FontWeight.w500,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Daily Task Stats',
+                  style: AppTypography.sectionTitle(color: AppColors.textPrimary),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 16,
+                          horizontal: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceRaised,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Column(
+                          children: [
+                            SizedBox(
+                              width: 60,
+                              height: 60,
+                              child: Stack(
+                                children: [
+                                  Center(
+                                    child: SizedBox(
+                                      width: 60,
+                                      height: 60,
+                                      child: CircularProgressIndicator(
+                                        value: completionPctVal / 100.0,
+                                        strokeWidth: 6,
+                                        backgroundColor: AppColors.border,
+                                        color: AppColors.complete,
+                                      ),
+                                    ),
+                                  ),
+                                  Center(
+                                    child: Text(
+                                      '$completionPctVal%',
+                                      style: AppTypography.mono(
+                                        size: 14,
+                                        weight: FontWeight.w700,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Completion',
+                              style: AppTypography.body(
+                                size: 12,
+                                weight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      flex: 6,
+                      child: Column(
+                        children: [
+                          _buildDetailsRow(
+                            label: 'Total Tasks',
+                            value: '$totalTasksCount',
+                            color: AppColors.textPrimary,
+                          ),
+                          const Divider(height: 12),
+                          _buildDetailsRow(
+                            label: 'Done On Time',
+                            value: '$doneOnTime',
+                            color: AppColors.complete,
+                            icon: Icons.check_circle_rounded,
+                          ),
+                          const Divider(height: 12),
+                          _buildDetailsRow(
+                            label: 'Done Late',
+                            value: '$doneLate',
+                            color: AppColors.afternoon,
+                            icon: Icons.watch_later_rounded,
+                          ),
+                          const Divider(height: 12),
+                          _buildDetailsRow(
+                            label: 'Skipped',
+                            value: '$skipped',
+                            color: AppColors.moodLow,
+                            icon: Icons.remove_circle_rounded,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                if (totalTasksCount == 0 && !isToday) ...[
+                  const SizedBox(height: 20),
+                  Center(
+                    child: Text(
+                      'No tasks were recorded on this day.',
+                      style: AppTypography.body(
+                        size: 12,
+                        color: AppColors.textMuted,
+                        style: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailsRow({
+    required String label,
+    required String value,
+    required Color color,
+    IconData? icon,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: AppTypography.body(
+                size: 13,
+                weight: FontWeight.w500,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+        Text(
+          value,
+          style: AppTypography.mono(
+            size: 14,
+            weight: FontWeight.w700,
+            color: color,
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _loadRealData() async {
@@ -129,7 +423,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       if (!mounted) return;
 
       final streak = results[0] as Streak?;
-      final history = results[1] as List<Map<String, dynamic>>;
       final history30 = results[2] as List<Map<String, dynamic>>;
       final taskHistory30 = results[3] as List<Map<String, dynamic>>;
 
@@ -196,17 +489,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         } catch (_) {}
       }
 
-      // Map history list -> Sun-indexed weekly bar data
-      final weekly = List<double>.filled(7, 0);
-      for (final row in history) {
-        try {
-          final dt = DateTime.parse(row['date'] as String);
-          final dayIdx = dt.weekday == 7 ? 0 : dt.weekday; // Sun=0...Sat=6
-          if (dayIdx >= 0 && dayIdx < 7) {
-            weekly[dayIdx] = (row['completion_pct'] as num).toDouble();
-          }
-        } catch (_) {}
-      }
+
+
 
       // Map history to current month calendar
       final daysInMonth = DateTime(today.year, today.month + 1, 0).day;
@@ -263,7 +547,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       var sortedDelayed = delayedCounts.entries.toList()..sort((a,b) => b.value.compareTo(a.value));
 
       setState(() {
-        _weeklyData = weekly;
         _heatmap = heatmap;
         _currentStreak = computedStreak;
         _bestStreak = streak?.bestStreak ?? 0;
@@ -293,9 +576,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       totalTasks += s.tasks.where((t) => !t.isBreak).length;
     }
 
-    final dayIdx = DateTime.now().weekday == 7 ? 0 : DateTime.now().weekday;
     final liveHeatmap = List<int>.from(_heatmap);
-    final liveWeekly = List<double>.from(_weeklyData);
     final liveDisciplineHistory = List<double>.from(_disciplineHistory);
     int realScore = _currentDisciplineScore;
 
@@ -318,9 +599,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         if (todayIdx < liveHeatmap.length) {
           liveHeatmap[todayIdx] = completionPct;
         }
-      }
-      if (liveWeekly.isNotEmpty && dayIdx >= 0 && dayIdx < 7) {
-        liveWeekly[dayIdx] = completionPct.toDouble();
       }
     }
 
@@ -347,6 +625,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         lateCount++;
       }
     });
+
+
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -376,86 +656,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               ],
             ),
 
-            Builder(
-              builder: (context) {
-                final level = GamificationService.getProductivityLevel(realScore);
-                String insight;
-
-                if (realScore >= 91) {
-                  insight = 'Elite performance! 🏆 Score: $realScore/100. You\'re in peak discipline mode.';
-                } else if (_currentStreak > 2 && realScore >= 76) {
-                  insight = 'Disciplined & consistent! 🔥 $_currentStreak-day streak + score $realScore/100.';
-                } else if (completionPct > 80 && realScore >= 51) {
-                  insight = 'Focused level reached! Great task completion ($completionPct%) today.';
-                } else if (_totalFocusSessionsCount > 1) {
-                  insight = '$_totalFocusSessionsCount deep-work sessions logged. Longest: ${_longestFocusSession}m. Keep it up!';
-                } else if (_totalFocusMinutes > 30) {
-                  insight = '$_totalFocusMinutes min of focus this month. Level: $level — keep building momentum.';
-                } else if (_currentStreak > 0) {
-                  insight = '$_currentStreak-day streak active. Score: $realScore/100. Don\'t break the chain!';
-                } else {
-                  insight = 'Level: $level. Score $realScore/100 — consistency is the foundation of excellence.';
-                }
-
-                return Container(
-                  margin: const EdgeInsets.only(top: 12, bottom: 20),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardSurface,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.auto_awesome_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Daily Insight',
-                              style: AppTypography.body(
-                                size: 12,
-                                weight: FontWeight.w700,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              insight,
-                              style: AppTypography.body(
-                                size: 13,
-                                color: AppColors.textSecondary,
-                                weight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Icon(
-                        Icons.chevron_right_rounded,
-                        color: AppColors.textMuted,
-                        size: 20,
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
 
             _DisciplineScoreCard(
               score: realScore,
@@ -496,13 +696,11 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               topDelayed: _topDelayed,
             ),
 
-            const SizedBox(height: 16),
 
-            _SwipeableWeeklyChart(dailyMap: liveDailyMap),
-
-            const SizedBox(height: 16),
-
-            _HeatmapGrid(values: liveHeatmap),
+            _HeatmapGrid(
+              values: liveHeatmap,
+              onTapDay: (date) => _showDayDetails(context, date),
+            ),
 
             const SizedBox(height: 32),
           ],
@@ -859,10 +1057,14 @@ class _RingPainter extends CustomPainter {
 // Heatmap Grid (monthly calendar view)
 
 class _HeatmapGrid extends StatelessWidget {
-  const _HeatmapGrid({required this.values});
+  const _HeatmapGrid({
+    required this.values,
+    required this.onTapDay,
+  });
 
 
   final List<int> values;
+  final Function(DateTime) onTapDay;
 
   @override
   Widget build(BuildContext context) {
@@ -880,25 +1082,32 @@ class _HeatmapGrid extends StatelessWidget {
       final isToday = (i + 1) == today.day;
       final color = _getStageColor(values[i]);
       final isLightBg = values[i] < 34;
+      final dayNum = i + 1;
 
       cells.add(
-        Tooltip(
-          message: 'Day ${i + 1}: ${values[i]}%',
-          child: Container(
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(6),
-              border: isToday
-                  ? Border.all(color: AppColors.primary, width: 2.0)
-                  : (values[i] == 0 ? Border.all(color: AppColors.border) : null),
-            ),
-            child: Text(
-              '${i + 1}',
-              style: AppTypography.mono(
-                size: 10,
-                weight: isToday ? FontWeight.w900 : FontWeight.w700,
-                color: isLightBg ? AppColors.textPrimary : Colors.white,
+        GestureDetector(
+          onTap: () {
+            final targetDate = DateTime(today.year, today.month, dayNum);
+            onTapDay(targetDate);
+          },
+          child: Tooltip(
+            message: 'Day $dayNum: ${values[i]}%',
+            child: Container(
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(6),
+                border: isToday
+                    ? Border.all(color: AppColors.primary, width: 2.0)
+                    : (values[i] == 0 ? Border.all(color: AppColors.border) : null),
+              ),
+              child: Text(
+                '$dayNum',
+                style: AppTypography.mono(
+                  size: 10,
+                  weight: isToday ? FontWeight.w900 : FontWeight.w700,
+                  color: isLightBg ? AppColors.textPrimary : Colors.white,
+                ),
               ),
             ),
           ),
@@ -989,11 +1198,28 @@ class _FocusCard extends StatelessWidget {
     final hours = totalMinutes ~/ 60;
     final mins = totalMinutes % 60;
 
+    // Resolve task titles from Hive so legend shows real names instead of raw IDs
+    final Map<String, int> resolvedProjectMinutes = {};
+    final customTasks = hiveService.readCustomTasks();
+    final taskMap = {for (var t in customTasks) t.id: t.title};
+
+    projectMinutes.forEach((key, val) {
+      if (val <= 0) return;
+      if (key.startsWith('task_fm:')) {
+        final taskId = key.substring('task_fm:'.length);
+        final title = taskMap[taskId] ?? 'Task Focus';
+        resolvedProjectMinutes[title] = (resolvedProjectMinutes[title] ?? 0) + val;
+      } else {
+        resolvedProjectMinutes[key] = (resolvedProjectMinutes[key] ?? 0) + val;
+      }
+    });
+
     // Focus Allocation Logic
-    final sortedEntries = projectMinutes.entries.toList()
+    final sortedEntries = resolvedProjectMinutes.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final displayEntries = sortedEntries.take(5).toList();
     final chartTotal = displayEntries.fold<int>(0, (sum, e) => sum + e.value);
+
 
     final colors = [
       AppColors.primary,
@@ -1420,209 +1646,7 @@ class _SkippedDelayedCard extends StatelessWidget {
   }
 }
 
-class _SwipeableWeeklyChart extends StatefulWidget {
-  const _SwipeableWeeklyChart({required this.dailyMap});
-  final Map<String, double> dailyMap;
 
-  @override
-  State<_SwipeableWeeklyChart> createState() => _SwipeableWeeklyChartState();
-}
-
-class _SwipeableWeeklyChartState extends State<_SwipeableWeeklyChart> {
-  final _controller = PageController();
-  int _currentPage = 0;
-  static const _totalWeeks = 4;
-
-  // Returns the Sunday that starts the week 'weeksBack' weeks ago
-  DateTime _weekStart(int weeksBack) {
-    final today = DateTime.now();
-    // weekday: Mon=1..Sun=7 → days since Sunday: weekday % 7
-    final daysSinceSunday = today.weekday % 7;
-    final thisSunday = DateTime(today.year, today.month, today.day)
-        .subtract(Duration(days: daysSinceSunday));
-    return thisSunday.subtract(Duration(days: weeksBack * 7));
-  }
-
-  String _weekLabel(int weeksBack) {
-    if (weeksBack == 0) return 'This Week';
-    if (weeksBack == 1) return 'Last Week';
-    return '$weeksBack Weeks Ago';
-  }
-
-  List<double> _getWeekData(int weeksBack) {
-    final start = _weekStart(weeksBack);
-    return List.generate(7, (i) {
-      final day = start.add(Duration(days: i));
-      final key =
-          '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-      return widget.dailyMap[key] ?? 0.0;
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-    final today = DateTime.now();
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: AppColors.cardDecoration(radius: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Weekly Progress',
-                style: AppTypography.body(
-                  size: 14,
-                  weight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              Row(
-                children: [
-                  GestureDetector(
-                    onTap: _currentPage < _totalWeeks - 1
-                        ? () => _controller.nextPage(
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeInOut,
-                            )
-                        : null,
-                    child: Icon(
-                      Icons.chevron_left_rounded,
-                      size: 20,
-                      color: _currentPage < _totalWeeks - 1
-                          ? AppColors.textSecondary
-                          : AppColors.textMuted.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${_currentPage + 1}',
-                    style: AppTypography.label(color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(width: 4),
-                  GestureDetector(
-                    onTap: _currentPage > 0
-                        ? () => _controller.previousPage(
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeInOut,
-                            )
-                        : null,
-                    child: Icon(
-                      Icons.chevron_right_rounded,
-                      size: 20,
-                      color: _currentPage > 0
-                          ? AppColors.textSecondary
-                          : AppColors.textMuted.withValues(alpha: 0.3),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 140,
-            child: PageView.builder(
-              controller: _controller,
-              onPageChanged: (page) => setState(() => _currentPage = page),
-              itemCount: _totalWeeks,
-              itemBuilder: (context, pageIndex) {
-                final data = _getWeekData(pageIndex);
-                final weekStart = _weekStart(pageIndex);
-                return BarChart(
-                  BarChartData(
-                    maxY: 100,
-                    barTouchData: BarTouchData(enabled: false),
-                    titlesData: FlTitlesData(
-                      show: true,
-                      leftTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      topTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      rightTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          getTitlesWidget: (value, meta) {
-                            final i = value.toInt();
-                            if (i < 0 || i >= days.length) {
-                              return const SizedBox();
-                            }
-                            final dayDate = weekStart.add(Duration(days: i));
-                            final isToday = dayDate.year == today.year &&
-                                dayDate.month == today.month &&
-                                dayDate.day == today.day;
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                days[i],
-                                style: AppTypography.mono(
-                                  size: 10,
-                                  color: isToday
-                                      ? AppColors.textPrimary
-                                      : AppColors.textMuted,
-                                  weight: isToday
-                                      ? FontWeight.w700
-                                      : FontWeight.w400,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    gridData: const FlGridData(show: false),
-                    borderData: FlBorderData(show: false),
-                    barGroups: List.generate(data.length, (i) {
-                      final dayDate = weekStart.add(Duration(days: i));
-                      final isToday = dayDate.year == today.year &&
-                          dayDate.month == today.month &&
-                          dayDate.day == today.day;
-                      return BarChartGroupData(
-                        x: i,
-                        barRods: [
-                          BarChartRodData(
-                            toY: data[i],
-                            width: 20,
-                            borderRadius: BorderRadius.circular(10),
-                            color: isToday
-                                ? AppColors.complete
-                                : AppColors.complete.withValues(alpha: 0.35),
-                            backDrawRodData: BackgroundBarChartRodData(
-                              show: true,
-                              toY: 100,
-                              color: AppColors.surfaceRaised,
-                            ),
-                          ),
-                        ],
-                      );
-                    }),
-                  ),
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOut,
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 
 

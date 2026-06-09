@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:confetti/confetti.dart';
 import 'package:uuid/uuid.dart';
 
@@ -12,7 +13,7 @@ import '../../core/services/date_service.dart';
 import '../../core/services/hive_service.dart';
 import '../../core/services/prayer_service.dart';
 import '../../core/services/supabase_service.dart';
-import '../../core/services/hadith_service.dart';
+import '../../core/services/quote_service.dart';
 import '../../core/services/weather_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
@@ -74,7 +75,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   List<QuickTask> _quickTasks = [];
 
   WeatherData? _weatherData;
-  HadithData? _dailyHadith;
+  QuoteData? _dailyQuote;
   bool _isOnline = true;
   StreamSubscription<bool>? _connectivitySub;
 
@@ -95,7 +96,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _loadProgressItems();
     _loadQuickTasks();
     _loadWeather();
-    _loadHadith();
+    _loadQuote();
 
     _prayerTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) {
@@ -121,9 +122,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (mounted) setState(() => _weatherData = w);
   }
 
-  Future<void> _loadHadith() async {
-    final h = await hadithService.getDailyHadith();
-    if (mounted) setState(() => _dailyHadith = h);
+  Future<void> _loadQuote() async {
+    final q = await quoteService.getDailyQuote();
+    if (mounted) setState(() => _dailyQuote = q);
   }
 
   // Week Planner
@@ -556,8 +557,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                 SizedBox(height: 20),
 
-                if (_dailyHadith != null)
-                  _HadithCard(text: _dailyHadith!.text, attribution: _dailyHadith!.attribution)
+                if (_dailyQuote != null)
+                  _QuoteCard(text: _dailyQuote!.text, author: _dailyQuote!.author)
                 else
                   const SizedBox(),
 
@@ -572,6 +573,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   onDelete: _deleteQuickTask,
                   onToggle: _toggleQuickTask,
                   onUpdate: _updateQuickTask,
+                  onRefresh: _loadQuickTasks,
                 ),
 
                 SizedBox(height: 20),
@@ -706,16 +708,16 @@ class _WeekStrip extends StatelessWidget {
 
 // Quote Card
 
-class _HadithCard extends StatefulWidget {
-  const _HadithCard({required this.text, required this.attribution});
+class _QuoteCard extends StatefulWidget {
+  const _QuoteCard({required this.text, required this.author});
   final String text;
-  final String attribution;
+  final String author;
 
   @override
-  State<_HadithCard> createState() => _HadithCardState();
+  State<_QuoteCard> createState() => _QuoteCardState();
 }
 
-class _HadithCardState extends State<_HadithCard> {
+class _QuoteCardState extends State<_QuoteCard> {
   bool _expanded = false;
 
   @override
@@ -747,7 +749,7 @@ class _HadithCardState extends State<_HadithCard> {
                 Icon(Icons.auto_awesome, size: 14, color: AppColors.textPrimary),
                 const SizedBox(width: 8),
                 Text(
-                  'HADITH OF THE DAY',
+                  'QUOTE OF THE DAY',
                   style: AppTypography.body(
                     color: AppColors.textPrimary,
                     size: 12,
@@ -807,7 +809,7 @@ class _HadithCardState extends State<_HadithCard> {
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         Text(
-                          widget.attribution,
+                          '- ${widget.author}',
                           style: AppTypography.mono(
                             size: 11,
                             color: AppColors.textSecondary,
@@ -1572,6 +1574,7 @@ class _TaskBoard extends StatefulWidget {
     required this.onDelete,
     required this.onToggle,
     required this.onUpdate,
+    this.onRefresh,
   });
 
   final List<QuickTask> tasks;
@@ -1579,6 +1582,7 @@ class _TaskBoard extends StatefulWidget {
   final ValueChanged<String> onDelete;
   final ValueChanged<String> onToggle;
   final ValueChanged<QuickTask> onUpdate;
+  final VoidCallback? onRefresh;
 
   @override
   State<_TaskBoard> createState() => _TaskBoardState();
@@ -1748,40 +1752,54 @@ class _TaskBoardState extends State<_TaskBoard> {
                 // Center White Circle Total Tasks
                 Align(
                   alignment: Alignment.center,
-                  child: Container(
-                    width: 90,
-                    height: 90,
-                    decoration: BoxDecoration(
-                      color: AppColors.cardSurface,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.15),
-                          blurRadius: 15,
-                          spreadRadius: 2,
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () async {
+                        HapticFeedback.mediumImpact();
+                        await context.push('/eisenhower-board');
+                        widget.onRefresh?.call();
+                      },
+                      child: Container(
+                        width: 90,
+                        height: 90,
+                        decoration: BoxDecoration(
+                          color: AppColors.cardSurface,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              blurRadius: 15,
+                              spreadRadius: 2,
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          '${widget.tasks.where((t) => !t.done).length}',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 32,
-                            fontWeight: FontWeight.w900,
-                            color: AppColors.textPrimary,
-                            height: 1.0,
-                            letterSpacing: -1,
-                          ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '${widget.tasks.where((t) => !t.done).length}',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 32,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.textPrimary,
+                                height: 1.0,
+                                letterSpacing: -1,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Board',
+                              style: AppTypography.body(
+                                size: 10,
+                                weight: FontWeight.bold,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Pending',
-                          style: AppTypography.body(size: 10, color: AppColors.textPrimary),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),

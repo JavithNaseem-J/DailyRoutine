@@ -76,6 +76,8 @@ class NotificationService {
     required bool sessionRemindersEnabled,
     required bool prayerAlertsEnabled,
     Set<String> disabledSessionIds = const {},
+    Map<String, bool> prayerEnabled = const {},   // per-prayer ON/OFF
+    Map<String, int> prayerOffset = const {},     // per-prayer minutes after adhan
   }) async {
     if (kIsWeb) return;
     await _plugin.cancelAll();
@@ -108,8 +110,12 @@ class NotificationService {
         ('Isha',    prayers.isha,    '🌙', 'Isha time. End your day with prayer.'),
       ];
       for (final p in allPrayers) {
-        // Fire 10 minutes AFTER the prayer time (adhan → iqama window)
-        DateTime alertTime = p.$2.add(const Duration(minutes: 10));
+        final key = p.$1.toLowerCase();
+        // Skip if this prayer is individually disabled
+        if (prayerEnabled.containsKey(key) && prayerEnabled[key] == false) continue;
+        // Use per-prayer offset (default 10 min after adhan)
+        final offset = prayerOffset[key] ?? 10;
+        DateTime alertTime = p.$2.add(Duration(minutes: offset));
         if (alertTime.isBefore(now)) alertTime = alertTime.add(const Duration(days: 1));
         await _zoned(
           id: notifId++,
@@ -120,6 +126,7 @@ class NotificationService {
       }
     }
   }
+
 
   Future<void> _zoned({
     required int id,
@@ -201,6 +208,34 @@ class NotificationService {
       await _plugin.show(
         id: 998,
         title: 'Focus Timer Active',
+        body: taskTitle,
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'focus_ongoing_channel',
+            'Active Focus',
+            channelDescription: 'Ongoing focus timer',
+            importance: Importance.low,
+            priority: Priority.low,
+            ongoing: true,
+            autoCancel: false,
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: false,
+            presentBadge: false,
+            presentSound: false,
+          ),
+        ),
+        payload: 'focus|$taskTitle',
+      );
+    } catch (_) {}
+  }
+
+  Future<void> showOngoingFocusPaused(String taskTitle) async {
+    if (kIsWeb) return;
+    try {
+      await _plugin.show(
+        id: 998,
+        title: 'Focus Timer Paused',
         body: taskTitle,
         notificationDetails: const NotificationDetails(
           android: AndroidNotificationDetails(

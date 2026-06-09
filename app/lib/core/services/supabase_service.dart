@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import '../models/daily_state.dart';
@@ -130,16 +131,32 @@ class SupabaseService {
           .order('created_at');
 
       return (res as List).map((e) {
+        final rawTip = e['tip'] as String? ?? '';
+        // Decode weekdays from tip if encoded as 'days:1,2,3'
+        List<int> weekdays = [];
+        String tip = rawTip;
+        for (final segment in rawTip.split('|')) {
+          if (segment.startsWith('days:')) {
+            weekdays = segment
+                .substring(5)
+                .split(',')
+                .map((s) => int.tryParse(s.trim()))
+                .whereType<int>()
+                .toList();
+            tip = rawTip.replaceFirst('|$segment', '').replaceFirst('$segment|', '');
+          }
+        }
         return Task(
           id: e['id'],
           sessionId: e['session_id'],
           title: e['title'],
           time: e['time'] ?? '',
           durationMinutes: e['duration_minutes'] ?? 15,
-          tip: e['tip'] ?? 'Custom task',
+          tip: tip,
           isBreak: e['is_break'] ?? false,
           hasSessionTimer: e['has_session_timer'] ?? false,
           iconName: e['icon_name'] ?? 'star',
+          weekdays: weekdays,
         );
       }).toList();
     } catch (e, st) {
@@ -150,6 +167,22 @@ class SupabaseService {
 
   Future<void> upsertCustomTask(Task task, String deviceId) async {
     try {
+      // Encode weekdays into tip field to avoid schema change.
+      // Format tip: 'key_task:true|days:1,2,3|Custom task'
+      String tipWithDays = task.tip;
+      if (task.weekdays.isNotEmpty) {
+        // Inject days segment after key_task prefix
+        final days = 'days:${task.weekdays.join(',')}';
+        if (tipWithDays.contains('|')) {
+          final parts = tipWithDays.split('|');
+          // Remove any old days: segment then re-insert
+          final cleaned = parts.where((p) => !p.startsWith('days:')).toList();
+          cleaned.insert(1, days);
+          tipWithDays = cleaned.join('|');
+        } else {
+          tipWithDays = '$tipWithDays|$days';
+        }
+      }
       await _db.from('custom_tasks').upsert({
         'id': task.id,
         'device_id': deviceId,
@@ -157,7 +190,7 @@ class SupabaseService {
         'title': task.title,
         'time': task.time,
         'duration_minutes': task.durationMinutes,
-        'tip': task.tip,
+        'tip': tipWithDays,
         'is_break': task.isBreak,
         'has_session_timer': task.hasSessionTimer,
         'icon_name': task.iconName,
@@ -263,6 +296,62 @@ class SupabaseService {
     return (raw as Map).map(
       (k, v) => MapEntry(k.toString(), v?.toString() ?? 'none'),
     );
+  }
+
+  Future<Map<String, dynamic>?> fetchProfile(String uid) async {
+    try {
+      final res = await _db
+          .from('profiles')
+          .select()
+          .eq('id', uid)
+          .maybeSingle();
+      return res;
+    } catch (e, st) {
+      Sentry.captureException(e, stackTrace: st);
+      return null;
+    }
+  }
+
+  Future<void> updateProfile(String uid, String fullName, String? avatarUrl) async {
+    try {
+      await _db.from('profiles').update({
+        'full_name': fullName,
+        if (avatarUrl != null) 'avatar_url': avatarUrl,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', uid);
+    } catch (e, st) {
+      Sentry.captureException(e, stackTrace: st);
+      rethrow;
+    }
+  }
+
+  Future<String> uploadAvatar(
+    String uid,
+    List<int> bytes,
+    String extension,
+    String mimeType,
+  ) async {
+    try {
+      final fileName = '$uid-${DateTime.now().millisecondsSinceEpoch}.$extension';
+      
+      // Upload using storage API
+      await _db.storage.from('avatars').uploadBinary(
+        fileName,
+        Uint8List.fromList(bytes),
+        fileOptions: FileOptions(
+          contentType: mimeType,
+          cacheControl: '3600',
+          upsert: true,
+        ),
+      );
+      
+      // Get public URL
+      final publicUrl = _db.storage.from('avatars').getPublicUrl(fileName);
+      return publicUrl;
+    } catch (e, st) {
+      Sentry.captureException(e, stackTrace: st);
+      rethrow;
+    }
   }
 }
 

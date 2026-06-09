@@ -26,9 +26,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
 
   List<Session> get _sessions =>
       ref.read(sessionsProvider).value?.sessions ??
-      SessionData.sessionsForToday(
-        isFriday: DateTime.now().weekday == DateTime.friday,
-      );
+      SessionData.sessionsForToday;
 
   @override
   void initState() {
@@ -36,9 +34,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     _confettiController = ConfettiController(
       duration: const Duration(seconds: 2),
     );
-    final sessions = SessionData.sessionsForToday(
-      isFriday: DateTime.now().weekday == DateTime.friday,
-    );
+    final sessions = SessionData.sessionsForToday;
     _currentIndex = _findActiveSessionIndex(sessions);
     _pageController = PageController(initialPage: _currentIndex);
     _pillScrollController = ScrollController();
@@ -118,6 +114,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
       context.push(
         '/focus',
         extra: {
+          'taskId': task.id,
           'taskTitle': task.title,
           'durationMinutes': task.durationMinutes,
         },
@@ -136,6 +133,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
       context.push(
         '/focus',
         extra: {
+          'taskId': task.id,
           'taskTitle': task.title,
           'durationMinutes': task.durationMinutes,
         },
@@ -852,9 +850,7 @@ class _TaskCardState extends State<_TaskCard>
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: widget.taskStatus == 'skipped'
-                        ? const Color(0xFFF3F4F6)
-                        : Colors.white,
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: const Color(0xFFF3F4F6),
@@ -894,28 +890,41 @@ class _TaskCardState extends State<_TaskCard>
                               padding: const EdgeInsets.only(right: 8.0),
                               child: SingleChildScrollView(
                                 scrollDirection: Axis.horizontal,
-                                child: Text(
-                                  widget.task.title,
-                                  style:
-                                      AppTypography.body(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (widget.task.isKeyTask) ...[
+                                      Icon(
+                                        Icons.vpn_key_rounded,
                                         size: 14,
-                                        weight: FontWeight.w600,
-                                        color:
-                                            (widget.isDone ||
-                                                    widget.taskStatus ==
-                                                        'skipped') &&
-                                                !widget.task.isBreak
-                                            ? Color(0xFF9CA3AF)
-                                            : AppColors.textPrimary,
-                                      ).copyWith(
-                                        decoration:
-                                            (widget.isDone ||
-                                                    widget.taskStatus ==
-                                                        'skipped') &&
-                                                !widget.task.isBreak
-                                            ? TextDecoration.lineThrough
-                                            : TextDecoration.none,
+                                        color: AppColors.primary,
                                       ),
+                                      const SizedBox(width: 6),
+                                    ],
+                                    Text(
+                                      widget.task.title,
+                                      style:
+                                          AppTypography.body(
+                                            size: 14,
+                                            weight: FontWeight.w600,
+                                            color:
+                                                (widget.isDone ||
+                                                        widget.taskStatus ==
+                                                            'skipped') &&
+                                                    !widget.task.isBreak
+                                                ? Color(0xFF9CA3AF)
+                                                : AppColors.textPrimary,
+                                          ).copyWith(
+                                            decoration:
+                                                (widget.isDone ||
+                                                        widget.taskStatus ==
+                                                            'skipped') &&
+                                                    !widget.task.isBreak
+                                                ? TextDecoration.lineThrough
+                                                : TextDecoration.none,
+                                          ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),

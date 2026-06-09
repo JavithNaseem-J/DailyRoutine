@@ -30,6 +30,7 @@ class Task {
     this.isFridayOnly = false,
     this.isFridaySpecial = false,
     this.iconName = 'star',
+    this.weekdays = const [], // empty = all days (Mon=1 … Sun=7, ISO 8601)
   });
 
   final String id;
@@ -46,6 +47,26 @@ class Task {
   final bool isFridayOnly;
   final bool isFridaySpecial; // Dhuhr → Jumu'ah on Fridays
   final String iconName;
+  /// The weekdays this task is active on (1=Mon … 7=Sun, ISO 8601).
+  /// Empty list = active every day.
+  final List<int> weekdays;
+
+  bool get isKeyTask => tip.startsWith('key_task:true');
+  String get cleanTip {
+    if (tip.startsWith('key_task:true|')) {
+      return tip.substring('key_task:true|'.length);
+    }
+    if (tip.startsWith('key_task:false|')) {
+      return tip.substring('key_task:false|'.length);
+    }
+    return tip;
+  }
+
+  /// Returns true if this task should be shown on [date]
+  bool isActiveOn(DateTime date) {
+    if (weekdays.isEmpty) return true;
+    return weekdays.contains(date.weekday); // weekday: Mon=1 … Sun=7
+  }
 
   Task copyWith({
     String? id,
@@ -62,6 +83,7 @@ class Task {
     bool? isFridayOnly,
     bool? isFridaySpecial,
     String? iconName,
+    List<int>? weekdays,
   }) {
     return Task(
       id: id ?? this.id,
@@ -78,10 +100,21 @@ class Task {
       isFridayOnly: isFridayOnly ?? this.isFridayOnly,
       isFridaySpecial: isFridaySpecial ?? this.isFridaySpecial,
       iconName: iconName ?? this.iconName,
+      weekdays: weekdays ?? this.weekdays,
     );
   }
 
   factory Task.fromJson(Map<String, dynamic> json) {
+    // Parse weekdays from stored comma-separated string e.g. "1,2,3"
+    final weekdaysRaw = json['weekdays'] as String? ?? '';
+    final parsedWeekdays = weekdaysRaw.isEmpty
+        ? <int>[]
+        : weekdaysRaw
+            .split(',')
+            .map((s) => int.tryParse(s.trim()))
+            .whereType<int>()
+            .toList();
+
     return Task(
       id: json['id'] as String? ?? '',
       sessionId: json['sessionId'] as String? ?? '',
@@ -100,6 +133,7 @@ class Task {
       isFridayOnly: json['isFridayOnly'] as bool? ?? false,
       isFridaySpecial: json['isFridaySpecial'] as bool? ?? false,
       iconName: json['iconName'] as String? ?? 'star',
+      weekdays: parsedWeekdays,
     );
   }
 
@@ -119,6 +153,7 @@ class Task {
       'isFridayOnly': isFridayOnly,
       'isFridaySpecial': isFridaySpecial,
       'iconName': iconName,
+      'weekdays': weekdays.join(','), // stored as "1,2,3" — empty string = all days
     };
   }
 }
@@ -132,6 +167,7 @@ class Session {
     required this.accentColor,
     required this.tasks,
     this.isFridayOnly = false,
+    this.isWeekendOnly = false,
   });
 
   final String id;
@@ -140,4 +176,6 @@ class Session {
   final Color accentColor;
   final List<Task> tasks;
   final bool isFridayOnly;
+  /// True for Saturday/Sunday-only sessions
+  final bool isWeekendOnly;
 }

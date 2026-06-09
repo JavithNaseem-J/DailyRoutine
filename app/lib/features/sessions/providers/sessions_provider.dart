@@ -64,15 +64,11 @@ class SessionsState {
         .expand((s) => s.tasks)
         .where((t) => !t.isBreak)
         .map((t) => t.id)
+        .toSet()
         .toList();
     if (validTasks.isEmpty) return 0;
     final doneCount = validTasks.where((id) => taskStates[id] == true).length;
-    final skippedCount = validTasks
-        .where((id) => dailyState.taskStatus[id] == 'skipped')
-        .length;
-    final totalValid = validTasks.length - skippedCount;
-    if (totalValid <= 0) return 0;
-    return ((doneCount / totalValid) * 100).round();
+    return ((doneCount / validTasks.length) * 100).round();
   }
 
   // BUG-002 fix: return null instead of crashing when sessions is empty
@@ -92,24 +88,42 @@ class SessionsState {
       );
 }
 
-// SessionsNotifier  (Riverpod 3.x â€” state is AsyncValue<SessionsState>)
+// SessionsNotifier  (Riverpod 3.x — state is AsyncValue<SessionsState>)
 
 class SessionsNotifier extends AsyncNotifier<SessionsState> {
   String get _todayKey => dateService.todayKey();
 
-  @override
-  Future<SessionsState> build() async {
-    final defaultSessions = SessionData.sessionsForToday(
-      isFriday: DateTime.now().weekday == DateTime.friday,
-    );
+  List<Session> _buildSessionsWithResurfacing(
+    DailyState dailyState,
+    List<Task> allCustomTasks,
+    String? activeSessionId,
+  ) {
+    final today = DateTime.now();
+    final baseSessions = SessionData.sessionsForDate(today);
 
-    // 1. Load from Hive instantly
-    final daily = hiveService.readDailyState(_todayKey);
-    final customTasks = hiveService.readCustomTasks();
+    // Session display order for key task resurfacing (weekday sessions only)
+    const sessionOrder = {
+      'morning': 0,
+      'afternoon': 1,
+      'night': 2,
+      'saturday': 3,
+      'sunday': 4,
+    };
 
-    final sessions = defaultSessions.map((s) {
-      final relevantTasks = customTasks
-          .where((t) => t.sessionId == s.id)
+    // Migrate legacy 'weekend' tasks to 'saturday'
+    final migratedTasks = allCustomTasks.map((t) {
+      if (t.sessionId == 'weekend') return t.copyWith(sessionId: 'saturday');
+      return t;
+    }).toList();
+
+    // 1. Build normal sessions with their own tasks, filtered by weekday
+    final List<Session> normalSessions = baseSessions.map((s) {
+      final relevantTasks = migratedTasks
+          .where((t) {
+            if (t.sessionId != s.id) return false;
+            // Weekday filter: empty weekdays = active every day
+            return t.weekdays.isEmpty || t.weekdays.contains(today.weekday);
+          })
           .toList();
       relevantTasks.sort(
         (a, b) => _parseTime(a.time).compareTo(_parseTime(b.time)),
@@ -121,8 +135,57 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
         accentColor: s.accentColor,
         tasks: [...s.tasks, ...relevantTasks],
         isFridayOnly: s.isFridayOnly,
+        isWeekendOnly: s.isWeekendOnly,
       );
     }).toList();
+
+    // 2. Apply key task resurfacing (only for weekday sessions with order)
+    return normalSessions.map((s) {
+      final resurfaced = migratedTasks.where((t) {
+        if (!t.isKeyTask) return false;
+        // Key tasks only resurface if they were active today
+        if (t.weekdays.isNotEmpty && !t.weekdays.contains(today.weekday)) return false;
+        final tOrder = sessionOrder[t.sessionId];
+        final sOrder = sessionOrder[s.id];
+        if (tOrder == null || sOrder == null) return false;
+        if (tOrder >= sOrder) return false; // not from an earlier session
+
+        final isDone = dailyState.taskStates[t.id] == true;
+        final isSkipped = dailyState.taskStatus[t.id] == 'skipped';
+        final isMissed = !isDone || isSkipped;
+
+        return isMissed || (isDone && s.id == activeSessionId);
+      }).toList();
+
+      if (resurfaced.isEmpty) return s;
+
+      // Append resurfaced tasks at the end
+      return Session(
+        id: s.id,
+        name: s.name,
+        timeRange: s.timeRange,
+        accentColor: s.accentColor,
+        tasks: [...s.tasks, ...resurfaced],
+        isFridayOnly: s.isFridayOnly,
+        isWeekendOnly: s.isWeekendOnly,
+      );
+    }).toList();
+  }
+
+  @override
+  Future<SessionsState> build() async {
+    final defaultSessions = SessionData.sessionsForToday;
+
+    // 1. Load from Hive instantly
+    final daily = hiveService.readDailyState(_todayKey);
+    final customTasks = hiveService.readCustomTasks();
+    final activeSessId = _findActiveSessionId(defaultSessions);
+
+    final sessions = _buildSessionsWithResurfacing(
+      daily,
+      customTasks,
+      activeSessId,
+    );
 
     // 2. Refresh from Supabase in the background
     _refreshFromSupabase(daily, sessions);
@@ -130,7 +193,7 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     return SessionsState(
       dailyState: daily,
       sessions: sessions,
-      activeSessionId: _findActiveSessionId(sessions),
+      activeSessionId: activeSessId,
     );
   }
 
@@ -193,26 +256,12 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
 
     final current = state.value;
     if (current != null) {
-      // Rebuild sessions with the updated custom tasks
-      final baseSessions = SessionData.sessionsForToday(
-        isFriday: DateTime.now().weekday == DateTime.friday,
+      final activeSessId = _findActiveSessionId(SessionData.sessionsForToday);
+      final updatedSessions = _buildSessionsWithResurfacing(
+        merged,
+        mergedList,
+        activeSessId,
       );
-      final updatedSessions = baseSessions.map((s) {
-        final relevantTasks = mergedList
-            .where((t) => t.sessionId == s.id)
-            .toList();
-        relevantTasks.sort(
-          (a, b) => _parseTime(a.time).compareTo(_parseTime(b.time)),
-        );
-        return Session(
-          id: s.id,
-          name: s.name,
-          timeRange: s.timeRange,
-          accentColor: s.accentColor,
-          tasks: [...s.tasks, ...relevantTasks],
-          isFridayOnly: s.isFridayOnly,
-        );
-      }).toList();
 
       state = AsyncData(
         current.copyWith(dailyState: merged, sessions: updatedSessions),
@@ -317,7 +366,14 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
       taskStatus: {...current.dailyState.taskStatus, taskId: newStatus},
     );
 
-    state = AsyncData(current.copyWith(dailyState: newDaily));
+    final customTasks = hiveService.readCustomTasks();
+    final updatedSessions = _buildSessionsWithResurfacing(
+      newDaily,
+      customTasks,
+      current.activeSessionId,
+    );
+
+    state = AsyncData(current.copyWith(dailyState: newDaily, sessions: updatedSessions));
     await hiveService.writeDailyState(newDaily);
     supabaseService.upsertDailyState(newDaily, deviceId).catchError((_) {});
 
@@ -341,6 +397,7 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
         .expand((s) => s.tasks)
         .where((t) => !t.isBreak)
         .map((t) => t.id)
+        .toSet()
         .toList();
     if (validTasks.isEmpty) return false;
     final doneCount = validTasks
@@ -395,7 +452,7 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     supabaseService.upsertDailyState(newDaily, deviceId).catchError((_) {});
   }
 
-  Future<void> addFocusMinutes(int minutes, {String? tag}) async {
+  Future<void> addFocusMinutes(int minutes, {String? tag, String? taskId}) async {
     final current = state.value;
     if (current == null) return;
 
@@ -404,6 +461,10 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     );
     if (tag != null && tag.isNotEmpty) {
       updatedProject[tag] = (updatedProject[tag] ?? 0) + minutes;
+    }
+    if (taskId != null && taskId.isNotEmpty) {
+      final key = 'task_fm:$taskId';
+      updatedProject[key] = (updatedProject[key] ?? 0) + minutes;
     }
 
     // Append this individual session to the sessions log
@@ -430,23 +491,11 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     final current = state.value;
     if (current == null) return;
 
-    final updatedSessions = current.sessions.map((s) {
-      if (s.id == task.sessionId) {
-        final mergedTasks = [...s.tasks, task];
-        mergedTasks.sort(
-          (a, b) => _parseTime(a.time).compareTo(_parseTime(b.time)),
-        );
-        return Session(
-          id: s.id,
-          name: s.name,
-          timeRange: s.timeRange,
-          accentColor: s.accentColor,
-          tasks: mergedTasks,
-          isFridayOnly: s.isFridayOnly,
-        );
-      }
-      return s;
-    }).toList();
+    final updatedSessions = _buildSessionsWithResurfacing(
+      current.dailyState,
+      currentTasks,
+      current.activeSessionId,
+    );
 
     state = AsyncData(current.copyWith(sessions: updatedSessions));
   }
@@ -465,50 +514,11 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     final current = state.value;
     if (current == null) return;
 
-    final updatedSessions = current.sessions.map((s) {
-      if (s.id == oldSessionId && s.id == updatedTask.sessionId) {
-        final mergedTasks = s.tasks
-            .map((t) => t.id == updatedTask.id ? updatedTask : t)
-            .toList();
-        mergedTasks.sort(
-          (a, b) => _parseTime(a.time).compareTo(_parseTime(b.time)),
-        );
-        return Session(
-          id: s.id,
-          name: s.name,
-          timeRange: s.timeRange,
-          accentColor: s.accentColor,
-          tasks: mergedTasks,
-          isFridayOnly: s.isFridayOnly,
-        );
-      } else if (s.id == oldSessionId) {
-        final mergedTasks = s.tasks
-            .where((t) => t.id != updatedTask.id)
-            .toList();
-        return Session(
-          id: s.id,
-          name: s.name,
-          timeRange: s.timeRange,
-          accentColor: s.accentColor,
-          tasks: mergedTasks,
-          isFridayOnly: s.isFridayOnly,
-        );
-      } else if (s.id == updatedTask.sessionId) {
-        final mergedTasks = [...s.tasks, updatedTask];
-        mergedTasks.sort(
-          (a, b) => _parseTime(a.time).compareTo(_parseTime(b.time)),
-        );
-        return Session(
-          id: s.id,
-          name: s.name,
-          timeRange: s.timeRange,
-          accentColor: s.accentColor,
-          tasks: mergedTasks,
-          isFridayOnly: s.isFridayOnly,
-        );
-      }
-      return s;
-    }).toList();
+    final updatedSessions = _buildSessionsWithResurfacing(
+      current.dailyState,
+      customTasks,
+      current.activeSessionId,
+    );
 
     state = AsyncData(current.copyWith(sessions: updatedSessions));
   }
@@ -522,26 +532,15 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     final current = state.value;
     if (current == null) return;
 
-    final updatedSessions = current.sessions.map((s) {
-      if (s.id == sessionId) {
-        final mergedTasks = s.tasks.where((t) => t.id != taskId).toList();
-        return Session(
-          id: s.id,
-          name: s.name,
-          timeRange: s.timeRange,
-          accentColor: s.accentColor,
-          tasks: mergedTasks,
-          isFridayOnly: s.isFridayOnly,
-        );
-      }
-      return s;
-    }).toList();
+    final updatedSessions = _buildSessionsWithResurfacing(
+      current.dailyState,
+      customTasks,
+      current.activeSessionId,
+    );
 
     state = AsyncData(current.copyWith(sessions: updatedSessions));
   }
 }
-
-// Providers
 
 final sessionsProvider = AsyncNotifierProvider<SessionsNotifier, SessionsState>(
   SessionsNotifier.new,

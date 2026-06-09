@@ -2,12 +2,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/services/notification_service.dart';
+import '../../sessions/providers/sessions_provider.dart';
+
 
 class FocusTimerState {
   final bool isRunning;
   final int remainingSeconds;
   final int totalSeconds;
   final String taskTitle;
+  final String? taskId;
   final String? currentAmbient;
   final String? selectedProject;
 
@@ -16,6 +19,7 @@ class FocusTimerState {
     required this.remainingSeconds,
     required this.totalSeconds,
     this.taskTitle = '',
+    this.taskId,
     this.currentAmbient,
     this.selectedProject,
   });
@@ -25,6 +29,7 @@ class FocusTimerState {
     int? remainingSeconds,
     int? totalSeconds,
     String? taskTitle,
+    String? taskId,
     String? currentAmbient,
     String? selectedProject,
     bool clearAmbient = false,
@@ -35,6 +40,7 @@ class FocusTimerState {
       remainingSeconds: remainingSeconds ?? this.remainingSeconds,
       totalSeconds: totalSeconds ?? this.totalSeconds,
       taskTitle: taskTitle ?? this.taskTitle,
+      taskId: taskId ?? this.taskId,
       currentAmbient: clearAmbient ? null : (currentAmbient ?? this.currentAmbient),
       selectedProject: clearProject ? null : (selectedProject ?? this.selectedProject),
     );
@@ -54,7 +60,7 @@ class FocusTimerNotifier extends Notifier<FocusTimerState> {
     );
   }
 
-  void initTimer({required String taskTitle, required int durationMinutes}) {
+  void initTimer({required String taskTitle, required int durationMinutes, String? taskId}) {
     final isSameTask = state.taskTitle == taskTitle;
     final isTimerActive = state.isRunning || 
         (state.remainingSeconds > 0 && state.remainingSeconds < state.totalSeconds);
@@ -64,6 +70,7 @@ class FocusTimerNotifier extends Notifier<FocusTimerState> {
     
     state = state.copyWith(
       taskTitle: taskTitle,
+      taskId: taskId,
       totalSeconds: durationMinutes * 60,
       remainingSeconds: durationMinutes * 60,
     );
@@ -83,7 +90,18 @@ class FocusTimerNotifier extends Notifier<FocusTimerState> {
       if (state.remainingSeconds > 0) {
         state = state.copyWith(remainingSeconds: state.remainingSeconds - 1);
       } else {
+        final totalMins = state.totalSeconds ~/ 60;
+        final selectedTag = state.selectedProject;
+        final taskId = state.taskId;
+
         stopTimer();
+
+        ref.read(sessionsProvider.notifier).addFocusMinutes(
+          totalMins,
+          tag: selectedTag,
+          taskId: taskId,
+        );
+
         onComplete();
       }
     });
@@ -92,7 +110,7 @@ class FocusTimerNotifier extends Notifier<FocusTimerState> {
   void pauseTimer() {
     _timer?.cancel();
     notificationService.cancelFocusAlarm();
-    notificationService.cancelOngoingFocus();
+    notificationService.showOngoingFocusPaused(state.taskTitle);
     state = state.copyWith(isRunning: false);
   }
 
@@ -155,7 +173,19 @@ class FocusTimerNotifier extends Notifier<FocusTimerState> {
 
       if (newRemaining <= 0) {
         state = state.copyWith(remainingSeconds: 0);
+        
+        final totalMins = state.totalSeconds ~/ 60;
+        final selectedTag = state.selectedProject;
+        final taskId = state.taskId;
+
         stopTimer();
+
+        ref.read(sessionsProvider.notifier).addFocusMinutes(
+          totalMins,
+          tag: selectedTag,
+          taskId: taskId,
+        );
+
         onComplete();
       } else {
         // Fix: must set isRunning to false so startTimer actually runs

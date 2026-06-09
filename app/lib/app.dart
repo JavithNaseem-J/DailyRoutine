@@ -9,11 +9,13 @@ import 'core/theme/app_theme.dart';
 import 'core/theme/app_colors.dart';
 import 'core/services/hive_service.dart';
 import 'features/home/home_screen.dart';
+import 'features/home/eisenhower_board_screen.dart';
 import 'features/sessions/sessions_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/stats/stats_screen.dart';
 import 'features/focus/focus_screen.dart';
 import 'features/auth/auth_screen.dart';
+import 'features/auth/splash_screen.dart';
 import 'features/sessions/providers/sessions_provider.dart';
 import 'main.dart' show deviceId, sharedPrefs;
 
@@ -77,7 +79,7 @@ class _DailyRoutineAppState extends ConsumerState<DailyRoutineApp> {
 // GoRouter — ShellRoute with 3-tab bottom nav
 
 final appRouter = GoRouter(
-  initialLocation: '/home',
+  initialLocation: '/splash',
   // NEW-BUG-003 fix: handle unknown routes with a friendly fallback screen
   errorBuilder: (context, state) => Scaffold(
     backgroundColor: AppColors.background,
@@ -103,6 +105,9 @@ final appRouter = GoRouter(
     ),
   ),
   redirect: (context, state) {
+    final isSplashRoute = state.matchedLocation == '/splash';
+    if (isSplashRoute) return null;
+
     final session = supabaseClient.auth.currentSession;
     final isAuthRoute = state.matchedLocation == '/auth';
 
@@ -111,6 +116,10 @@ final appRouter = GoRouter(
     return null;
   },
   routes: [
+    GoRoute(
+      path: '/splash',
+      builder: (context, state) => const SplashScreen(),
+    ),
     GoRoute(
       path: '/auth',
       builder: (context, state) => const AuthScreen(),
@@ -149,6 +158,7 @@ final appRouter = GoRouter(
             final extra = state.extra as Map<String, dynamic>?;
             return CustomTransitionPage(
               child: FocusScreen(
+                taskId: extra?['taskId'] as String?,
                 taskTitle: extra?['taskTitle'] as String? ?? 'Focus Session',
                 durationMinutes: extra?['durationMinutes'] as int? ?? 25,
               ),
@@ -163,6 +173,11 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),
+    ),
+    // Eisenhower Matrix Board — full-screen, no bottom nav
+    GoRoute(
+      path: '/eisenhower-board',
+      builder: (context, state) => const EisenhowerBoardScreen(),
     ),
   ],
 );

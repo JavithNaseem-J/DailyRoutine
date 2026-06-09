@@ -115,25 +115,24 @@ class WeatherService {
     try {
 
       final url = Uri.parse(
-          'https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lng&current=relative_humidity_2m&daily=weathercode,temperature_2m_max,apparent_temperature_max&timezone=auto');
+          'https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lng&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code&timezone=auto');
 
       final response = await http.get(url).timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final daily = data['daily'];
         final current = data['current'];
         
-        if (daily != null && current != null) {
-          final maxTemp = (daily['temperature_2m_max'][0] as num).round();
-          final feelsLike = (daily['apparent_temperature_max'][0] as num).round();
+        if (current != null) {
+          final temp = (current['temperature_2m'] as num).round();
+          final feelsLike = (current['apparent_temperature'] as num).round();
           final humidity = (current['relative_humidity_2m'] as num).round();
-          final code = daily['weathercode'][0] as int;
+          final code = current['weather_code'] as int;
           
           final condition = _getWeatherDescription(code);
           
           final wData = WeatherData(
-            temp: maxTemp,
+            temp: temp,
             condition: condition,
             feelsLike: feelsLike,
             humidity: humidity,

@@ -4,11 +4,13 @@ import '../theme/app_colors.dart';
 // SESSION DATA — Empty task canvas!
 
 abstract final class SessionData {
+  /// All defined sessions (used for stats lookups, etc.)
   static List<Session> get allSessions => [
     _morning,
     _afternoon,
     _night,
-    _weekend,
+    _saturday,
+    _sunday,
   ];
 
   static final _morning = Session(
@@ -35,15 +37,27 @@ abstract final class SessionData {
     tasks: [],
   );
 
-  static final _weekend = Session(
-    id: 'weekend',
-    name: 'Weekend',
+  static final _saturday = Session(
+    id: 'saturday',
+    name: 'Saturday',
     timeRange: 'All Day',
     accentColor: AppColors.midMorning,
     tasks: [],
+    isWeekendOnly: true,
+  );
+
+  static final _sunday = Session(
+    id: 'sunday',
+    name: 'Sunday',
+    timeRange: 'All Day',
+    accentColor: AppColors.midMorning,
+    tasks: [],
+    isWeekendOnly: true,
   );
 
   static Session? getById(String id) {
+    // Migration: legacy 'weekend' tasks map to saturday
+    if (id == 'weekend') return _saturday;
     try {
       return allSessions.firstWhere((s) => s.id == id);
     } catch (_) {
@@ -51,11 +65,21 @@ abstract final class SessionData {
     }
   }
 
-  static List<Session> sessionsForToday({bool isFriday = false}) {
-    return allSessions.where((s) {
-      if (s.isFridayOnly && !isFriday) return false;
-      return true;
-    }).toList();
+  /// Returns the sessions active on the given [date].
+  ///   - Mon–Fri → Morning + Afternoon + Night
+  ///   - Saturday → Saturday
+  ///   - Sunday → Sunday
+  static List<Session> sessionsForDate(DateTime date) {
+    switch (date.weekday) {
+      case DateTime.saturday:
+        return [_saturday];
+      case DateTime.sunday:
+        return [_sunday];
+      default:
+        return [_morning, _afternoon, _night];
+    }
   }
 
+  /// Convenience getter for today.
+  static List<Session> get sessionsForToday => sessionsForDate(DateTime.now());
 }

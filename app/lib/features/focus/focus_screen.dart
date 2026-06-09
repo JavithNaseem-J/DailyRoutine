@@ -13,10 +13,12 @@ import 'providers/focus_timer_provider.dart';
 class FocusScreen extends ConsumerStatefulWidget {
   const FocusScreen({
     super.key,
+    this.taskId,
     required this.taskTitle,
     required this.durationMinutes,
   });
 
+  final String? taskId;
   final String taskTitle;
   final int durationMinutes;
 
@@ -40,8 +42,6 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
   final List<String> _projectTags = [
     'Study',
     'Work',
-    'Reflect',
-    'Deep Work',
     'Review',
   ];
 
@@ -54,6 +54,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
       ref.read(focusTimerProvider.notifier).initTimer(
             taskTitle: widget.taskTitle,
             durationMinutes: widget.durationMinutes,
+            taskId: widget.taskId,
           );
       _syncAmbientSound();
     });
@@ -108,11 +109,6 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
     _audioPlayer.play(
       AssetSource('sounds/timer_done.wav'),
     ).catchError((_) {});
-    
-    final state = ref.read(focusTimerProvider);
-    ref
-        .read(sessionsProvider.notifier)
-        .addFocusMinutes(state.totalSeconds ~/ 60, tag: state.selectedProject);
   }
 
   void _toggleAmbient(String id) async {
@@ -171,6 +167,16 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
     final progress = timerState.totalSeconds > 0
         ? 1 - (timerState.remainingSeconds / timerState.totalSeconds)
         : 0.0;
+
+    final sessionsState = ref.watch(sessionsProvider).value;
+    final projectMinutes = sessionsState?.dailyState.projectMinutes ?? {};
+    final elapsedMinutesToday = projectMinutes['task_fm:${widget.taskId}'] ?? 0;
+
+    final currentTimerSessionElapsedSeconds = timerState.totalSeconds - timerState.remainingSeconds;
+    final totalRemainingSeconds = (widget.durationMinutes * 60) - (elapsedMinutesToday * 60) - currentTimerSessionElapsedSeconds;
+    final remainingSecsClamped = totalRemainingSeconds.clamp(0, widget.durationMinutes * 60);
+    final remainingMinsDisplay = remainingSecsClamped ~/ 60;
+    final remainingSecsDisplay = remainingSecsClamped % 60;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -357,6 +363,84 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
                       ),
                     ],
                   ),
+                  
+                  if (widget.taskId != null) ...[
+                    const SizedBox(height: 24),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.border),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.02),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'TASK TIME',
+                                style: AppTypography.mono(
+                                  size: 10,
+                                  weight: FontWeight.w600,
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${widget.durationMinutes} min',
+                                style: AppTypography.body(
+                                  size: 15,
+                                  weight: FontWeight.w700,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Container(
+                            width: 1,
+                            height: 32,
+                            color: AppColors.border,
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                'REMAINING TIME',
+                                style: AppTypography.mono(
+                                  size: 10,
+                                  weight: FontWeight.w600,
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                remainingMinsDisplay > 0
+                                    ? '$remainingMinsDisplay min ${remainingSecsDisplay}s'
+                                    : '${remainingSecsDisplay}s',
+                                style: AppTypography.body(
+                                  size: 15,
+                                  weight: FontWeight.w700,
+                                  color: remainingSecsClamped > 0
+                                      ? AppColors.primary
+                                      : AppColors.complete,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
                   const SizedBox(height: 20),
 
                   Row(

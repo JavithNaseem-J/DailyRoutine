@@ -1,22 +1,21 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
+
 import '../../core/constants/session_data.dart';
 import '../../core/models/session.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
-import 'package:uuid/uuid.dart';
-import 'providers/sessions_provider.dart';
+import '../sessions/providers/sessions_provider.dart';
+import '../../core/services/hive_service.dart';
+
 
 class AddTaskSheet extends ConsumerStatefulWidget {
+  const AddTaskSheet({super.key, required this.defaultSession, this.existingTask});
+
   final Session defaultSession;
   final Task? existingTask;
-
-  const AddTaskSheet({
-    super.key,
-    required this.defaultSession,
-    this.existingTask,
-  });
 
   @override
   ConsumerState<AddTaskSheet> createState() => _AddTaskSheetState();
@@ -27,7 +26,11 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
   final _titleController = TextEditingController();
   bool _isBreak = false;
   bool _hasSessionTimer = false;
+  bool _isKeyTask = false;
   String _selectedIconName = 'star';
+
+  /// Selected weekdays: 1=Mon … 7=Sun. Empty means every day.
+  late List<int> _selectedWeekdays;
 
   static const Map<String, IconData> _appIcons = {
     'star': Icons.star_rounded,
@@ -63,9 +66,16 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
     super.initState();
     _titleController.text = widget.existingTask?.title ?? '';
     _selectedSession = widget.defaultSession;
-    _availableSessions = SessionData.sessionsForToday(
-      isFriday: DateTime.now().weekday == DateTime.friday,
-    );
+    _availableSessions = SessionData.sessionsForToday;
+
+    // Default weekdays: all days (empty = every day)
+    _selectedWeekdays = [];
+    if (widget.defaultSession.id == 'saturday') {
+      _selectedWeekdays = [DateTime.saturday];
+    } else if (widget.defaultSession.id == 'sunday') {
+      _selectedWeekdays = [DateTime.sunday];
+    }
+
     // Ensure the default session is in the list
     if (!_availableSessions.any((s) => s.id == _selectedSession.id)) {
       _selectedSession = _availableSessions.first;
@@ -101,7 +111,37 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
       _isBreak = widget.existingTask!.isBreak;
       _hasSessionTimer = widget.existingTask!.hasSessionTimer;
       _selectedIconName = widget.existingTask!.iconName;
+      _isKeyTask = widget.existingTask!.isKeyTask;
+      _selectedWeekdays = List<int>.from(widget.existingTask!.weekdays);
     }
+  }
+
+  List<Task> _getUniqueTemplates() {
+    final custom = hiveService.readCustomTasks();
+    final seen = <String>{};
+    final templates = <Task>[];
+    for (final t in custom) {
+      final titleLower = t.title.trim().toLowerCase();
+      if (titleLower.isNotEmpty && !seen.contains(titleLower)) {
+        seen.add(titleLower);
+        templates.add(t);
+      }
+    }
+
+    final defaults = [
+      Task(id: 'd1', sessionId: 'morning', title: 'Study', time: '', durationMinutes: 30, iconName: 'book', tip: 'Custom task'),
+      Task(id: 'd2', sessionId: 'morning', title: 'Workout', time: '', durationMinutes: 45, iconName: 'workout', tip: 'Custom task'),
+      Task(id: 'd3', sessionId: 'morning', title: 'Job Application', time: '', durationMinutes: 60, iconName: 'job', tip: 'Custom task'),
+      Task(id: 'd4', sessionId: 'morning', title: 'Read Book', time: '', durationMinutes: 30, iconName: 'book', tip: 'Custom task'),
+    ];
+    for (final d in defaults) {
+      final titleLower = d.title.trim().toLowerCase();
+      if (!seen.contains(titleLower)) {
+        seen.add(titleLower);
+        templates.add(d);
+      }
+    }
+    return templates;
   }
 
   void _updateTimeBounds() {
@@ -113,7 +153,6 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
       _minTime = _parseTimeStrToDate(range[0]);
       _maxTime = _parseTimeStrToDate(range[1]);
       if (_minTime != null && _maxTime != null) {
-        // If maxTime wrapped past midnight or is am/pm logic
         if (range[0].toLowerCase().contains('am') == false &&
             range[0].toLowerCase().contains('pm') == false) {
           final isPm = range[1].toLowerCase().contains('pm');
@@ -124,15 +163,12 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
         if (_maxTime!.isBefore(_minTime!)) {
           _maxTime = _maxTime!.add(const Duration(days: 1));
         }
-
         _selectedTime = _minTime!;
       }
     } else {
       _minTime = null;
       _maxTime = null;
     }
-
-    // Default to the start time of the session instead of "now" if possible.
     if (_minTime != null) {
       _selectedTime = _minTime!;
     }
@@ -176,6 +212,8 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
         isBreak: _isBreak,
         hasSessionTimer: _hasSessionTimer,
         iconName: _selectedIconName,
+        tip: 'key_task:$_isKeyTask|Custom task',
+        weekdays: _selectedWeekdays,
       );
       ref
           .read(sessionsProvider.notifier)
@@ -187,10 +225,11 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
         title: title,
         time: formattedTime,
         durationMinutes: _selectedDuration.inMinutes,
-        tip: 'Custom task',
+        tip: 'key_task:$_isKeyTask|Custom task',
         isBreak: _isBreak,
         hasSessionTimer: _hasSessionTimer,
         iconName: _selectedIconName,
+        weekdays: _selectedWeekdays,
       );
       ref.read(sessionsProvider.notifier).addCustomTask(newTask);
     }
@@ -200,459 +239,599 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.85,
-      padding: EdgeInsets.only(
-        top: 24,
-        left: 20,
-        right: 20,
-        bottom:
-            MediaQuery.of(context).viewInsets.bottom + 24, // Keyboard padding
+    final keyboardPadding = MediaQuery.of(context).viewInsets.bottom;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.92,
       ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                widget.existingTask != null ? 'Edit Task' : 'Add New Task',
-                style: AppTypography.screenTitle(color: AppColors.textPrimary),
-              ),
-              IconButton(
-                icon: Icon(Icons.close, color: AppColors.textSecondary),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Session Selector
-          SizedBox(
-            height: 38,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _availableSessions.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, i) {
-                final s = _availableSessions[i];
-                final isSelected = s.id == _selectedSession.id;
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedSession = s;
-                      _updateTimeBounds();
-                    });
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    decoration: BoxDecoration(
-                      color: isSelected ? AppColors.primary : Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: isSelected
-                            ? AppColors.primary
-                            : AppColors.border,
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        s.name,
-                        style: AppTypography.body(
-                          size: 12,
-                          weight: isSelected
-                              ? FontWeight.w600
-                              : FontWeight.w500,
-                          color: isSelected
-                              ? Colors.white
-                              : AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Fixed Header ───────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 8, 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    widget.existingTask != null ? 'Edit Task' : 'Add New Task',
+                    style: AppTypography.screenTitle(color: AppColors.textPrimary),
                   ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Task Title Input
-          TextField(
-            controller: _titleController,
-            style: AppTypography.body(size: 16, color: AppColors.textPrimary),
-            decoration: InputDecoration(
-              hintText: 'Task Name',
-              hintStyle: AppTypography.body(
-                size: 16,
-                color: AppColors.textMuted,
-              ),
-              filled: true,
-              fillColor: AppColors.cardSurface,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 16,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Icon Picker
-          SizedBox(
-            height: 40,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _appIcons.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
-              itemBuilder: (context, i) {
-                final key = _appIcons.keys.elementAt(i);
-                final icon = _appIcons[key];
-                final isSelected = key == _selectedIconName;
-                return GestureDetector(
-                  onTap: () => setState(() => _selectedIconName = key),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.primary
-                          : AppColors.cardSurface,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: isSelected
-                            ? AppColors.primary
-                            : Colors.transparent,
-                        width: 2,
-                      ),
-                    ),
-                    child: Center(
-                      child: Icon(
-                        icon,
-                        color: isSelected
-                            ? Colors.white
-                            : AppColors.textSecondary,
-                        size: 20,
-                      ),
-                    ),
+                  IconButton(
+                    icon: Icon(Icons.close, color: AppColors.textSecondary),
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
-                );
-              },
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
+            const Divider(height: 1),
 
-          // Break Toggle
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Mark as break',
-                style: AppTypography.body(
-                  size: 14,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              CupertinoSwitch(
-                value: _isBreak,
-                activeTrackColor: AppColors.primary,
-                onChanged: (val) => setState(() => _isBreak = val),
-              ),
-              const SizedBox(width: 16),
-              Text(
-                'Focus Timer',
-                style: AppTypography.body(
-                  size: 14,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              CupertinoSwitch(
-                value: _hasSessionTimer,
-                activeTrackColor: AppColors.primary,
-                onChanged: (val) => setState(() => _hasSessionTimer = val),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          Text(
-            _selectedSession.timeRange
-                .toUpperCase()
-                .replaceAll('AM', ' AM')
-                .replaceAll('PM', ' PM')
-                .replaceAll('  ', ' ')
-                .replaceAll('â€“', '-'),
-            style: AppTypography.mono(
-              size: 12,
-              weight: FontWeight.w600,
-              color: AppColors.primary,
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Row for Time and Duration pickers
-          Expanded(
-            child: Row(
-              children: [
-                // Set a Time
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Set a time',
-                        style: AppTypography.body(
-                          size: 14,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: AppColors.cardSurface,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: CupertinoTheme(
-                            data: CupertinoTheme.of(context).copyWith(
-                              textTheme: CupertinoTextThemeData(
-                                dateTimePickerTextStyle: AppTypography.body(
-                                  size: 18,
-                                  weight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
+            // ── Scrollable Fields ──────────────────────────────────
+            Flexible(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(20, 16, 20, keyboardPadding + 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Session Selector
+                    SizedBox(
+                      height: 38,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _availableSessions.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (context, i) {
+                          final s = _availableSessions[i];
+                          final isSelected = s.id == _selectedSession.id;
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedSession = s;
+                                _updateTimeBounds();
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14),
+                              decoration: BoxDecoration(
+                                color: isSelected ? AppColors.primary : Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: isSelected ? AppColors.primary : AppColors.border,
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  s.name,
+                                  style: AppTypography.body(
+                                    size: 12,
+                                    weight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                                    color: isSelected ? Colors.white : AppColors.textSecondary,
+                                  ),
                                 ),
                               ),
                             ),
-                            child: CupertinoDatePicker(
-                              mode: CupertinoDatePickerMode.time,
-                              use24hFormat: true,
-                              initialDateTime: _selectedTime,
-                              minimumDate: _minTime,
-                              maximumDate: _maxTime,
-                              onDateTimeChanged: (val) =>
-                                  setState(() => _selectedTime = val),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Suggestions row
+                    Builder(
+                      builder: (context) {
+                        final templates = _getUniqueTemplates();
+                        if (templates.isEmpty) return const SizedBox.shrink();
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Suggestions',
+                              style: AppTypography.body(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary),
                             ),
-                          ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              height: 38,
+                              child: ListView.separated(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: templates.length,
+                                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                                itemBuilder: (context, i) {
+                                  final t = templates[i];
+                                  final iconData = _appIcons[t.iconName] ?? Icons.star_rounded;
+                                  return GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        _titleController.text = t.title;
+                                        if (_appIcons.containsKey(t.iconName)) {
+                                          _selectedIconName = t.iconName;
+                                        }
+                                        _isBreak = t.isBreak;
+                                        _hasSessionTimer = t.hasSessionTimer;
+                                        _isKeyTask = t.isKeyTask;
+                                        _selectedDuration = Duration(minutes: t.durationMinutes);
+                                      });
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.cardSurface,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: AppColors.border),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(iconData, size: 16, color: AppColors.primary),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            t.title,
+                                            style: AppTypography.body(
+                                              size: 13,
+                                              weight: FontWeight.w600,
+                                              color: AppColors.textPrimary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                          ],
+                        );
+                      },
+                    ),
+
+                    // Task Title Input
+                    TextField(
+                      controller: _titleController,
+                      style: AppTypography.body(size: 16, color: AppColors.textPrimary),
+                      decoration: InputDecoration(
+                        hintText: 'Task Name',
+                        hintStyle: AppTypography.body(size: 16, color: AppColors.textMuted),
+                        filled: true,
+                        fillColor: AppColors.cardSurface,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
                         ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                // Duration
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Duration',
-                        style: AppTypography.body(
-                          size: 14,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: AppColors.cardSurface,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: CupertinoTheme(
-                            data: CupertinoTheme.of(context).copyWith(
-                              textTheme: CupertinoTextThemeData(
-                                dateTimePickerTextStyle: AppTypography.body(
-                                  size: 18,
-                                  weight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Icon Picker
+                    SizedBox(
+                      height: 40,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _appIcons.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 12),
+                        itemBuilder: (context, i) {
+                          final key = _appIcons.keys.elementAt(i);
+                          final icon = _appIcons[key];
+                          final isSelected = key == _selectedIconName;
+                          return GestureDetector(
+                            onTap: () => setState(() => _selectedIconName = key),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: isSelected ? AppColors.primary : AppColors.cardSurface,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isSelected ? AppColors.primary : Colors.transparent,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Center(
+                                child: Icon(
+                                  icon,
+                                  color: isSelected ? Colors.white : AppColors.textSecondary,
+                                  size: 20,
                                 ),
                               ),
                             ),
-                            child: Stack(
-                              alignment: Alignment.center,
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Weekday Selector
+                    _WeekdaySelector(
+                      selected: _selectedWeekdays,
+                      onToggle: (day) {
+                        setState(() {
+                          if (_selectedWeekdays.contains(day)) {
+                            _selectedWeekdays.remove(day);
+                          } else {
+                            _selectedWeekdays.add(day);
+                          }
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Toggles Row (Break, Timer, Key Task on a single line)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Break
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('Break', style: AppTypography.body(size: 13, color: AppColors.textPrimary)),
+                            const SizedBox(width: 4),
+                            Transform.scale(
+                              scale: 0.75,
+                              child: CupertinoSwitch(
+                                value: _isBreak,
+                                activeTrackColor: AppColors.primary,
+                                onChanged: (val) => setState(() {
+                                  _isBreak = val;
+                                  if (val) _isKeyTask = false;
+                                }),
+                              ),
+                            ),
+                          ],
+                        ),
+                        // Timer
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('Timer', style: AppTypography.body(size: 13, color: AppColors.textPrimary)),
+                            const SizedBox(width: 4),
+                            Transform.scale(
+                              scale: 0.75,
+                              child: CupertinoSwitch(
+                                value: _hasSessionTimer,
+                                activeTrackColor: AppColors.primary,
+                                onChanged: (val) => setState(() => _hasSessionTimer = val),
+                              ),
+                            ),
+                          ],
+                        ),
+                        // Key Task
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('Key Task', style: AppTypography.body(size: 13, color: AppColors.textPrimary)),
+                            const SizedBox(width: 4),
+                            Transform.scale(
+                              scale: 0.75,
+                              child: CupertinoSwitch(
+                                value: _isKeyTask,
+                                activeTrackColor: AppColors.primary,
+                                onChanged: _isBreak ? null : (val) => setState(() => _isKeyTask = val),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Session time range label
+                    Text(
+                      _selectedSession.timeRange
+                          .toUpperCase()
+                          .replaceAll('AM', ' AM')
+                          .replaceAll('PM', ' PM')
+                          .replaceAll('  ', ' '),
+                      style: AppTypography.mono(
+                        size: 12,
+                        weight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Time + Duration pickers (fixed height so they don't overflow)
+                    SizedBox(
+                      height: 180,
+                      child: Row(
+                        children: [
+                          // Time picker
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Expanded(
-                                      child: CupertinoPicker(
-                                        itemExtent: 32,
-                                        scrollController:
-                                            FixedExtentScrollController(
-                                              initialItem:
-                                                  _selectedDuration.inHours,
-                                            ),
-                                        selectionOverlay:
-                                            const CupertinoPickerDefaultSelectionOverlay(
-                                              background: CupertinoColors
-                                                  .tertiarySystemFill,
-                                            ),
-                                        onSelectedItemChanged: (i) {
-                                          setState(() {
-                                            _selectedDuration = Duration(
-                                              hours: i,
-                                              minutes:
-                                                  _selectedDuration.inMinutes %
-                                                  60,
-                                            );
-                                          });
-                                        },
-                                        children: List.generate(
-                                          24,
-                                          (i) => Center(
-                                            child: Padding(
-                                              padding: const EdgeInsets.only(
-                                                right: 20,
-                                              ),
-                                              child: Text(
-                                                '$i',
-                                                style: AppTypography.body(
-                                                  size: 18,
-                                                  weight: FontWeight.w600,
-                                                  color: AppColors.textPrimary,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: CupertinoPicker(
-                                        itemExtent: 32,
-                                        scrollController:
-                                            FixedExtentScrollController(
-                                              initialItem:
-                                                  (_selectedDuration.inMinutes %
-                                                      60) ~/
-                                                  5,
-                                            ),
-                                        selectionOverlay:
-                                            const CupertinoPickerDefaultSelectionOverlay(
-                                              background: CupertinoColors
-                                                  .tertiarySystemFill,
-                                            ),
-                                        onSelectedItemChanged: (i) {
-                                          setState(() {
-                                            _selectedDuration = Duration(
-                                              hours: _selectedDuration.inHours,
-                                              minutes: i * 5,
-                                            );
-                                          });
-                                        },
-                                        children: List.generate(
-                                          12,
-                                          (i) => Center(
-                                            child: Padding(
-                                              padding: const EdgeInsets.only(
-                                                right: 20,
-                                              ),
-                                              child: Text(
-                                                '${i * 5}',
-                                                style: AppTypography.body(
-                                                  size: 18,
-                                                  weight: FontWeight.w600,
-                                                  color: AppColors.textPrimary,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                                Text(
+                                  'Set a time',
+                                  style: AppTypography.body(size: 14, color: AppColors.textSecondary),
                                 ),
-                                // Static Labels
-                                Positioned(
-                                  left: 0,
-                                  right: 0,
-                                  child: IgnorePointer(
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Center(
-                                            child: Padding(
-                                              padding: const EdgeInsets.only(
-                                                left: 24,
-                                              ),
-                                              child: Text(
-                                                'H',
-                                                style: AppTypography.body(
-                                                  size: 18,
-                                                  weight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ),
+                                const SizedBox(height: 8),
+                                Expanded(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: AppColors.cardSurface,
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: CupertinoTheme(
+                                      data: CupertinoTheme.of(context).copyWith(
+                                        textTheme: CupertinoTextThemeData(
+                                          dateTimePickerTextStyle: AppTypography.body(
+                                            size: 18,
+                                            weight: FontWeight.w600,
+                                            color: AppColors.textPrimary,
                                           ),
                                         ),
-                                        Expanded(
-                                          child: Center(
-                                            child: Padding(
-                                              padding: const EdgeInsets.only(
-                                                left: 30,
-                                              ),
-                                              child: Text(
-                                                'M',
-                                                style: AppTypography.body(
-                                                  size: 18,
-                                                  weight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
+                                      ),
+                                      child: CupertinoDatePicker(
+                                        mode: CupertinoDatePickerMode.time,
+                                        use24hFormat: true,
+                                        initialDateTime: _selectedTime,
+                                        minimumDate: _minTime,
+                                        maximumDate: _maxTime,
+                                        onDateTimeChanged: (val) => setState(() => _selectedTime = val),
+                                      ),
                                     ),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        ),
+                          const SizedBox(width: 16),
+                          // Duration picker
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Duration',
+                                  style: AppTypography.body(size: 14, color: AppColors.textSecondary),
+                                ),
+                                const SizedBox(height: 8),
+                                Expanded(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: AppColors.cardSurface,
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: CupertinoTheme(
+                                      data: CupertinoTheme.of(context).copyWith(
+                                        textTheme: CupertinoTextThemeData(
+                                          dateTimePickerTextStyle: AppTypography.body(
+                                            size: 18,
+                                            weight: FontWeight.w600,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Stack(
+                                        alignment: Alignment.center,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Expanded(
+                                                child: CupertinoPicker(
+                                                  itemExtent: 32,
+                                                  scrollController: FixedExtentScrollController(
+                                                    initialItem: _selectedDuration.inHours,
+                                                  ),
+                                                  selectionOverlay: const CupertinoPickerDefaultSelectionOverlay(
+                                                    background: CupertinoColors.tertiarySystemFill,
+                                                  ),
+                                                  onSelectedItemChanged: (i) {
+                                                    setState(() {
+                                                      _selectedDuration = Duration(
+                                                        hours: i,
+                                                        minutes: _selectedDuration.inMinutes % 60,
+                                                      );
+                                                    });
+                                                  },
+                                                  children: List.generate(
+                                                    24,
+                                                    (i) => Center(
+                                                      child: Padding(
+                                                        padding: const EdgeInsets.only(right: 20),
+                                                        child: Text(
+                                                          '$i',
+                                                          style: AppTypography.body(
+                                                            size: 18,
+                                                            weight: FontWeight.w600,
+                                                            color: AppColors.textPrimary,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              Expanded(
+                                                child: CupertinoPicker(
+                                                  itemExtent: 32,
+                                                  scrollController: FixedExtentScrollController(
+                                                    initialItem: (_selectedDuration.inMinutes % 60) ~/ 5,
+                                                  ),
+                                                  selectionOverlay: const CupertinoPickerDefaultSelectionOverlay(
+                                                    background: CupertinoColors.tertiarySystemFill,
+                                                  ),
+                                                  onSelectedItemChanged: (i) {
+                                                    setState(() {
+                                                      _selectedDuration = Duration(
+                                                        hours: _selectedDuration.inHours,
+                                                        minutes: i * 5,
+                                                      );
+                                                    });
+                                                  },
+                                                  children: List.generate(
+                                                    12,
+                                                    (i) => Center(
+                                                      child: Padding(
+                                                        padding: const EdgeInsets.only(right: 20),
+                                                        child: Text(
+                                                          '${i * 5}',
+                                                          style: AppTypography.body(
+                                                            size: 18,
+                                                            weight: FontWeight.w600,
+                                                            color: AppColors.textPrimary,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          // H / M labels
+                                          Positioned(
+                                            left: 0,
+                                            right: 0,
+                                            child: IgnorePointer(
+                                              child: Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Center(
+                                                      child: Padding(
+                                                        padding: const EdgeInsets.only(left: 24),
+                                                        child: Text('H', style: AppTypography.body(size: 18, weight: FontWeight.w600)),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  Expanded(
+                                                    child: Center(
+                                                      child: Padding(
+                                                        padding: const EdgeInsets.only(left: 30),
+                                                        child: Text('M', style: AppTypography.body(size: 18, weight: FontWeight.w600)),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── Fixed Save Button ──────────────────────────────────
+            Padding(
+              padding: EdgeInsets.fromLTRB(20, 8, 20, bottomPadding + 16),
+              child: SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  onPressed: _saveTask,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: Text(
+                    widget.existingTask != null ? 'Update Task' : 'Add Task',
+                    style: AppTypography.body(
+                      size: 16,
+                      weight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Save Button
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: ElevatedButton(
-              onPressed: _saveTask,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-              child: Text(
-                widget.existingTask != null ? 'Update Task' : 'Add Task',
-                style: AppTypography.body(
-                  size: 16,
-                  weight: FontWeight.w600,
-                  color: Colors.white,
-                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+}
+
+// ── Weekday Selector ──────────────────────────────────────────────────────────
+class _WeekdaySelector extends StatelessWidget {
+  const _WeekdaySelector({required this.selected, required this.onToggle});
+
+  final List<int> selected;
+  final void Function(int day) onToggle;
+
+  static const _labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  static const _days = [1, 2, 3, 4, 5, 6, 7]; // ISO: Mon=1 … Sun=7
+
+  @override
+  Widget build(BuildContext context) {
+    final isEmpty = selected.isEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Active Days',
+              style: AppTypography.body(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary),
+            ),
+            const SizedBox(width: 8),
+            if (isEmpty)
+              Text(
+                '(Every day)',
+                style: AppTypography.body(size: 12, color: AppColors.textMuted),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: List.generate(_days.length, (i) {
+            final day = _days[i];
+            final isOn = isEmpty || selected.contains(day);
+            return GestureDetector(
+              onTap: () => onToggle(day),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isOn ? AppColors.primary : AppColors.cardSurface,
+                  border: Border.all(
+                    color: isOn ? AppColors.primary : AppColors.border,
+                    width: 1.5,
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    _labels[i],
+                    style: AppTypography.body(
+                      size: 13,
+                      weight: FontWeight.w700,
+                      color: isOn ? Colors.white : AppColors.textMuted,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+      ],
     );
   }
 }
