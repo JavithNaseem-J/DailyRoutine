@@ -284,43 +284,49 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                     // Session Selector
                     SizedBox(
                       height: 38,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _availableSessions.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 8),
-                        itemBuilder: (context, i) {
-                          final s = _availableSessions[i];
-                          final isSelected = s.id == _selectedSession.id;
-                          return GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _selectedSession = s;
-                                _updateTimeBounds();
-                              });
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14),
-                              decoration: BoxDecoration(
-                                color: isSelected ? AppColors.primary : Colors.white,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: isSelected ? AppColors.primary : AppColors.border,
-                                  width: 1.5,
-                                ),
+                      child: Center(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: List.generate(_availableSessions.length, (i) {
+                            final s = _availableSessions[i];
+                            final isSelected = s.id == _selectedSession.id;
+                            return Padding(
+                              padding: EdgeInsets.only(
+                                right: i < _availableSessions.length - 1 ? 8.0 : 0.0,
                               ),
-                              child: Center(
-                                child: Text(
-                                  s.name,
-                                  style: AppTypography.body(
-                                    size: 12,
-                                    weight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                                    color: isSelected ? Colors.white : AppColors.textSecondary,
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _selectedSession = s;
+                                    _updateTimeBounds();
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                                  decoration: BoxDecoration(
+                                    color: isSelected ? AppColors.primary : Colors.white,
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: isSelected ? AppColors.primary : AppColors.border,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      s.name,
+                                      style: AppTypography.body(
+                                        size: 12,
+                                        weight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                                        color: isSelected ? Colors.white : AppColors.textSecondary,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          );
-                        },
+                            );
+                          }),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 20),

@@ -203,8 +203,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       final bytes = await file.readAsBytes();
       final ext = file.path.split('.').last.toLowerCase();
       String mimeType = 'image/jpeg';
-      if (ext == 'png') mimeType = 'image/png';
-      else if (ext == 'webp') mimeType = 'image/webp';
+      if (ext == 'png') {
+        mimeType = 'image/png';
+      } else if (ext == 'webp') {
+        mimeType = 'image/webp';
+      }
 
       final publicUrl = await supabaseService.uploadAvatar(
         user.id,
@@ -699,7 +702,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         context,
       ).showSnackBar(const SnackBar(content: Text('All data reset. Starting fresh.')));
       
-      // Navigate to home to force the stats screen and home screen to re-init
+      context.go('/home');
     }
   }
 
@@ -1051,6 +1054,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
                 SizedBox(height: 24),
 
+                const _SectionHeader(title: 'Location Settings'),
+                _SettingsTile(
+                  icon: Icons.my_location_outlined,
+                  title: 'Location',
+                  subtitle: _prayerLocation,
+                  onTap: _isLocating ? null : _changeLocation,
+                  trailing: _isLocating
+                      ? SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.primary,
+                          ),
+                        )
+                      : Icon(
+                          Icons.chevron_right,
+                          size: 16,
+                          color: AppColors.textMuted,
+                        ),
+                ),
+
+                SizedBox(height: 24),
+
                 const _SectionHeader(title: 'Prayer Times'),
                 Row(
                   children: [
@@ -1096,26 +1123,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 SizedBox(height: 16),
                 if (_prayerMode == 'auto') ...[
-                  _SettingsTile(
-                    icon: Icons.my_location_outlined,
-                    title: 'Location',
-                    subtitle: _prayerLocation,
-                    onTap: _isLocating ? null : _changeLocation,
-                    trailing: _isLocating
-                        ? SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.primary,
-                            ),
-                          )
-                        : Icon(
-                            Icons.chevron_right,
-                            size: 16,
-                            color: AppColors.textMuted,
-                          ),
-                  ),
                   _SettingsTile(
                     icon: Icons.calculate_outlined,
                     title: 'Calculation method',
@@ -1205,7 +1212,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
-                      'Yawmi',
+                      'FocusFlow',
                       style: AppTypography.body(
                         size: 15,
                         weight: FontWeight.w700,

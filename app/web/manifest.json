@@ -1,6 +1,6 @@
 {
-    "name": "yawmi",
-    "short_name": "yawmi",
+    "name": "FocusFlow",
+    "short_name": "FocusFlow",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

@@ -36,7 +36,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     0,
   );
 
-  List<double> _disciplineHistory = List.filled(7, 0);
+  List<double> _disciplineHistory = List.filled(10, 0);
   int _currentDisciplineScore = 0;
 
   int _currentStreak = 0;
@@ -463,7 +463,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
       // Discipline Score calculation
       final localStatesEnd = hiveService.readAllDailyStates();
-      List<double> dHistory = List.filled(7, 0);
+      List<double> dHistory = List.filled(10, 0);
       int currentDiscipline = 0;
       for (final s in localStatesEnd) {
         try {
@@ -473,7 +473,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             today.month,
             today.day,
           ).difference(DateTime(dt.year, dt.month, dt.day)).inDays;
-          if (diff >= 0 && diff < 7) {
+          if (diff >= 0 && diff < 10) {
             int tTasks = s.taskStatus.isNotEmpty
                 ? s.taskStatus.length
                 : 5; // fallback to 5
@@ -483,7 +483,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               currentStreak: streak?.currentStreak ?? 0,
               totalScheduledTasks: tTasks,
             );
-            dHistory[6 - diff] = score.toDouble();
+            dHistory[9 - diff] = score.toDouble();
             if (diff == 0) currentDiscipline = score;
           }
         } catch (_) {}
@@ -591,7 +591,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         totalScheduledTasks: totalTasks,
       );
       if (liveDisciplineHistory.isNotEmpty) {
-        liveDisciplineHistory[6] = realScore.toDouble();
+        liveDisciplineHistory[9] = realScore.toDouble();
       }
 
       if (liveHeatmap.isNotEmpty) {
@@ -657,11 +657,13 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             ),
 
 
+            const SizedBox(height: 20),
+
             _DisciplineScoreCard(
               score: realScore,
               history: liveDisciplineHistory,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             _LevelTodayStreakCard(
               score: realScore,
@@ -674,11 +676,11 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               isLoading: _statsLoading,
             ),
 
-            SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             _PrayerConsistencyCard(prayerCounts: _prayerCounts),
 
-            SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             _FocusCard(
               totalMinutes: _totalFocusMinutes,
@@ -687,7 +689,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               projectMinutes: _projectMinutesData,
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             _SkippedDelayedCard(
               monthlySkippedCount: _monthlySkippedCount,
@@ -696,6 +698,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               topDelayed: _topDelayed,
             ),
 
+            const SizedBox(height: 20),
 
             _HeatmapGrid(
               values: liveHeatmap,
@@ -1479,7 +1482,12 @@ class _DisciplineScoreCard extends StatelessWidget {
                           .map((e) => FlSpot(e.key.toDouble(), e.value))
                           .toList(),
                       isCurved: true,
-                      color: AppColors.primary,
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.red,
+                          AppColors.primary,
+                        ],
+                      ),
                       barWidth: 2.5,
                       isStrokeCapRound: true,
                       dotData: FlDotData(

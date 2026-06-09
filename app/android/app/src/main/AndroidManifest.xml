@@ -15,7 +15,7 @@
 
 
     <application
-        android:label="Yawmi"
+        android:label="FocusFlow"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"

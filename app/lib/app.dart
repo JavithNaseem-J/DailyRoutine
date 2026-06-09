@@ -68,7 +68,7 @@ class _DailyRoutineAppState extends ConsumerState<DailyRoutineApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'Yawmi',
+      title: 'FocusFlow',
       theme: AppTheme.theme(),
       debugShowCheckedModeBanner: false,
       routerConfig: appRouter,
