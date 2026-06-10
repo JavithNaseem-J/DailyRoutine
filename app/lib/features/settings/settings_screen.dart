@@ -49,7 +49,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   // Per-prayer settings
   static const _prayerKeys = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'];
-  static const _prayerEmojis = ['🌅', '☀️', '🌤️', '🌇', '🌙'];
+  static const _prayerIcons = [
+    Icons.wb_twilight_rounded,
+    Icons.wb_sunny_rounded,
+    Icons.wb_sunny_outlined,
+    Icons.wb_twilight_outlined,
+    Icons.nightlight_round,
+  ];
   static const _prayerNames = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
   Map<String, bool> _prayerEnabled = {};
   Map<String, int> _prayerOffset = {};
@@ -1002,9 +1008,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               child: Row(
                                 children: [
-                                  Text(
-                                    _prayerEmojis[i],
-                                    style: const TextStyle(fontSize: 18),
+                                  Icon(
+                                    _prayerIcons[i],
+                                    size: 18,
+                                    color: enabled ? AppColors.textPrimary : AppColors.textMuted,
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
@@ -1212,7 +1219,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
-                      'FocusFlow',
+                      'Yawmi',
                       style: AppTypography.body(
                         size: 15,
                         weight: FontWeight.w700,

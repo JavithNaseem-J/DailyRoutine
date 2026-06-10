@@ -41,8 +41,8 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
 
   final List<String> _projectTags = [
     'Study',
-    'Work',
     'Review',
+    'Work',
   ];
 
   @override
@@ -176,7 +176,6 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
     final totalRemainingSeconds = (widget.durationMinutes * 60) - (elapsedMinutesToday * 60) - currentTimerSessionElapsedSeconds;
     final remainingSecsClamped = totalRemainingSeconds.clamp(0, widget.durationMinutes * 60);
     final remainingMinsDisplay = remainingSecsClamped ~/ 60;
-    final remainingSecsDisplay = remainingSecsClamped % 60;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -423,9 +422,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                remainingMinsDisplay > 0
-                                    ? '$remainingMinsDisplay min ${remainingSecsDisplay}s'
-                                    : '${remainingSecsDisplay}s',
+                                '$remainingMinsDisplay min',
                                 style: AppTypography.body(
                                   size: 15,
                                   weight: FontWeight.w700,

@@ -281,57 +281,22 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Session Selector
-                    SizedBox(
-                      height: 38,
-                      child: Center(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: List.generate(_availableSessions.length, (i) {
-                            final s = _availableSessions[i];
-                            final isSelected = s.id == _selectedSession.id;
-                            return Padding(
-                              padding: EdgeInsets.only(
-                                right: i < _availableSessions.length - 1 ? 8.0 : 0.0,
-                              ),
-                              child: GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _selectedSession = s;
-                                    _updateTimeBounds();
-                                  });
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                                  decoration: BoxDecoration(
-                                    color: isSelected ? AppColors.primary : Colors.white,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: isSelected ? AppColors.primary : AppColors.border,
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      s.name,
-                                      style: AppTypography.body(
-                                        size: 12,
-                                        weight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                                        color: isSelected ? Colors.white : AppColors.textSecondary,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          }),
-                        ),
-                      ),
+                    // 1. Active Days (Weekday Selector)
+                    _WeekdaySelector(
+                      selected: _selectedWeekdays,
+                      onToggle: (day) {
+                        setState(() {
+                          if (_selectedWeekdays.contains(day)) {
+                            _selectedWeekdays.remove(day);
+                          } else {
+                            _selectedWeekdays.add(day);
+                          }
+                        });
+                      },
                     ),
                     const SizedBox(height: 20),
 
-                    // Suggestions row
+                    // 2. Suggestions row
                     Builder(
                       builder: (context) {
                         final templates = _getUniqueTemplates();
@@ -399,7 +364,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                       },
                     ),
 
-                    // Task Title Input
+                    // 3. Task Title Input
                     TextField(
                       controller: _titleController,
                       style: AppTypography.body(size: 16, color: AppColors.textPrimary),
@@ -417,7 +382,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Icon Picker
+                    // 4. Icon Picker
                     SizedBox(
                       height: 40,
                       child: ListView.separated(
@@ -454,24 +419,59 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                         },
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
 
-                    // Weekday Selector
-                    _WeekdaySelector(
-                      selected: _selectedWeekdays,
-                      onToggle: (day) {
-                        setState(() {
-                          if (_selectedWeekdays.contains(day)) {
-                            _selectedWeekdays.remove(day);
-                          } else {
-                            _selectedWeekdays.add(day);
-                          }
-                        });
-                      },
+                    // 5. Session Selector
+                    SizedBox(
+                      height: 38,
+                      child: Center(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: List.generate(_availableSessions.length, (i) {
+                            final s = _availableSessions[i];
+                            final isSelected = s.id == _selectedSession.id;
+                            return Padding(
+                              padding: EdgeInsets.only(
+                                right: i < _availableSessions.length - 1 ? 8.0 : 0.0,
+                              ),
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _selectedSession = s;
+                                    _updateTimeBounds();
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                                  decoration: BoxDecoration(
+                                    color: isSelected ? AppColors.primary : Colors.white,
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: isSelected ? AppColors.primary : AppColors.border,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      s.name,
+                                      style: AppTypography.body(
+                                        size: 12,
+                                        weight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                                        color: isSelected ? Colors.white : AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
 
-                    // Toggles Row (Break, Timer, Key Task on a single line)
+                    // 6. Toggles Row (Break, Timer, Key Task on a single line)
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -528,9 +528,9 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
 
-                    // Session time range label
+                    // 7. Session time range label
                     Text(
                       _selectedSession.timeRange
                           .toUpperCase()

@@ -1427,46 +1427,50 @@ class _DisciplineScoreCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: AppColors.cardDecoration(),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
             children: [
+              Icon(Icons.shield_outlined, color: AppColors.primary, size: 16),
+              const SizedBox(width: 6),
+              Text(
+                'Discipline Score',
+                style: AppTypography.body(
+                  size: 13,
+                  weight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const Spacer(),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
                 children: [
-                  Icon(Icons.shield_outlined, color: AppColors.primary, size: 16),
-                  const SizedBox(width: 6),
                   Text(
-                    'Discipline Score',
+                    score.toString(),
+                    style: AppTypography.mono(
+                      size: 24,
+                      weight: FontWeight.w900,
+                      color: AppColors.textPrimary,
+                    ).copyWith(letterSpacing: -1, height: 1),
+                  ),
+                  Text(
+                    '/100',
                     style: AppTypography.body(
-                      size: 13,
-                      weight: FontWeight.w600,
-                      color: AppColors.textSecondary,
+                      size: 12,
+                      color: AppColors.textMuted,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                score.toString(),
-                style: AppTypography.mono(
-                  size: 52,
-                  weight: FontWeight.w900,
-                  color: AppColors.textPrimary,
-                ).copyWith(letterSpacing: -2, height: 1),
-              ),
-              Text(
-                '/100',
-                style: AppTypography.body(
-                  size: 13,
-                  color: AppColors.textMuted,
-                ),
-              ),
             ],
           ),
-          const SizedBox(width: 20),
-          Expanded(
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.only(left: 54), // Align with letter 'p' of "Discipline"
             child: SizedBox(
               height: 64,
               child: LineChart(
@@ -1482,12 +1486,7 @@ class _DisciplineScoreCard extends StatelessWidget {
                           .map((e) => FlSpot(e.key.toDouble(), e.value))
                           .toList(),
                       isCurved: true,
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.red,
-                          AppColors.primary,
-                        ],
-                      ),
+                      color: AppColors.textPrimary,
                       barWidth: 2.5,
                       isStrokeCapRound: true,
                       dotData: FlDotData(
@@ -1497,7 +1496,7 @@ class _DisciplineScoreCard extends StatelessWidget {
                         getDotPainter: (spot, pct, bar, idx) =>
                             FlDotCirclePainter(
                           radius: 4,
-                          color: AppColors.primary,
+                          color: AppColors.textPrimary,
                           strokeWidth: 0,
                         ),
                       ),
@@ -1507,8 +1506,8 @@ class _DisciplineScoreCard extends StatelessWidget {
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            AppColors.primary.withValues(alpha: 0.15),
-                            AppColors.primary.withValues(alpha: 0.0),
+                            AppColors.textPrimary.withValues(alpha: 0.08),
+                            AppColors.textPrimary.withValues(alpha: 0.0),
                           ],
                         ),
                       ),
@@ -1556,18 +1555,6 @@ class _SkippedDelayedCard extends StatelessWidget {
                 'Discipline Gaps',
                 style: AppTypography.body(size: 14, weight: FontWeight.w600, color: AppColors.textPrimary),
               ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceRaised,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  'This Month',
-                  style: AppTypography.body(size: 11, color: AppColors.textMuted),
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 20),
@@ -1610,7 +1597,21 @@ class _SkippedDelayedCard extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         if (top.isEmpty)
-          Text('None yet! 🎉', style: AppTypography.body(size: 12, color: AppColors.textMuted))
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.check_circle_outline_rounded,
+                size: 14,
+                color: AppColors.textMuted,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'None yet!',
+                style: AppTypography.body(size: 12, color: AppColors.textMuted),
+              ),
+            ],
+          )
         else
           ...top.asMap().entries.map((entry) {
             final rank = entry.key + 1;
