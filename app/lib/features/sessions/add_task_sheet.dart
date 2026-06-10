@@ -66,7 +66,9 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
     super.initState();
     _titleController.text = widget.existingTask?.title ?? '';
     _selectedSession = widget.defaultSession;
-    _availableSessions = SessionData.sessionsForToday;
+    _availableSessions = SessionData.sessionsForToday
+        .where((s) => s.id != 'key_tasks')
+        .toList();
 
     // Default weekdays: all days (empty = every day)
     _selectedWeekdays = [];
@@ -131,7 +133,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
     final defaults = [
       Task(id: 'd1', sessionId: 'morning', title: 'Study', time: '', durationMinutes: 30, iconName: 'book', tip: 'Custom task'),
       Task(id: 'd2', sessionId: 'morning', title: 'Workout', time: '', durationMinutes: 45, iconName: 'workout', tip: 'Custom task'),
-      Task(id: 'd3', sessionId: 'morning', title: 'Job Application', time: '', durationMinutes: 60, iconName: 'job', tip: 'Custom task'),
+      Task(id: 'd3', sessionId: 'morning', title: 'Job Hunt', time: '', durationMinutes: 60, iconName: 'job', tip: 'Custom task'),
       Task(id: 'd4', sessionId: 'morning', title: 'Read Book', time: '', durationMinutes: 30, iconName: 'book', tip: 'Custom task'),
     ];
     for (final d in defaults) {
@@ -241,46 +243,50 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
   Widget build(BuildContext context) {
     final keyboardPadding = MediaQuery.of(context).viewInsets.bottom;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final screenHeight = MediaQuery.of(context).size.height;
 
-    return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.92,
-      ),
-      child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    return Padding(
+      padding: EdgeInsets.only(bottom: keyboardPadding),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: (screenHeight - keyboardPadding) * 0.92,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // ── Fixed Header ───────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 8, 0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    widget.existingTask != null ? 'Edit Task' : 'Add New Task',
-                    style: AppTypography.screenTitle(color: AppColors.textPrimary),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.close, color: AppColors.textSecondary),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-
-            // ── Scrollable Fields ──────────────────────────────────
-            Flexible(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(20, 16, 20, keyboardPadding + 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Fixed Header ───────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 8, 0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
+                    Text(
+                      widget.existingTask != null ? 'Edit Task' : 'Add New Task',
+                      style: AppTypography.screenTitle(color: AppColors.textPrimary),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close, color: AppColors.textSecondary),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+
+              // ── Scrollable Fields ──────────────────────────────────
+              Flexible(
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(20, 16, 20, bottomPadding + 100),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                     // 1. Active Days (Weekday Selector)
                     _WeekdaySelector(
                       selected: _selectedWeekdays,
@@ -514,7 +520,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text('Key Task', style: AppTypography.body(size: 13, color: AppColors.textPrimary)),
+                            Text('Must Do', style: AppTypography.body(size: 13, color: AppColors.textPrimary)),
                             const SizedBox(width: 4),
                             Transform.scale(
                               scale: 0.75,
@@ -769,8 +775,9 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 // ── Weekday Selector ──────────────────────────────────────────────────────────

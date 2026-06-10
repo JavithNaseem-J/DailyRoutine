@@ -31,6 +31,7 @@ class SupabaseService {
         'focus_sessions': state.focusSessions,
         'project_minutes': state.projectMinutes,
         'prayer_states': state.prayerStates,
+        'job_applications_count': state.jobApplicationsCount,
       }, onConflict: 'device_id, date');
     } catch (e, st) {
       Sentry.captureException(e, stackTrace: st);
@@ -64,6 +65,8 @@ class SupabaseService {
               MapEntry(k.toString(), int.tryParse(v?.toString() ?? '0') ?? 0),
         ),
         prayerStates: _castBoolMap(res['prayer_states']),
+        jobApplicationsCount:
+            int.tryParse(res['job_applications_count']?.toString() ?? '0') ?? 0,
       );
     } catch (e, st) {
       Sentry.captureException(e, stackTrace: st);

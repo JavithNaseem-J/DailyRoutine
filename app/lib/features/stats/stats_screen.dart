@@ -60,6 +60,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   };
   bool _statsLoading = true;
   Map<String, double> _dailyCompletionMap = {};
+  List<int> _weeklyJobApplications = List.filled(7, 0);
 
   @override
   void initState() {
@@ -402,6 +403,16 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         } catch (_) {}
       }
 
+      // Compute weekly job applications
+      final monday = today.subtract(Duration(days: today.weekday - 1));
+      final List<int> weekJobApps = [];
+      for (int i = 0; i < 7; i++) {
+        final dayDate = monday.add(Duration(days: i));
+        final dateKey = "${dayDate.year}-${dayDate.month.toString().padLeft(2, '0')}-${dayDate.day.toString().padLeft(2, '0')}";
+        final dayState = hiveService.readDailyState(dateKey);
+        weekJobApps.add(dayState.jobApplicationsCount);
+      }
+
       if (mounted) {
         setState(() {
           _totalFocusMinutes = focusMin;
@@ -409,6 +420,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           _totalFocusSessionsCount = totalSessions;
           _projectMinutesData = tagMins;
           _prayerCounts = pCounts;
+          _weeklyJobApplications = weekJobApps;
         });
       }
 
@@ -688,6 +700,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               totalSessions: _totalFocusSessionsCount,
               projectMinutes: _projectMinutesData,
             ),
+
+            const SizedBox(height: 20),
+
+            _WeeklyJobApplicationsChartCard(weeklyData: _weeklyJobApplications),
 
             const SizedBox(height: 20),
 
@@ -1181,6 +1197,211 @@ class _HeatmapGrid extends StatelessWidget {
   }
 }
 
+
+class _WeeklyJobApplicationsChartCard extends StatelessWidget {
+  const _WeeklyJobApplicationsChartCard({required this.weeklyData});
+  final List<int> weeklyData;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxVal = weeklyData.isEmpty ? 0 : weeklyData.reduce((a, b) => a > b ? a : b);
+    final double maxY = maxVal == 0 ? 5 : (maxVal * 1.2).ceilToDouble();
+    final totalThisWeek = weeklyData.fold<int>(0, (sum, val) => sum + val);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+      decoration: BoxDecoration(
+        color: AppColors.cardSurface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.8)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Job Hunt',
+                    style: AppTypography.body(
+                      size: 16,
+                      weight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Weekly submission trend',
+                    style: AppTypography.body(
+                      size: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryFaint,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$totalThisWeek Total',
+                  style: AppTypography.mono(
+                    size: 13,
+                    weight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            height: 180,
+            child: LineChart(
+              LineChartData(
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  getDrawingHorizontalLine: (value) => FlLine(
+                    color: AppColors.border,
+                    strokeWidth: 1,
+                    dashArray: [4, 4],
+                  ),
+                ),
+                titlesData: FlTitlesData(
+                  show: true,
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 28,
+                      getTitlesWidget: (value, meta) {
+                        if (value == value.toInt().toDouble()) {
+                          return Text(
+                            value.toInt().toString(),
+                            style: AppTypography.mono(
+                              size: 10,
+                              color: AppColors.textMuted,
+                            ),
+                          );
+                        }
+                        return const SizedBox();
+                      },
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: 1,
+                      getTitlesWidget: (value, meta) {
+                        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                        if (value != value.toInt().toDouble()) {
+                          return const SizedBox();
+                        }
+                        final idx = value.toInt();
+                        if (idx >= 0 && idx < 7) {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Text(
+                              days[idx],
+                              style: AppTypography.body(
+                                size: 10,
+                                weight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          );
+                        }
+                        return const SizedBox();
+                      },
+                    ),
+                  ),
+                ),
+                borderData: FlBorderData(
+                  show: true,
+                  border: Border(
+                    bottom: BorderSide(color: AppColors.border),
+                  ),
+                ),
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipColor: (spot) => AppColors.primary,
+                    getTooltipItems: (touchedSpots) {
+                      return touchedSpots.map((spot) {
+                        return LineTooltipItem(
+                          '${spot.y.toInt()} applications',
+                          const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Inter',
+                          ),
+                        );
+                      }).toList();
+                    },
+                  ),
+                ),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: weeklyData
+                        .asMap()
+                        .entries
+                        .map((e) => FlSpot(e.key.toDouble(), e.value.toDouble()))
+                        .toList(),
+                    isCurved: false,
+                    color: AppColors.primary,
+                    barWidth: 3,
+                    isStrokeCapRound: true,
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, pct, bar, idx) => FlDotCirclePainter(
+                        radius: 4,
+                        color: AppColors.primary,
+                        strokeColor: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    ),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          AppColors.primary.withValues(alpha: 0.1),
+                          AppColors.primary.withValues(alpha: 0.0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                minX: 0,
+                maxX: 6,
+                minY: 0,
+                maxY: maxY,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
 // Focus Card
 
 
@@ -1427,24 +1648,27 @@ class _DisciplineScoreCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: AppColors.cardDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.shield_outlined, color: AppColors.primary, size: 16),
-              const SizedBox(width: 6),
-              Text(
-                'Discipline Score',
-                style: AppTypography.body(
-                  size: 13,
-                  weight: FontWeight.w600,
-                  color: AppColors.textSecondary,
-                ),
+              Row(
+                children: [
+                  Icon(Icons.shield_outlined, color: AppColors.primary, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Discipline Score',
+                    style: AppTypography.body(
+                      size: 13,
+                      weight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
               ),
-              const Spacer(),
+              const SizedBox(height: 8),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
@@ -1452,15 +1676,15 @@ class _DisciplineScoreCard extends StatelessWidget {
                   Text(
                     score.toString(),
                     style: AppTypography.mono(
-                      size: 24,
+                      size: 52,
                       weight: FontWeight.w900,
                       color: AppColors.textPrimary,
-                    ).copyWith(letterSpacing: -1, height: 1),
+                    ).copyWith(letterSpacing: -2, height: 1),
                   ),
                   Text(
                     '/100',
                     style: AppTypography.body(
-                      size: 12,
+                      size: 13,
                       color: AppColors.textMuted,
                     ),
                   ),
@@ -1468,9 +1692,8 @@ class _DisciplineScoreCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.only(left: 54), // Align with letter 'p' of "Discipline"
+          const SizedBox(width: 20),
+          Expanded(
             child: SizedBox(
               height: 64,
               child: LineChart(
@@ -1486,7 +1709,7 @@ class _DisciplineScoreCard extends StatelessWidget {
                           .map((e) => FlSpot(e.key.toDouble(), e.value))
                           .toList(),
                       isCurved: true,
-                      color: AppColors.textPrimary,
+                      color: Colors.black,
                       barWidth: 2.5,
                       isStrokeCapRound: true,
                       dotData: FlDotData(
@@ -1496,7 +1719,7 @@ class _DisciplineScoreCard extends StatelessWidget {
                         getDotPainter: (spot, pct, bar, idx) =>
                             FlDotCirclePainter(
                           radius: 4,
-                          color: AppColors.textPrimary,
+                          color: Colors.black,
                           strokeWidth: 0,
                         ),
                       ),
@@ -1506,8 +1729,8 @@ class _DisciplineScoreCard extends StatelessWidget {
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            AppColors.textPrimary.withValues(alpha: 0.08),
-                            AppColors.textPrimary.withValues(alpha: 0.0),
+                            Colors.black.withValues(alpha: 0.08),
+                            Colors.black.withValues(alpha: 0.0),
                           ],
                         ),
                       ),

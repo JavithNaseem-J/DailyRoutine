@@ -12,6 +12,7 @@ class DailyState {
     List<int>? focusSessions,
     Map<String, int>? projectMinutes,
     Map<String, bool>? prayerStates,
+    this.jobApplicationsCount = 0,
   }) : taskStates = taskStates ?? {},
        taskStatus = taskStatus ?? {},
        bonusStates = bonusStates ?? {},
@@ -28,6 +29,7 @@ class DailyState {
   List<int> focusSessions; // Individual session durations (minutes)
   Map<String, int> projectMinutes; // tagId → minutes
   Map<String, bool> prayerStates; // prayerName → done
+  int jobApplicationsCount; // Today's Job Applications Count
 
   DailyState copyWith({
     Map<String, bool>? taskStates,
@@ -38,6 +40,7 @@ class DailyState {
     List<int>? focusSessions,
     Map<String, int>? projectMinutes,
     Map<String, bool>? prayerStates,
+    int? jobApplicationsCount,
   }) => DailyState(
     date: date,
     taskStates: taskStates ?? Map.from(this.taskStates),
@@ -48,10 +51,19 @@ class DailyState {
     focusSessions: focusSessions ?? List.from(this.focusSessions),
     projectMinutes: projectMinutes ?? Map.from(this.projectMinutes),
     prayerStates: prayerStates ?? Map.from(this.prayerStates),
+    jobApplicationsCount: jobApplicationsCount ?? this.jobApplicationsCount,
   );
 
   factory DailyState.empty(String date) =>
-      DailyState(date: date, taskStates: {}, taskStatus: {}, bonusStates: {}, focusSessions: [], prayerStates: {});
+      DailyState(
+        date: date,
+        taskStates: {},
+        taskStatus: {},
+        bonusStates: {},
+        focusSessions: [],
+        prayerStates: {},
+        jobApplicationsCount: 0,
+      );
 
   factory DailyState.fromJson(Map<String, dynamic> json) => DailyState(
     date: json['date'] as String,
@@ -73,6 +85,7 @@ class DailyState {
     prayerStates: (json['prayer_states'] as Map<String, dynamic>? ?? {}).map(
       (k, v) => MapEntry(k, v as bool),
     ),
+    jobApplicationsCount: json['job_applications_count'] as int? ?? 0,
   );
 
   Map<String, dynamic> toJson() => {
@@ -85,5 +98,6 @@ class DailyState {
     'focus_sessions': focusSessions,
     'project_minutes': projectMinutes,
     'prayer_states': prayerStates,
+    'job_applications_count': jobApplicationsCount,
   };
 }

@@ -476,6 +476,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 _PrayerCard(prayer: _prayerData, todayPrayers: _todayPrayers),
                 const SizedBox(height: 24),
 
+                const _JobApplicationsCard(),
+                const SizedBox(height: 24),
+
                 _TaskBoard(
                   tasks: _quickTasks,
                   onAdd: _addQuickTask,
@@ -956,6 +959,173 @@ class _PrayerCard extends ConsumerWidget {
 }
 
 
+class _JobApplicationsCard extends ConsumerWidget {
+  const _JobApplicationsCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sessionsAsync = ref.watch(sessionsProvider);
+    final count = sessionsAsync.value?.dailyState.jobApplicationsCount ?? 0;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      decoration: BoxDecoration(
+        color: AppColors.cardSurface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.8)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Left side Info
+          Expanded(
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryFaint,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.work_outline_rounded,
+                    color: AppColors.textPrimary,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Job Hunt',
+                        style: AppTypography.body(
+                          size: 15,
+                          weight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Track today\'s job search',
+                        style: AppTypography.body(
+                          size: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Right side Controls
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Minus Button
+              _ActionButton(
+                icon: Icons.remove,
+                onPressed: count > 0
+                    ? () {
+                        HapticFeedback.lightImpact();
+                        ref
+                            .read(sessionsProvider.notifier)
+                            .updateJobApplicationsCount(count - 1);
+                      }
+                    : null,
+              ),
+              const SizedBox(width: 16),
+              // Counter Display
+              SizedBox(
+                width: 32,
+                child: Center(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    transitionBuilder: (child, animation) {
+                      return ScaleTransition(scale: animation, child: child);
+                    },
+                    child: Text(
+                      '$count',
+                      key: ValueKey(count),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.black,
+                        fontFamily: 'Inter',
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              // Plus Button
+              _ActionButton(
+                icon: Icons.add,
+                onPressed: () {
+                  HapticFeedback.mediumImpact();
+                  ref
+                      .read(sessionsProvider.notifier)
+                      .updateJobApplicationsCount(count + 1);
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  const _ActionButton({required this.icon, required this.onPressed});
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    return GestureDetector(
+      onTap: onPressed,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: enabled ? AppColors.primary : AppColors.surfaceRaised,
+          shape: BoxShape.circle,
+          boxShadow: enabled
+              ? [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: enabled ? Colors.white : AppColors.textMuted,
+        ),
+      ),
+    );
+  }
+}
+
+
 const _kQuadrants = [
   (label: 'Do it',       urgency: true,  important: true,  hex: 0xFF10B981, icon: Icons.bolt_rounded),
   (label: 'Schedule it', urgency: false, important: true,  hex: 0xFFF59E0B, icon: Icons.calendar_month_rounded),
@@ -1271,7 +1441,7 @@ class _QuadrantSheetState extends State<_QuadrantSheet> {
     }
     // Use the task created & persisted by the parent so both share the same UUID.
     // Previously a second QuickTask with a NEW uuid was created here, causing
-    // toggle/delete to silently fail in the parent (wrong id) â†’ ghost task bug.
+    // toggle/delete to silently fail in the parent (wrong id) -> ghost task bug.
     final newTask = widget.onAdd(text, widget.isUrgent, widget.isImportant);
     setState(() => _localAll = [..._localAll, newTask]);
     widget.controller.clear();
@@ -1372,7 +1542,7 @@ class _QuadrantSheetState extends State<_QuadrantSheet> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
-                'No tasks yet â€” add one below!',
+                'No tasks yet - add one below!',
                 style:
                     AppTypography.body(size: 14, color: AppColors.textMuted),
               ),
@@ -1498,7 +1668,7 @@ class _MatrixTaskChipState extends State<_MatrixTaskChip> {
     } else if (cur == 'P4') {
       next = 'P5';
     } else {
-      next = null; // P5 â†’ clear
+      next = null; // P5 -> clear
     }
     widget.onUpdate(widget.task.copyWith(priority: next));
   }
@@ -1580,7 +1750,7 @@ class _MatrixTaskChipState extends State<_MatrixTaskChip> {
 
   Widget? _buildMetaBadge() {
     switch (widget.quadrantIndex) {
-      // Do it â†’ priority flag
+      // Do it -> priority flag
       case 0:
         final p = widget.task.priority;
         // P1=Red, P2=Orange, P3=Blue, P4=Purple, P5=Green, null=muted
@@ -1621,7 +1791,7 @@ class _MatrixTaskChipState extends State<_MatrixTaskChip> {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  p ?? 'Pâ€”',
+                  p ?? 'P-',
                   style: AppTypography.mono(
                     size: 11,
                     weight: FontWeight.w700,
@@ -1634,7 +1804,7 @@ class _MatrixTaskChipState extends State<_MatrixTaskChip> {
         );
 
 
-      // Schedule it â†’ deadline date
+      // Schedule it -> deadline date
       case 1:
         final dl = widget.task.deadline;
         String label = 'Date';
@@ -1693,7 +1863,7 @@ class _MatrixTaskChipState extends State<_MatrixTaskChip> {
           ),
         );
 
-      // Delegate it â†’ person name (sujood icon for prayer context)
+      // Delegate it -> person name (sujood icon for prayer context)
       case 2:
         final name = widget.task.delegatee;
         return GestureDetector(

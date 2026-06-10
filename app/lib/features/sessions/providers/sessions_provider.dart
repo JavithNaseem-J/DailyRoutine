@@ -139,36 +139,39 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
       );
     }).toList();
 
-    // 2. Apply key task resurfacing (only for weekday sessions with order)
+    // 2. Apply key task resurfacing: only append missed key tasks to the 'key_tasks' session
     return normalSessions.map((s) {
-      final resurfaced = migratedTasks.where((t) {
-        if (!t.isKeyTask) return false;
-        // Key tasks only resurface if they were active today
-        if (t.weekdays.isNotEmpty && !t.weekdays.contains(today.weekday)) return false;
-        final tOrder = sessionOrder[t.sessionId];
-        final sOrder = sessionOrder[s.id];
-        if (tOrder == null || sOrder == null) return false;
-        if (tOrder >= sOrder) return false; // not from an earlier session
+      if (s.id == 'key_tasks') {
+        final resurfaced = migratedTasks.where((t) {
+          if (!t.isKeyTask) return false;
+          // Key tasks only resurface if they were active today
+          if (t.weekdays.isNotEmpty && !t.weekdays.contains(today.weekday)) return false;
 
-        final isDone = dailyState.taskStates[t.id] == true;
-        final isSkipped = dailyState.taskStatus[t.id] == 'skipped';
-        final isMissed = !isDone || isSkipped;
+          final tOrder = sessionOrder[t.sessionId];
+          final activeOrder = sessionOrder[activeSessionId];
+          if (tOrder == null || activeOrder == null) return false;
+          if (tOrder >= activeOrder) return false; // not from an earlier session
 
-        return isMissed || (isDone && s.id == activeSessionId);
-      }).toList();
+          final isDone = dailyState.taskStates[t.id] == true;
+          final isSkipped = dailyState.taskStatus[t.id] == 'skipped';
+          final isMissed = !isDone || isSkipped;
 
-      if (resurfaced.isEmpty) return s;
+          return isMissed;
+        }).toList();
 
-      // Append resurfaced tasks at the end
-      return Session(
-        id: s.id,
-        name: s.name,
-        timeRange: s.timeRange,
-        accentColor: s.accentColor,
-        tasks: [...s.tasks, ...resurfaced],
-        isFridayOnly: s.isFridayOnly,
-        isWeekendOnly: s.isWeekendOnly,
-      );
+        return Session(
+          id: s.id,
+          name: s.name,
+          timeRange: s.timeRange,
+          accentColor: s.accentColor,
+          tasks: [...s.tasks, ...resurfaced],
+          isFridayOnly: s.isFridayOnly,
+          isWeekendOnly: s.isWeekendOnly,
+        );
+      } else {
+        // No resurfacing into other normal sessions
+        return s;
+      }
     }).toList();
   }
 
@@ -446,6 +449,17 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     if (current == null) return;
 
     final newDaily = current.dailyState.copyWith(mood: mood);
+
+    state = AsyncData(current.copyWith(dailyState: newDaily));
+    await hiveService.writeDailyState(newDaily);
+    supabaseService.upsertDailyState(newDaily, deviceId).catchError((_) {});
+  }
+
+  Future<void> updateJobApplicationsCount(int count) async {
+    final current = state.value;
+    if (current == null) return;
+
+    final newDaily = current.dailyState.copyWith(jobApplicationsCount: count);
 
     state = AsyncData(current.copyWith(dailyState: newDaily));
     await hiveService.writeDailyState(newDaily);

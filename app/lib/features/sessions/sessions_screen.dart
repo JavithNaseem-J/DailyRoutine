@@ -55,6 +55,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     final now = TimeOfDay.now();
     final nowMin = now.hour * 60 + now.minute;
     for (int i = 0; i < sessions.length; i++) {
+      if (sessions[i].id == 'key_tasks') continue;
       final range = sessions[i].timeRange
           .split(RegExp(r'\s*[-–—]\s*'))
           .map((p) => p.trim())

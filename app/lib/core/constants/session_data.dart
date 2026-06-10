@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import '../models/session.dart';
 import '../theme/app_colors.dart';
 
@@ -11,6 +12,7 @@ abstract final class SessionData {
     _night,
     _saturday,
     _sunday,
+    _keyTasks,
   ];
 
   static final _morning = Session(
@@ -55,6 +57,14 @@ abstract final class SessionData {
     isWeekendOnly: true,
   );
 
+  static final _keyTasks = Session(
+    id: 'key_tasks',
+    name: 'Must Do',
+    timeRange: 'All Day',
+    accentColor: const Color(0xFFF59E0B),
+    tasks: [],
+  );
+
   static Session? getById(String id) {
     // Migration: legacy 'weekend' tasks map to saturday
     if (id == 'weekend') return _saturday;
@@ -66,17 +76,17 @@ abstract final class SessionData {
   }
 
   /// Returns the sessions active on the given [date].
-  ///   - Mon–Fri → Morning + Afternoon + Night
-  ///   - Saturday → Saturday
-  ///   - Sunday → Sunday
+  ///   - Mon–Fri → Morning + Afternoon + Night + Key Tasks
+  ///   - Saturday → Saturday + Key Tasks
+  ///   - Sunday → Sunday + Key Tasks
   static List<Session> sessionsForDate(DateTime date) {
     switch (date.weekday) {
       case DateTime.saturday:
-        return [_saturday];
+        return [_saturday, _keyTasks];
       case DateTime.sunday:
-        return [_sunday];
+        return [_sunday, _keyTasks];
       default:
-        return [_morning, _afternoon, _night];
+        return [_morning, _afternoon, _night, _keyTasks];
     }
   }
 
