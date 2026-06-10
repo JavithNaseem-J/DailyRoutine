@@ -10,6 +10,7 @@ import '../../core/theme/app_typography.dart';
 import 'add_task_sheet.dart';
 import 'providers/sessions_provider.dart';
 import '../focus/providers/focus_timer_provider.dart';
+import '../../core/services/date_service.dart';
 
 class SessionsScreen extends ConsumerStatefulWidget {
   const SessionsScreen({super.key});
@@ -48,6 +49,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     _confettiController.dispose();
     _pageController.dispose();
     _pillScrollController.dispose();
+    ref.read(sessionsProvider.notifier).changeDate(dateService.todayKey());
     super.dispose();
   }
 
@@ -111,6 +113,12 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   void _setTaskStatus(Task task, String status) {
     HapticFeedback.lightImpact();
 
+    final selectedDateStr = ref.read(sessionsProvider).value?.selectedDate ?? dateService.todayKey();
+    if (selectedDateStr != dateService.todayKey()) {
+      _showDayCompletionWarning();
+      return;
+    }
+
     if (status == 'focus') {
       context.push(
         '/focus',
@@ -153,7 +161,94 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
 
   void _toggleBonus(String taskId) {
     HapticFeedback.lightImpact();
+    final selectedDateStr = ref.read(sessionsProvider).value?.selectedDate ?? dateService.todayKey();
+    if (selectedDateStr != dateService.todayKey()) {
+      _showDayCompletionWarning();
+      return;
+    }
     ref.read(sessionsProvider.notifier).toggleBonus(taskId);
+  }
+
+  void _showDayCompletionWarning() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.background,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 24),
+            const SizedBox(width: 8),
+            Text(
+              'Action Not Allowed',
+              style: AppTypography.body(size: 18, weight: FontWeight.w700),
+            ),
+          ],
+        ),
+        content: Text(
+          'You can only complete or modify task progress for today. '
+          'To log progress, please switch back to the current day.',
+          style: AppTypography.body(size: 14, color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'OK',
+              style: AppTypography.body(
+                size: 14,
+                weight: FontWeight.w600,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDateString(String dateKey) {
+    final date = DateTime.tryParse(dateKey) ?? DateTime.now();
+    final weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    final months = [
+      'January', 'February', 'March', 'April', 'May', 'June', 
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    final weekday = weekdays[date.weekday - 1];
+    final month = months[date.month - 1];
+    return '$weekday, $month ${date.day}';
+  }
+
+  Future<void> _pickSessionsDate() async {
+    final stateVal = ref.read(sessionsProvider).value;
+    final currentDateKey = stateVal?.selectedDate ?? dateService.todayKey();
+    final currentDate = DateTime.tryParse(currentDateKey) ?? DateTime.now();
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: currentDate,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: AppColors.primary,
+              onPrimary: Colors.white,
+              onSurface: AppColors.textPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      final key = dateService.keyFor(picked);
+      await ref.read(sessionsProvider.notifier).changeDate(key);
+    }
   }
 
   void _editTask(Task task, Session session) {
@@ -286,6 +381,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     });
 
     final sessionsAsync = ref.watch(sessionsProvider);
+    final selectedDateStr = sessionsAsync.value?.selectedDate ?? dateService.todayKey();
     final sessions = sessionsAsync.value?.sessions ?? _sessions;
     final safeIndex = _currentIndex.clamp(0, sessions.length - 1);
     final session = sessions[safeIndex];
@@ -302,50 +398,124 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Sessions',
-                            style: AppTypography.screenTitle(
-                              color: AppColors.textPrimary,
+                GestureDetector(
+                  onLongPress: () {
+                    HapticFeedback.mediumImpact();
+                    _pickSessionsDate();
+                  },
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Sessions',
+                                    style: AppTypography.screenTitle(
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                  if (selectedDateStr != dateService.todayKey()) ...[
+                                    const SizedBox(width: 8),
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4.0),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primary.withValues(alpha: 0.15),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          'Archived',
+                                          style: AppTypography.body(
+                                            size: 10,
+                                            weight: FontWeight.w700,
+                                            color: AppColors.primary,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Plan your day. Stay consistent.',
-                            style: AppTypography.body(
-                              size: 13,
-                              color: AppColors.textSecondary,
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                if (selectedDateStr != dateService.todayKey()) ...[
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4.0),
+                                    child: TextButton.icon(
+                                      onPressed: () {
+                                        ref.read(sessionsProvider.notifier).changeDate(dateService.todayKey());
+                                      },
+                                      icon: Icon(Icons.today_rounded, size: 16, color: AppColors.primary),
+                                      label: Text(
+                                        'Today',
+                                        style: AppTypography.body(
+                                          size: 12,
+                                          weight: FontWeight.w600,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                      style: TextButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        minimumSize: Size.zero,
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
+                                IconButton(
+                                  icon: Icon(
+                                    Icons.add,
+                                    color: AppColors.textPrimary,
+                                    size: 28,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  onPressed: () {
+                                    showModalBottomSheet(
+                                      context: context,
+                                      useRootNavigator: true,
+                                      isScrollControlled: true,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (context) =>
+                                          AddTaskSheet(defaultSession: session),
+                                    );
+                                  },
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          Icons.add,
-                          color: AppColors.textPrimary,
-                          size: 28,
+                          ],
                         ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: () {
-                          showModalBottomSheet(
-                            context: context,
-                            useRootNavigator: true,
-                            isScrollControlled: true,
-                            backgroundColor: Colors.transparent,
-                            builder: (context) =>
-                                AddTaskSheet(defaultSession: session),
-                          );
-                        },
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        Text(
+                          selectedDateStr == dateService.todayKey()
+                              ? 'Plan your day. Stay consistent.'
+                              : 'Viewing: ${_formatDateString(selectedDateStr)}',
+                          style: AppTypography.body(
+                            size: 13,
+                            color: selectedDateStr == dateService.todayKey()
+                                ? AppColors.textSecondary
+                                : AppColors.primary,
+                            weight: selectedDateStr == dateService.todayKey()
+                                ? FontWeight.normal
+                                : FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
 
@@ -901,14 +1071,6 @@ class _TaskCardState extends State<_TaskCard>
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    if (widget.task.isKeyTask) ...[
-                                      Icon(
-                                        Icons.vpn_key_rounded,
-                                        size: 14,
-                                        color: AppColors.primary,
-                                      ),
-                                      const SizedBox(width: 6),
-                                    ],
                                     Text(
                                       widget.task.title,
                                       style:
@@ -932,6 +1094,14 @@ class _TaskCardState extends State<_TaskCard>
                                                 : TextDecoration.none,
                                           ),
                                     ),
+                                    if (widget.task.isKeyTask) ...[
+                                      const SizedBox(width: 6),
+                                      Icon(
+                                        Icons.vpn_key_rounded,
+                                        size: 14,
+                                        color: AppColors.primary,
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),

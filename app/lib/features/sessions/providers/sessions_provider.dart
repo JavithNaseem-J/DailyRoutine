@@ -17,11 +17,13 @@ class SessionsState {
     required this.dailyState,
     required this.sessions,
     required this.activeSessionId,
+    required this.selectedDate,
   });
 
   final DailyState dailyState;
   final List<Session> sessions;
   final String? activeSessionId;
+  final String selectedDate;
 
   Map<String, bool> get taskStates => dailyState.taskStates;
   Map<String, bool> get bonusStates => dailyState.bonusStates;
@@ -80,26 +82,31 @@ class SessionsState {
     );
   }
 
-  SessionsState copyWith({DailyState? dailyState, List<Session>? sessions}) =>
+  SessionsState copyWith({
+    DailyState? dailyState,
+    List<Session>? sessions,
+    String? selectedDate,
+  }) =>
       SessionsState(
         dailyState: dailyState ?? this.dailyState,
         sessions: sessions ?? this.sessions,
         activeSessionId: activeSessionId,
+        selectedDate: selectedDate ?? this.selectedDate,
       );
 }
 
 // SessionsNotifier  (Riverpod 3.x — state is AsyncValue<SessionsState>)
 
 class SessionsNotifier extends AsyncNotifier<SessionsState> {
-  String get _todayKey => dateService.todayKey();
 
   List<Session> _buildSessionsWithResurfacing(
     DailyState dailyState,
     List<Task> allCustomTasks,
     String? activeSessionId,
+    String dateKey,
   ) {
-    final today = DateTime.now();
-    final baseSessions = SessionData.sessionsForDate(today);
+    final date = DateTime.tryParse(dateKey) ?? DateTime.now();
+    final baseSessions = SessionData.sessionsForDate(date);
 
     // Session display order for key task resurfacing (weekday sessions only)
     const sessionOrder = {
@@ -122,7 +129,7 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
           .where((t) {
             if (t.sessionId != s.id) return false;
             // Weekday filter: empty weekdays = active every day
-            return t.weekdays.isEmpty || t.weekdays.contains(today.weekday);
+            return t.weekdays.isEmpty || t.weekdays.contains(date.weekday);
           })
           .toList();
       relevantTasks.sort(
@@ -144,8 +151,8 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
       if (s.id == 'key_tasks') {
         final resurfaced = migratedTasks.where((t) {
           if (!t.isKeyTask) return false;
-          // Key tasks only resurface if they were active today
-          if (t.weekdays.isNotEmpty && !t.weekdays.contains(today.weekday)) return false;
+          // Key tasks only resurface if they were active on that date
+          if (t.weekdays.isNotEmpty && !t.weekdays.contains(date.weekday)) return false;
 
           final tOrder = sessionOrder[t.sessionId];
           final activeOrder = sessionOrder[activeSessionId];
@@ -178,9 +185,10 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
   @override
   Future<SessionsState> build() async {
     final defaultSessions = SessionData.sessionsForToday;
+    final todayKey = dateService.todayKey();
 
     // 1. Load from Hive instantly
-    final daily = hiveService.readDailyState(_todayKey);
+    final daily = hiveService.readDailyState(todayKey);
     final customTasks = hiveService.readCustomTasks();
     final activeSessId = _findActiveSessionId(defaultSessions);
 
@@ -188,23 +196,52 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
       daily,
       customTasks,
       activeSessId,
+      todayKey,
     );
 
     // 2. Refresh from Supabase in the background
-    _refreshFromSupabase(daily, sessions);
+    _refreshFromSupabase(daily, sessions, todayKey);
 
     return SessionsState(
       dailyState: daily,
       sessions: sessions,
       activeSessionId: activeSessId,
+      selectedDate: todayKey,
     );
+  }
+
+  Future<void> changeDate(String dateKey) async {
+    final date = DateTime.tryParse(dateKey) ?? DateTime.now();
+    final defaultSessions = SessionData.sessionsForDate(date);
+    final daily = hiveService.readDailyState(dateKey);
+    final customTasks = hiveService.readCustomTasks();
+    
+    final todayKey = dateService.todayKey();
+    final activeSessId = (dateKey == todayKey) ? _findActiveSessionId(defaultSessions) : null;
+
+    final sessions = _buildSessionsWithResurfacing(
+      daily,
+      customTasks,
+      activeSessId,
+      dateKey,
+    );
+
+    state = AsyncData(SessionsState(
+      dailyState: daily,
+      sessions: sessions,
+      activeSessionId: activeSessId,
+      selectedDate: dateKey,
+    ));
+
+    _refreshFromSupabase(daily, sessions, dateKey);
   }
 
   Future<void> _refreshFromSupabase(
     DailyState localState,
     List<Session> defaultSessions,
+    String dateKey,
   ) async {
-    final remote = await supabaseService.fetchDailyState(_todayKey, deviceId);
+    final remote = await supabaseService.fetchDailyState(dateKey, deviceId);
     final remoteCustomTasks = await supabaseService.fetchCustomTasks(deviceId);
     final localCustomTasks = hiveService.readCustomTasks();
 
@@ -237,7 +274,7 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
       merged = localState;
     } else {
       merged = DailyState(
-        date: _todayKey,
+        date: dateKey,
         taskStates: {...localState.taskStates, ...remote.taskStates},
         taskStatus: {...localState.taskStatus, ...remote.taskStatus},
         bonusStates: {...localState.bonusStates, ...remote.bonusStates},
@@ -258,12 +295,16 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     }
 
     final current = state.value;
-    if (current != null) {
-      final activeSessId = _findActiveSessionId(SessionData.sessionsForToday);
+    if (current != null && current.selectedDate == dateKey) {
+      final date = DateTime.tryParse(dateKey) ?? DateTime.now();
+      final defaultSess = SessionData.sessionsForDate(date);
+      final todayKey = dateService.todayKey();
+      final activeSessId = (dateKey == todayKey) ? _findActiveSessionId(defaultSess) : null;
       final updatedSessions = _buildSessionsWithResurfacing(
         merged,
         mergedList,
         activeSessId,
+        dateKey,
       );
 
       state = AsyncData(
@@ -374,6 +415,7 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
       newDaily,
       customTasks,
       current.activeSessionId,
+      current.selectedDate,
     );
 
     state = AsyncData(current.copyWith(dailyState: newDaily, sessions: updatedSessions));
@@ -389,7 +431,7 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     // Record stats history (fire-and-forget)
     final pct = state.value?.completionPct ?? 0;
     supabaseService
-        .upsertStatsHistory(_todayKey, pct, deviceId)
+        .upsertStatsHistory(current.selectedDate, pct, deviceId)
         .catchError((_) {});
   }
 
@@ -509,6 +551,7 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
       current.dailyState,
       currentTasks,
       current.activeSessionId,
+      current.selectedDate,
     );
 
     state = AsyncData(current.copyWith(sessions: updatedSessions));
@@ -532,6 +575,7 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
       current.dailyState,
       customTasks,
       current.activeSessionId,
+      current.selectedDate,
     );
 
     state = AsyncData(current.copyWith(sessions: updatedSessions));
@@ -550,6 +594,7 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
       current.dailyState,
       customTasks,
       current.activeSessionId,
+      current.selectedDate,
     );
 
     state = AsyncData(current.copyWith(sessions: updatedSessions));
