@@ -108,15 +108,6 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     final date = DateTime.tryParse(dateKey) ?? DateTime.now();
     final baseSessions = SessionData.sessionsForDate(date);
 
-    // Session display order for key task resurfacing (weekday sessions only)
-    const sessionOrder = {
-      'morning': 0,
-      'afternoon': 1,
-      'night': 2,
-      'saturday': 3,
-      'sunday': 4,
-    };
-
     // Migrate legacy 'weekend' tasks to 'saturday'
     final migratedTasks = allCustomTasks.map((t) {
       if (t.sessionId == 'weekend') return t.copyWith(sessionId: 'saturday');
@@ -154,10 +145,8 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
           // Key tasks only resurface if they were active on that date
           if (t.weekdays.isNotEmpty && !t.weekdays.contains(date.weekday)) return false;
 
-          final tOrder = sessionOrder[t.sessionId];
-          final activeOrder = sessionOrder[activeSessionId];
-          if (tOrder == null || activeOrder == null) return false;
-          if (tOrder >= activeOrder) return false; // not from an earlier session
+          // Check if the task's session is in the past
+          if (!_isSessionInPast(t.sessionId, dateKey)) return false;
 
           final isDone = dailyState.taskStates[t.id] == true;
           final isSkipped = dailyState.taskStatus[t.id] == 'skipped';
@@ -341,6 +330,36 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     if (isPm && h != 12) h += 12;
     if (isAm && h == 12) h = 0;
     return h * 60 + m;
+  }
+
+  bool _isSessionInPast(String sessionId, String dateKey) {
+    final todayKey = dateService.todayKey();
+    final date = DateTime.tryParse(dateKey);
+    final today = DateTime.tryParse(todayKey);
+    if (date == null || today == null) return false;
+
+    final dateOnly = DateTime(date.year, date.month, date.day);
+    final todayOnly = DateTime(today.year, today.month, today.day);
+
+    if (dateOnly.isBefore(todayOnly)) {
+      return true;
+    }
+    if (dateOnly.isAfter(todayOnly)) {
+      return false;
+    }
+
+    final now = TimeOfDay.now();
+    final nowMin = now.hour * 60 + now.minute;
+
+    if (sessionId == 'morning') {
+      return nowMin >= 660; // 11:00 AM
+    } else if (sessionId == 'afternoon') {
+      return nowMin >= 1020; // 5:00 PM
+    } else if (sessionId == 'night') {
+      return nowMin >= 1380; // 11:00 PM
+    }
+
+    return false;
   }
 
   Future<void> toggleTask(String taskId) async {

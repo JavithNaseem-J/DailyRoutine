@@ -273,6 +273,7 @@ class SupabaseService {
           .eq('device_id', deviceId);
       await _db.from('stats_history').delete().eq('device_id', deviceId);
       await _db.from('streak').delete().eq('device_id', deviceId);
+      await _db.from('custom_tasks').delete().eq('device_id', deviceId);
 
       // Seed a fresh empty streak so fetchStreak() has a valid record going forward
       await _db.from('streak').upsert({
@@ -335,7 +336,8 @@ class SupabaseService {
     String mimeType,
   ) async {
     try {
-      final fileName = '$uid-${DateTime.now().millisecondsSinceEpoch}.$extension';
+      // Store under uid/ folder so storage policies (which check foldername) work correctly
+      final fileName = '$uid/$uid-${DateTime.now().millisecondsSinceEpoch}.$extension';
       
       // Upload using storage API
       await _db.storage.from('avatars').uploadBinary(

@@ -425,21 +425,18 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                                   ),
                                   if (selectedDateStr != dateService.todayKey()) ...[
                                     const SizedBox(width: 8),
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 4.0),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.primary.withValues(alpha: 0.15),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Text(
-                                          'Archived',
-                                          style: AppTypography.body(
-                                            size: 10,
-                                            weight: FontWeight.w700,
-                                            color: AppColors.primary,
-                                          ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        'Archived',
+                                        style: AppTypography.body(
+                                          size: 10,
+                                          weight: FontWeight.w700,
+                                          color: AppColors.primary,
                                         ),
                                       ),
                                     ),
@@ -452,39 +449,29 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 if (selectedDateStr != dateService.todayKey()) ...[
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 4.0),
-                                    child: TextButton.icon(
-                                      onPressed: () {
-                                        ref.read(sessionsProvider.notifier).changeDate(dateService.todayKey());
-                                      },
-                                      icon: Icon(Icons.today_rounded, size: 16, color: AppColors.primary),
-                                      label: Text(
-                                        'Today',
-                                        style: AppTypography.body(
-                                          size: 12,
-                                          weight: FontWeight.w600,
-                                          color: AppColors.primary,
-                                        ),
+                                  TextButton.icon(
+                                    onPressed: () {
+                                      ref.read(sessionsProvider.notifier).changeDate(dateService.todayKey());
+                                    },
+                                    icon: Icon(Icons.today_rounded, size: 16, color: AppColors.primary),
+                                    label: Text(
+                                      'Today',
+                                      style: AppTypography.body(
+                                        size: 12,
+                                        weight: FontWeight.w600,
+                                        color: AppColors.primary,
                                       ),
-                                      style: TextButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        minimumSize: Size.zero,
-                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                      ),
+                                    ),
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                     ),
                                   ),
                                   const SizedBox(width: 8),
                                 ],
-                                IconButton(
-                                  icon: Icon(
-                                    Icons.add,
-                                    color: AppColors.textPrimary,
-                                    size: 28,
-                                  ),
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                  onPressed: () {
+                                GestureDetector(
+                                  onTap: () {
                                     showModalBottomSheet(
                                       context: context,
                                       useRootNavigator: true,
@@ -494,6 +481,15 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                                           AddTaskSheet(defaultSession: session),
                                     );
                                   },
+                                  behavior: HitTestBehavior.opaque,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(4.0),
+                                    child: Icon(
+                                      Icons.add,
+                                      color: AppColors.textPrimary,
+                                      size: 28,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
@@ -972,7 +968,7 @@ class _TaskCardState extends State<_TaskCard>
               child: Align(
                 alignment: Alignment.center,
                 child: GestureDetector(
-                  onTap: null,
+                  onTap: widget.task.isBreak ? null : widget.onToggle,
                   behavior: HitTestBehavior.opaque,
                   child: Container(
                     width: 16,
@@ -1096,10 +1092,10 @@ class _TaskCardState extends State<_TaskCard>
                                     ),
                                     if (widget.task.isKeyTask) ...[
                                       const SizedBox(width: 6),
-                                      Icon(
-                                        Icons.vpn_key_rounded,
-                                        size: 14,
-                                        color: AppColors.primary,
+                                      const Icon(
+                                        Icons.star_rounded,
+                                        size: 16,
+                                        color: Color(0xFFF59E0B),
                                       ),
                                     ],
                                   ],

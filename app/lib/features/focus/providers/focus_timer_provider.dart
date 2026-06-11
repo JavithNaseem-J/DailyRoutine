@@ -53,6 +53,9 @@ class FocusTimerNotifier extends Notifier<FocusTimerState> {
 
   @override
   FocusTimerState build() {
+    // Cancel any running timer when this notifier is disposed or rebuilt
+    ref.onDispose(() => _timer?.cancel());
+
     return const FocusTimerState(
       isRunning: false,
       remainingSeconds: 25 * 60,

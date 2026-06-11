@@ -43,8 +43,9 @@ class _DailyRoutineAppState extends ConsumerState<DailyRoutineApp> {
           ref.invalidate(sessionsProvider);
         }
       } else {
-        if (event == AuthChangeEvent.signedOut || 
-            (event == AuthChangeEvent.tokenRefreshed && session == null)) {
+        // Only clear data and redirect on an explicit sign-out.
+        // tokenRefreshed with session==null is impossible and should not trigger logout.
+        if (event == AuthChangeEvent.signedOut) {
           final newId = const Uuid().v4();
           await sharedPrefs.setString('deviceId', newId);
           deviceId = newId;
