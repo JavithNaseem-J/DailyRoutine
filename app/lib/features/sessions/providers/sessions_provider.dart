@@ -279,6 +279,10 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
           ...localState.projectMinutes,
           ...remote.projectMinutes,
         },
+        // Take the higher value so a tap that hasn't synced yet is never lost.
+        jobApplicationsCount: remote.jobApplicationsCount > localState.jobApplicationsCount
+            ? remote.jobApplicationsCount
+            : localState.jobApplicationsCount,
       );
       await hiveService.writeDailyState(merged);
     }

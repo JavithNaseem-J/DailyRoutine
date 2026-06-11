@@ -1422,20 +1422,16 @@ class _FocusCard extends StatelessWidget {
     final hours = totalMinutes ~/ 60;
     final mins = totalMinutes % 60;
 
-    // Resolve task titles from Hive so legend shows real names instead of raw IDs
+    // Build the project-allocation map.
+    // task_fm:* keys are internal task-timer tracking data used only by the
+    // focus screen to compute "remaining time for this task today". They must
+    // never appear in the project chart — only user-selected tags do.
     final Map<String, int> resolvedProjectMinutes = {};
-    final customTasks = hiveService.readCustomTasks();
-    final taskMap = {for (var t in customTasks) t.id: t.title};
 
     projectMinutes.forEach((key, val) {
       if (val <= 0) return;
-      if (key.startsWith('task_fm:')) {
-        final taskId = key.substring('task_fm:'.length);
-        final title = taskMap[taskId] ?? 'Task Focus';
-        resolvedProjectMinutes[title] = (resolvedProjectMinutes[title] ?? 0) + val;
-      } else {
-        resolvedProjectMinutes[key] = (resolvedProjectMinutes[key] ?? 0) + val;
-      }
+      if (key.startsWith('task_fm:')) return; // skip internal task-timer keys
+      resolvedProjectMinutes[key] = (resolvedProjectMinutes[key] ?? 0) + val;
     });
 
     // Focus Allocation Logic

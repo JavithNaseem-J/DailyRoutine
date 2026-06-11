@@ -623,7 +623,7 @@ class _QuoteCard extends StatefulWidget {
 }
 
 class _QuoteCardState extends State<_QuoteCard> {
-  bool _expanded = false;
+  bool _expanded = true;
 
   @override
   Widget build(BuildContext context) {
@@ -1100,8 +1100,8 @@ class _ActionButton extends StatelessWidget {
       onTap: onPressed,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        width: 38,
-        height: 38,
+        width: 32,
+        height: 32,
         decoration: BoxDecoration(
           color: enabled ? AppColors.primary : AppColors.surfaceRaised,
           shape: BoxShape.circle,
@@ -1117,7 +1117,7 @@ class _ActionButton extends StatelessWidget {
         ),
         child: Icon(
           icon,
-          size: 18,
+          size: 16,
           color: enabled ? Colors.white : AppColors.textMuted,
         ),
       ),
