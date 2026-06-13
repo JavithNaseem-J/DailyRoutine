@@ -45,9 +45,11 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   int _longestFocusSession = 0;
   int _totalFocusSessionsCount = 0;
 
-  int _monthlySkippedCount = 0;
+  // Past-days skipped (from Supabase, raw task-id→count)
+  // Today is computed live in build() from sessionsProvider so it's always current.
+  Map<String, int> _pastSkippedCounts = {};
+  int _pastMonthSkipped = 0;
   int _monthlyDelayedCount = 0;
-  List<MapEntry<String, int>> _topSkipped = [];
   List<MapEntry<String, int>> _topDelayed = [];
 
   Map<String, int> _projectMinutesData = {};
@@ -429,7 +431,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         streakService.fetchStreak(),
         supabaseService.fetchStatsHistory(7, deviceId),
         supabaseService.fetchStatsHistory(30, deviceId),
-        supabaseService.fetch30DayTaskHistory(deviceId),
+        supabaseService.fetch30DayTaskHistory(deviceId), // for past-day skipped counts
       ]);
 
       if (!mounted) return;
@@ -519,28 +521,40 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         } catch (_) {}
       }
 
-      // Process taskHistory30 for skipped and delayed tasks
+      // Hybrid skipped computation:
+      //   • Past days  → Supabase (task_status synced after each session, reliable history)
+      //   • Today      → Hive     (always current, no async-upsert race condition)
+      //
+      // This ensures yesterday's skip (×1 from Supabase) + today's skip (×1 from Hive)
+      // both show up correctly as ×2.
       int monthSkipped = 0;
       int monthDelayed = 0;
       Map<String, int> skippedCounts = {};
       Map<String, int> delayedCounts = {};
 
+      final todayKey =
+          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+      // 1. Historical days from Supabase (skip today — will be covered by Hive below)
       for (final row in taskHistory30) {
         try {
           final dt = DateTime.parse(row['date'] as String);
+          final rowDate =
+              '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+          if (rowDate == todayKey) continue; // handled by Hive
           if (dt.month == today.month && dt.year == today.year) {
-             final statusMap = row['task_status'] as Map<String, dynamic>?;
-             if (statusMap != null) {
-               statusMap.forEach((taskId, status) {
-                 if (status == 'skipped') {
-                   monthSkipped++;
-                   skippedCounts[taskId] = (skippedCounts[taskId] ?? 0) + 1;
-                 } else if (status == 'late') {
-                   monthDelayed++;
-                   delayedCounts[taskId] = (delayedCounts[taskId] ?? 0) + 1;
-                 }
-               });
-             }
+            final statusMap = row['task_status'] as Map<String, dynamic>?;
+            if (statusMap != null) {
+              statusMap.forEach((taskId, status) {
+                if (status == 'skipped') {
+                  monthSkipped++;
+                  skippedCounts[taskId] = (skippedCounts[taskId] ?? 0) + 1;
+                } else if (status == 'late') {
+                  monthDelayed++;
+                  delayedCounts[taskId] = (delayedCounts[taskId] ?? 0) + 1;
+                }
+              });
+            }
           }
         } catch (_) {}
       }
@@ -555,7 +569,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         allTasks[t.id] = t.title;
       }
 
-      var sortedSkipped = skippedCounts.entries.toList()..sort((a,b) => b.value.compareTo(a.value));
       var sortedDelayed = delayedCounts.entries.toList()..sort((a,b) => b.value.compareTo(a.value));
 
       setState(() {
@@ -564,9 +577,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         _bestStreak = streak?.bestStreak ?? 0;
         _disciplineHistory = dHistory;
         _currentDisciplineScore = currentDiscipline;
-        _monthlySkippedCount = monthSkipped;
+        // Store raw past-days skipped by task ID so build() can merge with live today data
+        _pastSkippedCounts = Map<String, int>.from(skippedCounts);
+        _pastMonthSkipped = monthSkipped;
         _monthlyDelayedCount = monthDelayed;
-        _topSkipped = sortedSkipped.take(3).map((e) => MapEntry(allTasks[e.key] ?? 'Custom Task', e.value)).toList();
         _topDelayed = sortedDelayed.take(3).map((e) => MapEntry(allTasks[e.key] ?? 'Custom Task', e.value)).toList();
         _dailyCompletionMap = dailyMap;
       });
@@ -638,6 +652,46 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       }
     });
 
+    // ── Live discipline gaps ─────────────────────────────────────────────────
+    // Today's taskStatus comes directly from sessionsProvider (already watched
+    // above) so this block re-runs instantly whenever a task is skipped.
+    final liveTodayTaskStatus =
+        sessionsAsync.value?.dailyState.taskStatus ?? {};
+    final liveSkippedCounts = Map<String, int>.from(_pastSkippedCounts);
+    int liveTodaySkipped = 0;
+    liveTodayTaskStatus.forEach((taskId, status) {
+      if (status == 'skipped') {
+        liveSkippedCounts[taskId] = (liveSkippedCounts[taskId] ?? 0) + 1;
+        liveTodaySkipped++;
+      }
+    });
+    final liveTotalSkipped = _pastMonthSkipped + liveTodaySkipped;
+
+    // Resolve task IDs → names, then group by name.
+    // Two tasks with the same name (e.g. Journalism UUID_1 and UUID_2) should
+    // add up to a single "Journalism ×2" entry rather than appearing separately.
+    final allTaskNames = <String, String>{};
+    for (final s in SessionData.allSessions) {
+      for (final t in s.tasks) {
+        allTaskNames[t.id] = t.title;
+      }
+    }
+    for (final t in hiveService.readCustomTasks()) {
+      allTaskNames[t.id] = t.title;
+    }
+
+    // Group by resolved name so duplicates accumulate
+    final nameToSkipCount = <String, int>{};
+    liveSkippedCounts.forEach((taskId, count) {
+      final name = allTaskNames[taskId] ?? 'Custom Task';
+      nameToSkipCount[name] = (nameToSkipCount[name] ?? 0) + count;
+    });
+
+    final liveTopSkipped = (nameToSkipCount.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value)))
+        .take(3)
+        .toList();
+
 
 
     return Scaffold(
@@ -708,9 +762,9 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             const SizedBox(height: 20),
 
             _SkippedDelayedCard(
-              monthlySkippedCount: _monthlySkippedCount,
+              monthlySkippedCount: liveTotalSkipped,
               monthlyDelayedCount: _monthlyDelayedCount,
-              topSkipped: _topSkipped,
+              topSkipped: liveTopSkipped,
               topDelayed: _topDelayed,
             ),
 
@@ -1754,9 +1808,9 @@ class _SkippedDelayedCard extends StatelessWidget {
   });
 
   final int monthlySkippedCount;
-  final int monthlyDelayedCount;
+  final int monthlyDelayedCount; // kept for API compat, not displayed
   final List<MapEntry<String, int>> topSkipped;
-  final List<MapEntry<String, int>> topDelayed;
+  final List<MapEntry<String, int>> topDelayed; // kept for API compat
 
   @override
   Widget build(BuildContext context) {
@@ -1766,110 +1820,125 @@ class _SkippedDelayedCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── Header ─────────────────────────────────────────────
           Row(
             children: [
-              Icon(Icons.bar_chart_rounded, size: 18, color: AppColors.primary),
+              Icon(Icons.remove_circle_outline_rounded,
+                  size: 18, color: AppColors.moodLow),
               const SizedBox(width: 8),
               Text(
                 'Discipline Gaps',
-                style: AppTypography.body(size: 14, weight: FontWeight.w600, color: AppColors.textPrimary),
+                style: AppTypography.body(
+                    size: 14,
+                    weight: FontWeight.w600,
+                    color: AppColors.textPrimary),
+              ),
+              const Spacer(),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.moodLow.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '$monthlySkippedCount',
+                      style: AppTypography.mono(
+                          size: 14,
+                          weight: FontWeight.w800,
+                          color: AppColors.moodLow),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'skipped',
+                      style: AppTypography.body(
+                          size: 11,
+                          weight: FontWeight.w500,
+                          color: AppColors.moodLow),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(child: _buildStatColumn('Skipped', monthlySkippedCount, topSkipped, AppColors.moodLow, Icons.remove_circle_outline_rounded)),
-              const SizedBox(width: 12),
-              Container(width: 1, height: 100, color: AppColors.border),
-              const SizedBox(width: 12),
-              Expanded(child: _buildStatColumn('Delayed', monthlyDelayedCount, topDelayed, AppColors.afternoon, Icons.watch_later_outlined)),
-            ],
+
+          const SizedBox(height: 6),
+          Text(
+            'Most skipped tasks this month',
+            style: AppTypography.body(
+                size: 12, color: AppColors.textMuted),
           ),
+
+          const SizedBox(height: 16),
+
+          // ── Ranked list ────────────────────────────────────────
+          if (topSkipped.isEmpty)
+            Row(
+              children: [
+                Icon(Icons.check_circle_outline_rounded,
+                    size: 16, color: AppColors.complete),
+                const SizedBox(width: 8),
+                Text(
+                  'No skipped tasks — great discipline!',
+                  style: AppTypography.body(
+                      size: 13, color: AppColors.textMuted),
+                ),
+              ],
+            )
+          else
+            ...topSkipped.asMap().entries.map((entry) {
+              final rank = entry.key + 1;
+              final e = entry.value;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                      children: [
+                        // rank badge
+                        Container(
+                          width: 20,
+                          height: 20,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: AppColors.moodLow.withValues(
+                                alpha: rank == 1 ? 0.18 : 0.08),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            '$rank',
+                            style: AppTypography.mono(
+                                size: 10,
+                                weight: FontWeight.w700,
+                                color: AppColors.moodLow),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            e.key,
+                            style: AppTypography.body(
+                                size: 13,
+                                color: AppColors.textSecondary),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '×${e.value}',
+                          style: AppTypography.mono(
+                              size: 12,
+                              weight: FontWeight.w700,
+                              color: AppColors.moodLow),
+                        ),
+                      ],
+                    ),
+                  );
+            }),
         ],
       ),
-    );
-  }
-
-  Widget _buildStatColumn(String title, int count, List<MapEntry<String, int>> top, Color color, IconData icon) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, size: 16, color: color),
-            const SizedBox(width: 6),
-            Text(title, style: AppTypography.body(size: 13, weight: FontWeight.w600, color: AppColors.textPrimary)),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '$count',
-                style: AppTypography.mono(size: 12, weight: FontWeight.w700, color: color),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        if (top.isEmpty)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.check_circle_outline_rounded,
-                size: 14,
-                color: AppColors.textMuted,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                'None yet!',
-                style: AppTypography.body(size: 12, color: AppColors.textMuted),
-              ),
-            ],
-          )
-        else
-          ...top.asMap().entries.map((entry) {
-            final rank = entry.key + 1;
-            final e = entry.value;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  Container(
-                    width: 18,
-                    height: 18,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceRaised,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      '$rank',
-                      style: AppTypography.mono(size: 9, weight: FontWeight.w700, color: AppColors.textMuted),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      e.key,
-                      style: AppTypography.body(size: 12, color: AppColors.textSecondary),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Text(
-                    '×${e.value}',
-                    style: AppTypography.mono(size: 11, weight: FontWeight.w700, color: color),
-                  ),
-                ],
-              ),
-            );
-          }),
-      ],
     );
   }
 }

@@ -1003,27 +1003,13 @@ class _JobApplicationsCard extends ConsumerWidget {
                 ),
                 const SizedBox(width: 14),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Job Hunt',
-                        style: AppTypography.body(
-                          size: 15,
-                          weight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Track today\'s job search',
-                        style: AppTypography.body(
-                          size: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    'Job Hunt',
+                    style: AppTypography.body(
+                      size: 15,
+                      weight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
               ],
@@ -1046,7 +1032,7 @@ class _JobApplicationsCard extends ConsumerWidget {
                       }
                     : null,
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 8),
               // Counter Display
               SizedBox(
                 width: 32,
@@ -1069,7 +1055,7 @@ class _JobApplicationsCard extends ConsumerWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 8),
               // Plus Button
               _ActionButton(
                 icon: Icons.add,

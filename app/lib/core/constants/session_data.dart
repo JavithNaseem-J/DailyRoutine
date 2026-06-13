@@ -80,14 +80,10 @@ abstract final class SessionData {
   ///   - Saturday → Saturday + Key Tasks
   ///   - Sunday → Sunday + Key Tasks
   static List<Session> sessionsForDate(DateTime date) {
-    switch (date.weekday) {
-      case DateTime.saturday:
-        return [_saturday, _keyTasks];
-      case DateTime.sunday:
-        return [_sunday, _keyTasks];
-      default:
-        return [_morning, _afternoon, _night, _keyTasks];
-    }
+    // All days use Morning / Afternoon / Night / Must Do.
+    // Weekend-only sessions (saturday, sunday) are kept in allSessions
+    // for backward-compat with legacy data but no longer shown in the UI.
+    return [_morning, _afternoon, _night, _keyTasks];
   }
 
   /// Convenience getter for today.
