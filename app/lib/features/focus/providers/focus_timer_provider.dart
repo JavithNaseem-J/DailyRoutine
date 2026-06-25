@@ -185,6 +185,12 @@ class FocusTimerNotifier extends Notifier<FocusTimerState> {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (state.remainingSeconds > 0) {
         state = state.copyWith(remainingSeconds: state.remainingSeconds - 1);
+        // Periodically persist so _kSavedAt stays fresh.
+        // This guards against OS-level process suspension that may not
+        // trigger the paused lifecycle event before a hard kill.
+        if (state.remainingSeconds % 30 == 0) {
+          _saveState();
+        }
       } else {
         final totalMins    = state.totalSeconds ~/ 60;
         final selectedTag  = state.selectedProject;

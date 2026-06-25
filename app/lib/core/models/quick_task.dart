@@ -1,3 +1,5 @@
+import 'session.dart' show StateOfMind;
+
 /// QuickTask — ad-hoc task added from the Home tab quick-add section.
 /// Persistent until manually deleted by the user.
 class QuickTask {
@@ -13,6 +15,7 @@ class QuickTask {
     this.priority,
     this.deadline,
     this.delegatee,
+    this.stateOfMind,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -34,6 +37,9 @@ class QuickTask {
   /// Delegatee name for "Delegate it" quadrant.
   String? delegatee;
 
+  /// State of Mind / Cognitive load indicator.
+  StateOfMind? stateOfMind;
+
   final DateTime createdAt;
 
   QuickTask copyWith({
@@ -46,6 +52,7 @@ class QuickTask {
     Object? priority = _sentinel,
     Object? deadline = _sentinel,
     Object? delegatee = _sentinel,
+    Object? stateOfMind = _sentinel,
   }) => QuickTask(
     id: id,
     date: date,
@@ -58,24 +65,35 @@ class QuickTask {
     priority: priority == _sentinel ? this.priority : priority as String?,
     deadline: deadline == _sentinel ? this.deadline : deadline as String?,
     delegatee: delegatee == _sentinel ? this.delegatee : delegatee as String?,
+    stateOfMind: stateOfMind == _sentinel ? this.stateOfMind : stateOfMind as StateOfMind?,
     createdAt: createdAt,
   );
 
-  factory QuickTask.fromJson(Map<String, dynamic> json) => QuickTask(
-    id: json['id'] as String,
-    date: json['date'] as String,
-    title: json['title'] as String,
-    time: json['time'] as String?,
-    done: json['done'] as bool? ?? false,
-    archived: json['archived'] as bool? ?? false,
-    isUrgent: json['is_urgent'] as bool? ?? false,
-    isImportant: json['is_important'] as bool? ?? false,
-    priority: json['priority'] as String?,
-    deadline: json['deadline'] as String?,
-    delegatee: json['delegatee'] as String?,
-    // BUG-017 fix: safely handle missing/malformed created_at from older data
-    createdAt: DateTime.tryParse(json['created_at'] as String? ?? '') ?? DateTime.now(),
-  );
+  factory QuickTask.fromJson(Map<String, dynamic> json) {
+    StateOfMind? som;
+    final somJson = json['state_of_mind'] ?? json['stateOfMind'];
+    if (somJson != null) {
+      som = StateOfMind.values.firstWhere(
+        (e) => e.name == somJson,
+        orElse: () => StateOfMind.flow,
+      );
+    }
+    return QuickTask(
+      id: json['id'] as String,
+      date: json['date'] as String,
+      title: json['title'] as String,
+      time: json['time'] as String?,
+      done: json['done'] as bool? ?? false,
+      archived: json['archived'] as bool? ?? false,
+      isUrgent: json['is_urgent'] as bool? ?? false,
+      isImportant: json['is_important'] as bool? ?? false,
+      priority: json['priority'] as String?,
+      deadline: json['deadline'] as String?,
+      delegatee: json['delegatee'] as String?,
+      stateOfMind: som,
+      createdAt: DateTime.tryParse(json['created_at'] as String? ?? '') ?? DateTime.now(),
+    );
+  }
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -89,6 +107,7 @@ class QuickTask {
     if (priority != null) 'priority': priority,
     if (deadline != null) 'deadline': deadline,
     if (delegatee != null) 'delegatee': delegatee,
+    if (stateOfMind != null) 'state_of_mind': stateOfMind!.name,
     'created_at': createdAt.toIso8601String(),
   };
 }

@@ -7,7 +7,7 @@ import '../../core/models/streak.dart';
 import '../../core/services/supabase_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
-import '../../main.dart' show deviceId;
+import '../../main.dart' show deviceId, sharedPrefs;
 import '../sessions/providers/sessions_provider.dart';
 import '../../core/services/hive_service.dart';
 import '../../core/services/gamification_service.dart';
@@ -45,11 +45,14 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   int _longestFocusSession = 0;
   int _totalFocusSessionsCount = 0;
 
+  // 30-day status card variables
+  double _avg30DayDiscipline = 0.0;
+
   // Past-days skipped (from Supabase, raw task-id→count)
   // Today is computed live in build() from sessionsProvider so it's always current.
   Map<String, int> _pastSkippedCounts = {};
-  int _pastMonthSkipped = 0;
-  int _monthlyDelayedCount = 0;
+  int _pastWeekSkipped = 0;
+  int _weeklyDelayedCount = 0;
   List<MapEntry<String, int>> _topDelayed = [];
 
   Map<String, int> _projectMinutesData = {};
@@ -365,6 +368,330 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     );
   }
 
+  String _getRank(double avgScore) {
+    if (avgScore >= 91) return 'S-Rank';
+    if (avgScore >= 76) return 'A-Rank';
+    if (avgScore >= 61) return 'B-Rank';
+    if (avgScore >= 41) return 'C-Rank';
+    if (avgScore >= 21) return 'D-Rank';
+    return 'E-Rank';
+  }
+
+  int _getRankWeight(String rank) {
+    switch (rank) {
+      case 'S-Rank': return 5;
+      case 'A-Rank': return 4;
+      case 'B-Rank': return 3;
+      case 'C-Rank': return 2;
+      case 'D-Rank': return 1;
+      case 'E-Rank':
+      default:
+        return 0;
+    }
+  }
+
+  Color _getRankColor(String rank) {
+    switch (rank) {
+      case 'S-Rank': return const Color(0xFFFFD700); // Gold
+      case 'A-Rank': return const Color(0xFFBF5AF2); // Purple
+      case 'B-Rank': return const Color(0xFF0A84FF); // Electric Blue
+      case 'C-Rank': return const Color(0xFF30D158); // Green
+      case 'D-Rank': return const Color(0xFFFF9F0A); // Orange
+      case 'E-Rank':
+      default:
+        return const Color(0xFF8E8E93); // Gray
+    }
+  }
+
+  void _showRankUpDialog(BuildContext context, String oldRank, String newRank) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.85),
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF0C101B), // very dark neon
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFF4CC9F0), width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF4CC9F0).withValues(alpha: 0.4),
+                  blurRadius: 24,
+                  offset: const Offset(0, 0),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '[SYSTEM NOTIFICATION]',
+                  style: AppTypography.mono(
+                    size: 14,
+                    weight: FontWeight.w800,
+                    color: const Color(0xFF4CC9F0),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Divider(color: Color(0xFF2C3B6B), height: 1),
+                const SizedBox(height: 20),
+                Text(
+                  'YOUR POWER LEVELS HAVE MUTATED.',
+                  textAlign: TextAlign.center,
+                  style: AppTypography.mono(
+                    size: 13,
+                    weight: FontWeight.w700,
+                    color: Colors.white70,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'RANKS HAVE BEEN RE-EVALUATED.',
+                  textAlign: TextAlign.center,
+                  style: AppTypography.mono(
+                    size: 13,
+                    weight: FontWeight.w700,
+                    color: Colors.white70,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      oldRank,
+                      style: AppTypography.mono(
+                        size: 20,
+                        weight: FontWeight.w900,
+                        color: Colors.white38,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Icon(
+                      Icons.arrow_forward_rounded,
+                      color: Color(0xFF4CC9F0),
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      newRank,
+                      style: AppTypography.mono(
+                        size: 24,
+                        weight: FontWeight.w900,
+                        color: _getRankColor(newRank),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF4CC9F0),
+                      side: const BorderSide(
+                        color: Color(0xFF4CC9F0),
+                        width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: Text(
+                      'CONFIRM',
+                      style: AppTypography.mono(
+                        size: 13,
+                        weight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showManualFocusDialog(BuildContext context) {
+    int selectedMinutes = 25;
+    String selectedTag = 'Study';
+    final List<String> tags = ['Study', 'Work', 'Project', 'Review'];
+
+    showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              margin: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.cardSurface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border(
+                  top: BorderSide(color: AppColors.border, width: 1),
+                ),
+              ),
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'FOCUS MINUTES',
+                    style: AppTypography.mono(
+                      size: 11,
+                      weight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [15, 25, 45, 60, 90].map((mins) {
+                      final isSel = selectedMinutes == mins;
+                      return GestureDetector(
+                        onTap: () {
+                          setModalState(() {
+                            selectedMinutes = mins;
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSel
+                                ? const Color(0xFF4361EE)
+                                : AppColors.surfaceRaised,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSel
+                                  ? const Color(0xFF4361EE)
+                                  : AppColors.border,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Text(
+                            '${mins}M',
+                            style: AppTypography.mono(
+                              size: 13,
+                              weight: FontWeight.w700,
+                              color: isSel ? Colors.white : AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 24),
+                  Center(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.center,
+                      children: tags.map((tag) {
+                        final isSel = selectedTag == tag;
+                        return GestureDetector(
+                          onTap: () {
+                            setModalState(() {
+                              selectedTag = tag;
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSel
+                                  ? const Color(0xFF4361EE).withValues(alpha: 0.15)
+                                  : AppColors.surfaceRaised,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isSel
+                                    ? const Color(0xFF4361EE)
+                                    : AppColors.border,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Text(
+                              tag,
+                              style: AppTypography.body(
+                                size: 13,
+                                weight: isSel ? FontWeight.bold : FontWeight.w500,
+                                color: isSel ? const Color(0xFF4361EE) : AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        await ref.read(sessionsProvider.notifier).addFocusMinutes(
+                              selectedMinutes,
+                              tag: selectedTag,
+                            );
+                        _loadRealData();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4361EE),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        'Add Time Log',
+                        style: AppTypography.body(
+                          size: 14,
+                          weight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _loadRealData() async {
     try {
       // 1. Load local data FIRST so the UI updates immediately
@@ -501,10 +828,27 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             if (diff == 0) currentDiscipline = score;
           }
         } catch (_) {}
+      }      // ─── 30-day stats calculations ───
+      double totalScoreSum = 0;
+      int daysCount = 0;
+      for (final s in localStatesEnd) {
+        try {
+          final dt = DateTime.parse(s.date);
+          final diff = todayDate.difference(DateTime(dt.year, dt.month, dt.day)).inDays;
+          if (diff >= 0 && diff < 30) {
+            int tTasks = s.taskStatus.isNotEmpty ? s.taskStatus.length : 5;
+            int scoreVal = GamificationService.calculateDisciplineScore(
+              s,
+              currentStreak: computedStreak,
+              totalScheduledTasks: tTasks,
+            );
+            totalScoreSum += scoreVal;
+            daysCount++;
+          }
+        } catch (_) {}
       }
 
-
-
+      double avg30DayDiscipline = daysCount > 0 ? totalScoreSum / daysCount : 0.0;
 
       // Map history to current month calendar
       final daysInMonth = DateTime(today.year, today.month + 1, 0).day;
@@ -521,19 +865,16 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         } catch (_) {}
       }
 
-      // Hybrid skipped computation:
-      //   • Past days  → Supabase (task_status synced after each session, reliable history)
-      //   • Today      → Hive     (always current, no async-upsert race condition)
-      //
-      // This ensures yesterday's skip (×1 from Supabase) + today's skip (×1 from Hive)
-      // both show up correctly as ×2.
-      int monthSkipped = 0;
-      int monthDelayed = 0;
+      // Hybrid skipped computation for the current week:
+      // Monday to Sunday of the current calendar week.
+      int weekSkipped = 0;
+      int weekDelayed = 0;
       Map<String, int> skippedCounts = {};
       Map<String, int> delayedCounts = {};
 
       final todayKey =
           '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+      final mondayDateOnly = todayDate.subtract(Duration(days: today.weekday - 1));
 
       // 1. Historical days from Supabase (skip today — will be covered by Hive below)
       for (final row in taskHistory30) {
@@ -542,15 +883,20 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           final rowDate =
               '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
           if (rowDate == todayKey) continue; // handled by Hive
-          if (dt.month == today.month && dt.year == today.year) {
+          
+          final rowDateOnly = DateTime(dt.year, dt.month, dt.day);
+          final isThisWeek = rowDateOnly.isAtSameMomentAs(mondayDateOnly) || 
+              (rowDateOnly.isAfter(mondayDateOnly) && rowDateOnly.isBefore(todayDate));
+
+          if (isThisWeek) {
             final statusMap = row['task_status'] as Map<String, dynamic>?;
             if (statusMap != null) {
               statusMap.forEach((taskId, status) {
                 if (status == 'skipped') {
-                  monthSkipped++;
+                  weekSkipped++;
                   skippedCounts[taskId] = (skippedCounts[taskId] ?? 0) + 1;
                 } else if (status == 'late') {
-                  monthDelayed++;
+                  weekDelayed++;
                   delayedCounts[taskId] = (delayedCounts[taskId] ?? 0) + 1;
                 }
               });
@@ -571,6 +917,24 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
       var sortedDelayed = delayedCounts.entries.toList()..sort((a,b) => b.value.compareTo(a.value));
 
+      // Rank mutation check
+      final currentRank = _getRank(avg30DayDiscipline);
+      final lastSeen = sharedPrefs.getString('lastSeenRank');
+      if (lastSeen != null) {
+        final lastWeight = _getRankWeight(lastSeen);
+        final currentWeight = _getRankWeight(currentRank);
+        if (currentWeight > lastWeight) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _showRankUpDialog(context, lastSeen, currentRank);
+          });
+        }
+      }
+      if (lastSeen == null) {
+        await sharedPrefs.setString('lastSeenRank', currentRank);
+      } else {
+        await sharedPrefs.setString('lastSeenRank', currentRank);
+      }
+
       setState(() {
         _heatmap = heatmap;
         _currentStreak = computedStreak;
@@ -579,10 +943,12 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         _currentDisciplineScore = currentDiscipline;
         // Store raw past-days skipped by task ID so build() can merge with live today data
         _pastSkippedCounts = Map<String, int>.from(skippedCounts);
-        _pastMonthSkipped = monthSkipped;
-        _monthlyDelayedCount = monthDelayed;
+        _pastWeekSkipped = weekSkipped;
+        _weeklyDelayedCount = weekDelayed;
         _topDelayed = sortedDelayed.take(3).map((e) => MapEntry(allTasks[e.key] ?? 'Custom Task', e.value)).toList();
         _dailyCompletionMap = dailyMap;
+        
+        _avg30DayDiscipline = avg30DayDiscipline;
       });
     } catch (_) {
       // Network or unexpected error
@@ -665,7 +1031,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         liveTodaySkipped++;
       }
     });
-    final liveTotalSkipped = _pastMonthSkipped + liveTodaySkipped;
+    final liveTotalSkipped = _pastWeekSkipped + liveTodaySkipped;
 
     // Resolve task IDs → names, then group by name.
     // Two tasks with the same name (e.g. Journalism UUID_1 and UUID_2) should
@@ -731,7 +1097,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             ),
             const SizedBox(height: 20),
 
-            _LevelTodayStreakCard(
+            _HunterStatusCard(
               score: realScore,
               completionPct: completionPct,
               totalTasks: totalTasks,
@@ -739,6 +1105,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               lateCount: lateCount,
               currentStreak: displayStreak,
               bestStreak: _bestStreak,
+              avg30DayDiscipline: _avg30DayDiscipline,
               isLoading: _statsLoading,
             ),
 
@@ -748,11 +1115,14 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
             const SizedBox(height: 20),
 
-            _FocusCard(
-              totalMinutes: _totalFocusMinutes,
-              longestSession: _longestFocusSession,
-              totalSessions: _totalFocusSessionsCount,
-              projectMinutes: _projectMinutesData,
+            GestureDetector(
+              onLongPress: () => _showManualFocusDialog(context),
+              child: _FocusCard(
+                totalMinutes: _totalFocusMinutes,
+                longestSession: _longestFocusSession,
+                totalSessions: _totalFocusSessionsCount,
+                projectMinutes: _projectMinutesData,
+              ),
             ),
 
             const SizedBox(height: 20),
@@ -762,8 +1132,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             const SizedBox(height: 20),
 
             _SkippedDelayedCard(
-              monthlySkippedCount: liveTotalSkipped,
-              monthlyDelayedCount: _monthlyDelayedCount,
+              weeklySkippedCount: liveTotalSkipped,
+              weeklyDelayedCount: _weeklyDelayedCount,
               topSkipped: liveTopSkipped,
               topDelayed: _topDelayed,
             ),
@@ -872,8 +1242,8 @@ class _PrayerConsistencyCard extends StatelessWidget {
 
 // ── Merged: Level · Today · Streak Card ──────────────────────────────────────
 
-class _LevelTodayStreakCard extends StatelessWidget {
-  const _LevelTodayStreakCard({
+class _HunterStatusCard extends StatelessWidget {
+  const _HunterStatusCard({
     required this.score,
     required this.completionPct,
     required this.totalTasks,
@@ -881,6 +1251,7 @@ class _LevelTodayStreakCard extends StatelessWidget {
     required this.lateCount,
     required this.currentStreak,
     required this.bestStreak,
+    required this.avg30DayDiscipline,
     this.isLoading = false,
   });
 
@@ -891,65 +1262,79 @@ class _LevelTodayStreakCard extends StatelessWidget {
   final int lateCount;
   final int currentStreak;
   final int bestStreak;
+  final double avg30DayDiscipline;
   final bool isLoading;
+
+  String _getRank(double avgScore) {
+    if (avgScore >= 91) return 'S-Rank';
+    if (avgScore >= 76) return 'A-Rank';
+    if (avgScore >= 61) return 'B-Rank';
+    if (avgScore >= 41) return 'C-Rank';
+    if (avgScore >= 21) return 'D-Rank';
+    return 'E-Rank';
+  }
+
+  Color _getRankColor(String rank) {
+    switch (rank) {
+      case 'S-Rank': return const Color(0xFFB8860B); // Gold
+      case 'A-Rank': return const Color(0xFF8A2BE2); // Purple
+      case 'B-Rank': return const Color(0xFF0066CC); // Royal Blue
+      case 'C-Rank': return const Color(0xFF2E7D32); // Forest Green
+      case 'D-Rank': return const Color(0xFFE65100); // Dark Orange
+      case 'E-Rank':
+      default:
+        return const Color(0xFF757575); // Gray
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final level = GamificationService.getProductivityLevel(score);
     final onTimeFraction = totalTasks == 0 ? 0.0 : onTimeCount / totalTasks;
     final lateFraction   = totalTasks == 0 ? 0.0 : lateCount   / totalTasks;
+    final rank = _getRank(avg30DayDiscipline);
+    final rankColor = _getRankColor(rank);
 
     return Container(
-      decoration: AppColors.cardDecoration(),
+      decoration: AppColors.cardDecoration(
+        border: Border.all(color: AppColors.border, width: 1.0),
+      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Top: Level progress bar ──────────────────────────────
+          // ── Header: System / Level Info ────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.stars_rounded, color: AppColors.primary, size: 16),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Level: $level',
-                          style: AppTypography.body(
-                            size: 14,
-                            weight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      'LEVEL',
+                      style: AppTypography.mono(
+                        size: 13,
+                        weight: FontWeight.w800,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                     Text(
-                      '$score / 100',
-                      style: AppTypography.mono(size: 13, color: AppColors.textMuted),
+                      rank,
+                      style: AppTypography.mono(
+                        size: 14,
+                        weight: FontWeight.w900,
+                        color: rankColor,
+                      ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 10),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: LinearProgressIndicator(
-                    value: score / 100,
-                    minHeight: 10,
-                    backgroundColor: AppColors.surfaceRaised,
-                    color: AppColors.primary,
-                  ),
                 ),
               ],
             ),
           ),
 
-          // ── Divider ──────────────────────────────────────────────
-          Divider(height: 1, color: AppColors.border),
+          const Divider(height: 1, color: Color(0xFFE8E8E8)),
 
-          // ── Bottom: Today ring  |  Streak ───────────────────────
+          // ── Today & Streak Summary ──────────────────────────────
           IntrinsicHeight(
             child: Row(
               children: [
@@ -960,26 +1345,33 @@ class _LevelTodayStreakCard extends StatelessWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('Today', style: AppTypography.label(color: AppColors.textMuted)),
+                        Text(
+                          'DAILY CLEAR',
+                          style: AppTypography.mono(
+                            size: 11,
+                            weight: FontWeight.w700,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
                         const SizedBox(height: 12),
                         SizedBox(
-                          width: 88,
-                          height: 88,
+                          width: 80,
+                          height: 80,
                           child: CustomPaint(
                             painter: _RingPainter(
                               onTimeFraction: onTimeFraction,
                               lateFraction:   lateFraction,
                               onTimeColor:    AppColors.complete,
-                              lateColor:      const Color(0xFFF59E0B),
+                              lateColor:      const Color(0xFFFF9F0A),
                               trackColor:     AppColors.surfaceRaised,
-                              strokeWidth:    9,
+                              strokeWidth:    8,
                             ),
                             child: Center(
                               child: Text(
                                 '$completionPct%',
                                 style: AppTypography.mono(
-                                  size: 20,
-                                  weight: FontWeight.w700,
+                                  size: 18,
+                                  weight: FontWeight.w800,
                                   color: AppColors.textPrimary,
                                 ),
                               ),
@@ -988,16 +1380,19 @@ class _LevelTodayStreakCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          '$totalTasks tasks today',
-                          style: AppTypography.label(color: AppColors.textMuted),
+                          '$totalTasks tasks scheduled',
+                          style: AppTypography.mono(
+                            size: 11,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                       ],
                     ),
                   ),
                 ),
 
-                // Bold vertical divider
-                Container(width: 1.5, color: AppColors.border),
+                // Vertical Divider
+                Container(width: 1, color: AppColors.border),
 
                 // Streak
                 Expanded(
@@ -1009,8 +1404,11 @@ class _LevelTodayStreakCard extends StatelessWidget {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.local_fire_department_rounded,
-                                size: 16, color: AppColors.primary),
+                            const Icon(
+                              Icons.local_fire_department_rounded,
+                              size: 14,
+                              color: Color(0xFFFF9F0A),
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               'STREAK',
@@ -1026,30 +1424,34 @@ class _LevelTodayStreakCard extends StatelessWidget {
                         Text(
                           isLoading ? '0' : '$currentStreak',
                           style: AppTypography.mono(
-                            size: 52,
+                            size: 40,
                             weight: FontWeight.w900,
                             color: AppColors.textPrimary,
                           ).copyWith(height: 1),
                         ),
                         const SizedBox(height: 10),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
                             color: AppColors.surfaceRaised,
                             borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: AppColors.border, width: 1),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.emoji_events_rounded,
-                                  color: AppColors.primary, size: 13),
+                              const Icon(
+                                Icons.emoji_events_rounded,
+                                color: Color(0xFFFFD700),
+                                size: 12,
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 'Best: $bestStreak',
-                                style: AppTypography.body(
-                                  size: 11,
+                                style: AppTypography.mono(
+                                  size: 10,
                                   weight: FontWeight.w700,
-                                  color: AppColors.textSecondary,
+                                  color: AppColors.textPrimary,
                                 ),
                               ),
                             ],
@@ -1801,14 +2203,14 @@ class _DisciplineScoreCard extends StatelessWidget {
 
 class _SkippedDelayedCard extends StatelessWidget {
   const _SkippedDelayedCard({
-    required this.monthlySkippedCount,
-    required this.monthlyDelayedCount,
+    required this.weeklySkippedCount,
+    required this.weeklyDelayedCount,
     required this.topSkipped,
     required this.topDelayed,
   });
 
-  final int monthlySkippedCount;
-  final int monthlyDelayedCount; // kept for API compat, not displayed
+  final int weeklySkippedCount;
+  final int weeklyDelayedCount; // kept for API compat, not displayed
   final List<MapEntry<String, int>> topSkipped;
   final List<MapEntry<String, int>> topDelayed; // kept for API compat
 
@@ -1833,41 +2235,12 @@ class _SkippedDelayedCard extends StatelessWidget {
                     weight: FontWeight.w600,
                     color: AppColors.textPrimary),
               ),
-              const Spacer(),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.moodLow.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '$monthlySkippedCount',
-                      style: AppTypography.mono(
-                          size: 14,
-                          weight: FontWeight.w800,
-                          color: AppColors.moodLow),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'skipped',
-                      style: AppTypography.body(
-                          size: 11,
-                          weight: FontWeight.w500,
-                          color: AppColors.moodLow),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
 
           const SizedBox(height: 6),
           Text(
-            'Most skipped tasks this month',
+            'Most skipped tasks this week',
             style: AppTypography.body(
                 size: 12, color: AppColors.textMuted),
           ),

@@ -149,6 +149,13 @@ class SupabaseService {
             tip = rawTip.replaceFirst('|$segment', '').replaceFirst('$segment|', '');
           }
         }
+        StateOfMind? som;
+        if (e['state_of_mind'] != null) {
+          som = StateOfMind.values.firstWhere(
+            (val) => val.name == e['state_of_mind'],
+            orElse: () => StateOfMind.flow,
+          );
+        }
         return Task(
           id: e['id'],
           sessionId: e['session_id'],
@@ -160,6 +167,10 @@ class SupabaseService {
           hasSessionTimer: e['has_session_timer'] ?? false,
           iconName: e['icon_name'] ?? 'star',
           weekdays: weekdays,
+          stateOfMind: som,
+          isUrgent: e['is_urgent'] ?? false,
+          priority: e['priority'],
+          createdAt: e['created_at'] != null ? DateTime.tryParse(e['created_at'] as String) : null,
         );
       }).toList();
     } catch (e, st) {
@@ -197,6 +208,10 @@ class SupabaseService {
         'is_break': task.isBreak,
         'has_session_timer': task.hasSessionTimer,
         'icon_name': task.iconName,
+        'state_of_mind': task.stateOfMind?.name,
+        'is_urgent': task.isUrgent,
+        'priority': task.priority,
+        'created_at': task.createdAt?.toIso8601String(),
       });
     } catch (e, st) {
       Sentry.captureException(e, stackTrace: st);

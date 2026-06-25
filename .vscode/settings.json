@@ -13,6 +13,7 @@
         "/^\\$content = Get-Content f:\\\\DSML\\\\DailyRoutine\\\\app\\\\lib\\\\features\\\\stats\\\\stats_screen\\.dart -Raw\n\\$index = \\$content\\.IndexOf\\(\"bool shouldRepaint\\(_GradientArcPainter old\\) => old\\.fraction != fraction;`n\\}\"\\)\n\\$content = \\$content\\.Substring\\(0, \\$index \\+ 76\\)\nSet-Content f:\\\\DSML\\\\DailyRoutine\\\\app\\\\lib\\\\features\\\\stats\\\\stats_screen\\.dart -Value \\$content$/": {
             "approve": true,
             "matchCommandLine": true
-        }
+        },
+        "type": true
     }
 }

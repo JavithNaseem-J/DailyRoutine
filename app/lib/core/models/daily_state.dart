@@ -1,4 +1,4 @@
-/// DailyState — stores task/bonus completion and mood for one date.
+/// DailyState — stores task completion, mood, and focus for one date.
 ///
 /// Stored in Hive (key = date string "YYYY-MM-DD") and synced to Supabase.
 class DailyState {
@@ -23,13 +23,13 @@ class DailyState {
   final String date;
   Map<String, bool> taskStates; // taskId → done
   Map<String, String> taskStatus; // taskId → 'on_time' | 'late'
-  Map<String, bool> bonusStates; // taskId → bonusDone
+  Map<String, bool> bonusStates; // taskId → done
   String? mood; // "low" | "mid" | "high"
   int focusMinutes; // Total focus timer minutes logged today
   List<int> focusSessions; // Individual session durations (minutes)
-  Map<String, int> projectMinutes; // tagId → minutes
+  Map<String, int> projectMinutes; // tag/taskId → minutes
   Map<String, bool> prayerStates; // prayerName → done
-  int jobApplicationsCount; // Today's Job Applications Count
+  int jobApplicationsCount;
 
   DailyState copyWith({
     Map<String, bool>? taskStates,
@@ -61,6 +61,7 @@ class DailyState {
         taskStatus: {},
         bonusStates: {},
         focusSessions: [],
+        projectMinutes: {},
         prayerStates: {},
         jobApplicationsCount: 0,
       );

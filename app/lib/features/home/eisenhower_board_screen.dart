@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/models/quick_task.dart';
+import '../../core/models/session.dart' show StateOfMind;
 import '../../core/services/hive_service.dart';
 import '../../core/services/supabase_service.dart';
 import '../../core/theme/app_colors.dart';
@@ -20,6 +21,8 @@ class _EisenhowerBoardScreenState extends State<EisenhowerBoardScreen> {
   List<QuickTask> _allTasks = [];
   bool _loading = true;
   int _hoveredColumnIndex = -1;
+  bool _isCognitiveLoadWarningDismissed = false;
+  int _lastFlowTasksCount = 0;
 
   // Controllers for adding tasks in each of the 4 columns
   final List<TextEditingController> _addControllers =
@@ -182,6 +185,24 @@ class _EisenhowerBoardScreenState extends State<EisenhowerBoardScreen> {
     _updateTask(task.copyWith(priority: next));
   }
 
+  void _cycleStateOfMind(QuickTask task) {
+    HapticFeedback.selectionClick();
+    final current = task.stateOfMind;
+    StateOfMind? next;
+    if (current == null) {
+      next = StateOfMind.flow;
+    } else if (current == StateOfMind.flow) {
+      next = StateOfMind.quick;
+    } else if (current == StateOfMind.quick) {
+      next = StateOfMind.easy;
+    } else if (current == StateOfMind.easy) {
+      next = StateOfMind.personal;
+    } else {
+      next = null;
+    }
+    _updateTask(task.copyWith(stateOfMind: next));
+  }
+
   Future<void> _selectDeadline(BuildContext context, QuickTask task) async {
     HapticFeedback.selectionClick();
     final currentDeadline = task.deadline != null ? DateTime.tryParse(task.deadline!) : null;
@@ -301,6 +322,18 @@ class _EisenhowerBoardScreenState extends State<EisenhowerBoardScreen> {
       );
     }
 
+    final flowTasksCount = _allTasks.where((t) => !t.done && t.stateOfMind == StateOfMind.flow).length;
+    if (flowTasksCount != _lastFlowTasksCount) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _lastFlowTasksCount = flowTasksCount;
+            _isCognitiveLoadWarningDismissed = false;
+          });
+        }
+      });
+    }
+
     final totalCompleted = _allTasks.where((t) => t.done).length;
     final totalCount = _allTasks.length;
 
@@ -334,8 +367,71 @@ class _EisenhowerBoardScreenState extends State<EisenhowerBoardScreen> {
           ],
         ),
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (flowTasksCount >= 3 && !_isCognitiveLoadWarningDismissed)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border(
+                    left: const BorderSide(
+                      color: Colors.orange,
+                      width: 4,
+                    ),
+                    top: BorderSide(color: AppColors.border),
+                    right: BorderSide(color: AppColors.border),
+                    bottom: BorderSide(color: AppColors.border),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'You have $flowTasksCount deep work tasks on your board. Consider scheduling some for later.',
+                        style: AppTypography.body(
+                          size: 13,
+                          color: AppColors.textPrimary,
+                          weight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _isCognitiveLoadWarningDismissed = true;
+                        });
+                      },
+                      child: Text(
+                        'Dismiss',
+                        style: AppTypography.body(
+                          size: 13,
+                          weight: FontWeight.w700,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
           final columnWidth = constraints.maxWidth * 0.82;
           return SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -347,7 +443,20 @@ class _EisenhowerBoardScreenState extends State<EisenhowerBoardScreen> {
                 final col = _columns[colIndex];
                 final qTasks = _allTasks
                     .where((t) => t.isUrgent == col.urgency && t.isImportant == col.important)
-                    .toList();
+                    .toList()
+                  ..sort((a, b) {
+                    if (a.done != b.done) return a.done ? 1 : -1;
+                    int getPriorityRank(String? p) {
+                      if (p == 'P1') return 1;
+                      if (p == 'P2') return 2;
+                      if (p == 'P3') return 3;
+                      return 4;
+                    }
+                    final rankA = getPriorityRank(a.priority);
+                    final rankB = getPriorityRank(b.priority);
+                    if (rankA != rankB) return rankA.compareTo(rankB);
+                    return a.createdAt.compareTo(b.createdAt);
+                  });
 
                 final completedQ = qTasks.where((t) => t.done).length;
                 final totalQ = qTasks.length;
@@ -589,6 +698,64 @@ class _EisenhowerBoardScreenState extends State<EisenhowerBoardScreen> {
                                                       spacing: 6,
                                                       runSpacing: 4,
                                                       children: [
+                                                        // State of Mind Badge (on all columns)
+                                                        GestureDetector(
+                                                          onTap: () => _cycleStateOfMind(task),
+                                                          child: Container(
+                                                            padding: const EdgeInsets.symmetric(
+                                                                horizontal: 8, vertical: 3),
+                                                            decoration: BoxDecoration(
+                                                              color: task.stateOfMind == StateOfMind.flow
+                                                                  ? const Color(0xFF8B5CF6).withValues(alpha: 0.15)
+                                                                  : task.stateOfMind == StateOfMind.quick
+                                                                      ? const Color(0xFF14B8A6).withValues(alpha: 0.15)
+                                                                      : task.stateOfMind == StateOfMind.easy
+                                                                          ? const Color(0xFF84CC16).withValues(alpha: 0.15)
+                                                                          : task.stateOfMind == StateOfMind.personal
+                                                                              ? const Color(0xFF3B82F6).withValues(alpha: 0.15)
+                                                                              : AppColors.cardSurface,
+                                                              borderRadius: BorderRadius.circular(6),
+                                                              border: Border.all(
+                                                                color: task.stateOfMind == StateOfMind.flow
+                                                                    ? const Color(0xFF8B5CF6)
+                                                                    : task.stateOfMind == StateOfMind.quick
+                                                                        ? const Color(0xFF14B8A6)
+                                                                        : task.stateOfMind == StateOfMind.easy
+                                                                            ? const Color(0xFF84CC16)
+                                                                            : task.stateOfMind == StateOfMind.personal
+                                                                                ? const Color(0xFF3B82F6)
+                                                                                : AppColors.border,
+                                                                width: 1.0,
+                                                              ),
+                                                            ),
+                                                            child: Text(
+                                                              task.stateOfMind == StateOfMind.flow
+                                                                  ? 'Flow'
+                                                                  : task.stateOfMind == StateOfMind.quick
+                                                                      ? 'Quick'
+                                                                      : task.stateOfMind == StateOfMind.easy
+                                                                          ? 'Easy'
+                                                                          : task.stateOfMind == StateOfMind.personal
+                                                                              ? 'Personal'
+                                                                              : 'State of Mind',
+                                                              style: AppTypography.body(
+                                                                size: 10,
+                                                                weight: task.stateOfMind != null
+                                                                    ? FontWeight.bold
+                                                                    : FontWeight.normal,
+                                                                color: task.stateOfMind == StateOfMind.flow
+                                                                    ? const Color(0xFF8B5CF6)
+                                                                    : task.stateOfMind == StateOfMind.quick
+                                                                        ? const Color(0xFF14B8A6)
+                                                                        : task.stateOfMind == StateOfMind.easy
+                                                                            ? const Color(0xFF84CC16)
+                                                                            : task.stateOfMind == StateOfMind.personal
+                                                                                ? const Color(0xFF3B82F6)
+                                                                                : AppColors.textSecondary,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
                                                         // 1. Do First - Priority Badge
                                                         if (colIndex == 0)
                                                           GestureDetector(
@@ -793,6 +960,9 @@ class _EisenhowerBoardScreenState extends State<EisenhowerBoardScreen> {
           );
         },
       ),
+    ),
+  ],
+),
     );
   }
 }

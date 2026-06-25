@@ -24,7 +24,6 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   late final ScrollController _pillScrollController;
   late final ConfettiController _confettiController;
   int _currentIndex = 0;
-
   List<Session> get _sessions =>
       ref.read(sessionsProvider).value?.sessions ??
       SessionData.sessionsForToday;
@@ -389,6 +388,8 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     final taskStatus = sessionsAsync.value?.dailyState.taskStatus ?? {};
     final bonusStates = sessionsAsync.value?.bonusStates ?? {};
 
+
+
     return Stack(
       children: [
         Scaffold(
@@ -569,6 +570,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
 
                 SizedBox(height: 4),
                 Divider(height: 1, color: AppColors.border),
+
 
                 Expanded(
                   child: sessionsAsync.when(

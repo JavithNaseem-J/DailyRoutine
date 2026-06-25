@@ -4,9 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audioplayers/audioplayers.dart';
-import '../../core/theme/app_typography.dart';
 import '../../core/theme/app_colors.dart';
-import '../sessions/providers/sessions_provider.dart';
+import '../../core/theme/app_typography.dart';
 
 import 'providers/focus_timer_provider.dart';
 
@@ -41,8 +40,9 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
 
   final List<String> _projectTags = [
     'Study',
-    'Review',
     'Work',
+    'Project',
+    'Review',
   ];
 
   @override
@@ -168,14 +168,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
         ? 1 - (timerState.remainingSeconds / timerState.totalSeconds)
         : 0.0;
 
-    final sessionsState = ref.watch(sessionsProvider).value;
-    final projectMinutes = sessionsState?.dailyState.projectMinutes ?? {};
-    final elapsedMinutesToday = projectMinutes['task_fm:${widget.taskId}'] ?? 0;
 
-    final currentTimerSessionElapsedSeconds = timerState.totalSeconds - timerState.remainingSeconds;
-    final totalRemainingSeconds = (widget.durationMinutes * 60) - (elapsedMinutesToday * 60) - currentTimerSessionElapsedSeconds;
-    final remainingSecsClamped = totalRemainingSeconds.clamp(0, widget.durationMinutes * 60);
-    final remainingMinsDisplay = remainingSecsClamped ~/ 60;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -362,82 +355,6 @@ class _FocusScreenState extends ConsumerState<FocusScreen>
                       ),
                     ],
                   ),
-                  
-                  if (widget.taskId != null) ...[
-                    const SizedBox(height: 24),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.border),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.02),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'TASK TIME',
-                                style: AppTypography.mono(
-                                  size: 10,
-                                  weight: FontWeight.w600,
-                                  color: AppColors.textMuted,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${widget.durationMinutes} min',
-                                style: AppTypography.body(
-                                  size: 15,
-                                  weight: FontWeight.w700,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Container(
-                            width: 1,
-                            height: 32,
-                            color: AppColors.border,
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                'REMAINING TIME',
-                                style: AppTypography.mono(
-                                  size: 10,
-                                  weight: FontWeight.w600,
-                                  color: AppColors.textMuted,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '$remainingMinsDisplay min',
-                                style: AppTypography.body(
-                                  size: 15,
-                                  weight: FontWeight.w700,
-                                  color: remainingSecsClamped > 0
-                                      ? AppColors.primary
-                                      : AppColors.complete,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-
                   const SizedBox(height: 20),
 
                   Row(

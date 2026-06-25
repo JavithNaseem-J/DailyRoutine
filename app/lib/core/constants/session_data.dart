@@ -10,8 +10,6 @@ abstract final class SessionData {
     _morning,
     _afternoon,
     _night,
-    _saturday,
-    _sunday,
     _keyTasks,
   ];
 
@@ -39,24 +37,6 @@ abstract final class SessionData {
     tasks: [],
   );
 
-  static final _saturday = Session(
-    id: 'saturday',
-    name: 'Saturday',
-    timeRange: 'All Day',
-    accentColor: AppColors.midMorning,
-    tasks: [],
-    isWeekendOnly: true,
-  );
-
-  static final _sunday = Session(
-    id: 'sunday',
-    name: 'Sunday',
-    timeRange: 'All Day',
-    accentColor: AppColors.midMorning,
-    tasks: [],
-    isWeekendOnly: true,
-  );
-
   static final _keyTasks = Session(
     id: 'key_tasks',
     name: 'Must Do',
@@ -66,8 +46,8 @@ abstract final class SessionData {
   );
 
   static Session? getById(String id) {
-    // Migration: legacy 'weekend' tasks map to saturday
-    if (id == 'weekend') return _saturday;
+    // Migration: legacy 'weekend' / 'saturday' / 'sunday' tasks map to morning
+    if (id == 'weekend' || id == 'saturday' || id == 'sunday') return _morning;
     try {
       return allSessions.firstWhere((s) => s.id == id);
     } catch (_) {
@@ -76,13 +56,8 @@ abstract final class SessionData {
   }
 
   /// Returns the sessions active on the given [date].
-  ///   - Mon–Fri → Morning + Afternoon + Night + Key Tasks
-  ///   - Saturday → Saturday + Key Tasks
-  ///   - Sunday → Sunday + Key Tasks
+  ///   - All days → Morning + Afternoon + Night + Key Tasks
   static List<Session> sessionsForDate(DateTime date) {
-    // All days use Morning / Afternoon / Night / Must Do.
-    // Weekend-only sessions (saturday, sunday) are kept in allSessions
-    // for backward-compat with legacy data but no longer shown in the UI.
     return [_morning, _afternoon, _night, _keyTasks];
   }
 

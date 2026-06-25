@@ -123,16 +123,14 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
             return t.weekdays.isEmpty || t.weekdays.contains(date.weekday);
           })
           .toList();
-      relevantTasks.sort(
-        (a, b) => _parseTime(a.time).compareTo(_parseTime(b.time)),
-      );
+      final combinedTasks = [...s.tasks, ...relevantTasks];
+      combinedTasks.sort(_compareTasks);
       return Session(
         id: s.id,
         name: s.name,
         timeRange: s.timeRange,
         accentColor: s.accentColor,
-        tasks: [...s.tasks, ...relevantTasks],
-        isFridayOnly: s.isFridayOnly,
+        tasks: combinedTasks,
         isWeekendOnly: s.isWeekendOnly,
       );
     }).toList();
@@ -155,13 +153,15 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
           return isMissed;
         }).toList();
 
+        final combinedTasks = [...s.tasks, ...resurfaced];
+        combinedTasks.sort(_compareTasks);
+
         return Session(
           id: s.id,
           name: s.name,
           timeRange: s.timeRange,
           accentColor: s.accentColor,
-          tasks: [...s.tasks, ...resurfaced],
-          isFridayOnly: s.isFridayOnly,
+          tasks: combinedTasks,
           isWeekendOnly: s.isWeekendOnly,
         );
       } else {
@@ -262,27 +262,36 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     if (remote == null) {
       merged = localState;
     } else {
+      // Read the live in-memory state at merge time instead of the stale
+      // `localState` snapshot captured at build() / changeDate() call.
+      // This prevents race conditions where the user taps the job-hunt counter
+      // (or toggles a task) while the async Supabase fetch is in flight —
+      // those in-flight changes would otherwise be silently overwritten.
+      final liveLocal = (state.value?.selectedDate == dateKey
+          ? state.value?.dailyState
+          : null) ?? localState;
+
       merged = DailyState(
         date: dateKey,
-        taskStates: {...localState.taskStates, ...remote.taskStates},
-        taskStatus: {...localState.taskStatus, ...remote.taskStatus},
-        bonusStates: {...localState.bonusStates, ...remote.bonusStates},
-        prayerStates: {...localState.prayerStates, ...remote.prayerStates},
-        mood: remote.mood ?? localState.mood,
-        focusMinutes: remote.focusMinutes > localState.focusMinutes
+        taskStates: {...liveLocal.taskStates, ...remote.taskStates},
+        taskStatus: {...liveLocal.taskStatus, ...remote.taskStatus},
+        bonusStates: {...liveLocal.bonusStates, ...remote.bonusStates},
+        prayerStates: {...liveLocal.prayerStates, ...remote.prayerStates},
+        mood: remote.mood ?? liveLocal.mood,
+        focusMinutes: remote.focusMinutes > liveLocal.focusMinutes
             ? remote.focusMinutes
-            : localState.focusMinutes,
+            : liveLocal.focusMinutes,
         focusSessions: remote.focusSessions.isNotEmpty
             ? remote.focusSessions
-            : localState.focusSessions,
+            : liveLocal.focusSessions,
         projectMinutes: {
-          ...localState.projectMinutes,
+          ...liveLocal.projectMinutes,
           ...remote.projectMinutes,
         },
         // Take the higher value so a tap that hasn't synced yet is never lost.
-        jobApplicationsCount: remote.jobApplicationsCount > localState.jobApplicationsCount
+        jobApplicationsCount: remote.jobApplicationsCount > liveLocal.jobApplicationsCount
             ? remote.jobApplicationsCount
-            : localState.jobApplicationsCount,
+            : liveLocal.jobApplicationsCount,
       );
       await hiveService.writeDailyState(merged);
     }
@@ -334,6 +343,30 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     if (isPm && h != 12) h += 12;
     if (isAm && h == 12) h = 0;
     return h * 60 + m;
+  }
+
+  int _compareTasks(Task a, Task b) {
+    if (a.isUrgent != b.isUrgent) {
+      return a.isUrgent ? -1 : 1;
+    }
+    int getPriorityRank(String? p) {
+      if (p == 'P1') return 1;
+      if (p == 'P2') return 2;
+      if (p == 'P3') return 3;
+      return 4;
+    }
+    final rankA = getPriorityRank(a.priority);
+    final rankB = getPriorityRank(b.priority);
+    if (rankA != rankB) {
+      return rankA.compareTo(rankB);
+    }
+    final timeA = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final timeB = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final dateCompare = timeA.compareTo(timeB);
+    if (dateCompare != 0) {
+      return dateCompare;
+    }
+    return _parseTime(a.time).compareTo(_parseTime(b.time));
   }
 
   bool _isSessionInPast(String sessionId, String dateKey) {

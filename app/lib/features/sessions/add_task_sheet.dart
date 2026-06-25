@@ -32,6 +32,10 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
   /// Selected weekdays: 1=Mon … 7=Sun. Empty means every day.
   late List<int> _selectedWeekdays;
 
+  StateOfMind? _selectedStateOfMind;
+  bool _isUrgent = false;
+  String? _selectedPriority;
+
   static const Map<String, IconData> _appIcons = {
     'star': Icons.star_rounded,
     'sun': Icons.wb_sunny_rounded,
@@ -115,6 +119,9 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
       _selectedIconName = widget.existingTask!.iconName;
       _isKeyTask = widget.existingTask!.isKeyTask;
       _selectedWeekdays = List<int>.from(widget.existingTask!.weekdays);
+      _selectedStateOfMind = widget.existingTask!.stateOfMind;
+      _isUrgent = widget.existingTask!.isUrgent;
+      _selectedPriority = widget.existingTask!.priority;
     }
   }
 
@@ -216,6 +223,9 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
         iconName: _selectedIconName,
         tip: 'key_task:$_isKeyTask|Custom task',
         weekdays: _selectedWeekdays,
+        stateOfMind: _selectedStateOfMind,
+        isUrgent: _isUrgent,
+        priority: _selectedPriority,
       );
       ref
           .read(sessionsProvider.notifier)
@@ -232,6 +242,10 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
         hasSessionTimer: _hasSessionTimer,
         iconName: _selectedIconName,
         weekdays: _selectedWeekdays,
+        stateOfMind: _selectedStateOfMind,
+        isUrgent: _isUrgent,
+        priority: _selectedPriority,
+        createdAt: DateTime.now(),
       );
       ref.read(sessionsProvider.notifier).addCustomTask(newTask);
     }
@@ -335,6 +349,9 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                                         _hasSessionTimer = t.hasSessionTimer;
                                         _isKeyTask = t.isKeyTask;
                                         _selectedDuration = Duration(minutes: t.durationMinutes);
+                                        _selectedStateOfMind = t.stateOfMind;
+                                        _isUrgent = t.isUrgent;
+                                        _selectedPriority = t.priority;
                                       });
                                     },
                                     child: Container(
@@ -386,7 +403,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 24),
 
                     // 4. Icon Picker
                     SizedBox(

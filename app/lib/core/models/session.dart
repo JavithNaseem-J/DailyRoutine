@@ -2,9 +2,6 @@ import 'package:flutter/material.dart';
 
 // Data models for the session/task system
 
-/// Which habit ring a task contributes to.
-enum RingType { worship, build, body, none }
-
 /// The four visual states of a session pill.
 enum SessionPillState {
   empty, // 0 tasks done
@@ -12,6 +9,8 @@ enum SessionPillState {
   halfway, // 50 %+ done, not complete
   complete, // all done
 }
+
+enum StateOfMind { flow, quick, easy, personal }
 
 // Task
 class Task {
@@ -22,15 +21,14 @@ class Task {
     required this.time,
     required this.durationMinutes,
     required this.tip,
-    this.bonus,
-    this.subtitle,
-    this.ring = RingType.none,
     this.isBreak = false,
     this.hasSessionTimer = false,
-    this.isFridayOnly = false,
-    this.isFridaySpecial = false,
     this.iconName = 'star',
     this.weekdays = const [], // empty = all days (Mon=1 … Sun=7, ISO 8601)
+    this.stateOfMind,
+    this.isUrgent = false,
+    this.priority,
+    this.createdAt,
   });
 
   final String id;
@@ -39,17 +37,17 @@ class Task {
   final String time; // "7:00am"
   final int durationMinutes; // used for duration bar width
   final String tip;
-  final String? bonus;
-  final String? subtitle; // injected from Today's Focus
-  final RingType ring;
   final bool isBreak;
-  final bool hasSessionTimer; // build sessions 1, 2, 3 only
-  final bool isFridayOnly;
-  final bool isFridaySpecial; // Dhuhr → Jumu'ah on Fridays
+  final bool hasSessionTimer;
   final String iconName;
   /// The weekdays this task is active on (1=Mon … 7=Sun, ISO 8601).
   /// Empty list = active every day.
   final List<int> weekdays;
+
+  final StateOfMind? stateOfMind;
+  final bool isUrgent;
+  final String? priority;
+  final DateTime? createdAt;
 
   bool get isKeyTask => tip.startsWith('key_task:true');
   String get cleanTip {
@@ -75,15 +73,14 @@ class Task {
     String? time,
     int? durationMinutes,
     String? tip,
-    String? bonus,
-    String? subtitle,
-    RingType? ring,
     bool? isBreak,
     bool? hasSessionTimer,
-    bool? isFridayOnly,
-    bool? isFridaySpecial,
     String? iconName,
     List<int>? weekdays,
+    StateOfMind? stateOfMind,
+    bool? isUrgent,
+    String? priority,
+    DateTime? createdAt,
   }) {
     return Task(
       id: id ?? this.id,
@@ -92,15 +89,14 @@ class Task {
       time: time ?? this.time,
       durationMinutes: durationMinutes ?? this.durationMinutes,
       tip: tip ?? this.tip,
-      bonus: bonus ?? this.bonus,
-      subtitle: subtitle ?? this.subtitle,
-      ring: ring ?? this.ring,
       isBreak: isBreak ?? this.isBreak,
       hasSessionTimer: hasSessionTimer ?? this.hasSessionTimer,
-      isFridayOnly: isFridayOnly ?? this.isFridayOnly,
-      isFridaySpecial: isFridaySpecial ?? this.isFridaySpecial,
       iconName: iconName ?? this.iconName,
       weekdays: weekdays ?? this.weekdays,
+      stateOfMind: stateOfMind ?? this.stateOfMind,
+      isUrgent: isUrgent ?? this.isUrgent,
+      priority: priority ?? this.priority,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 
@@ -115,25 +111,36 @@ class Task {
             .whereType<int>()
             .toList();
 
+    StateOfMind? som;
+    if (json['stateOfMind'] != null) {
+      som = StateOfMind.values.firstWhere(
+        (e) => e.name == json['stateOfMind'],
+        orElse: () => StateOfMind.flow,
+      );
+    } else if (json['state_of_mind'] != null) {
+      som = StateOfMind.values.firstWhere(
+        (e) => e.name == json['state_of_mind'],
+        orElse: () => StateOfMind.flow,
+      );
+    }
+
     return Task(
       id: json['id'] as String? ?? '',
-      sessionId: json['sessionId'] as String? ?? '',
+      sessionId: json['sessionId'] as String? ?? json['session_id'] as String? ?? '',
       title: json['title'] as String? ?? '',
       time: json['time'] as String? ?? '',
-      durationMinutes: json['durationMinutes'] as int? ?? 15,
+      durationMinutes: json['durationMinutes'] as int? ?? json['duration_minutes'] as int? ?? 15,
       tip: json['tip'] as String? ?? '',
-      bonus: json['bonus'] as String?,
-      subtitle: json['subtitle'] as String?,
-      ring: RingType.values.firstWhere(
-        (e) => e.name == (json['ring'] as String?),
-        orElse: () => RingType.none,
-      ),
-      isBreak: json['isBreak'] as bool? ?? false,
-      hasSessionTimer: json['hasSessionTimer'] as bool? ?? false,
-      isFridayOnly: json['isFridayOnly'] as bool? ?? false,
-      isFridaySpecial: json['isFridaySpecial'] as bool? ?? false,
-      iconName: json['iconName'] as String? ?? 'star',
+      isBreak: json['isBreak'] as bool? ?? json['is_break'] as bool? ?? false,
+      hasSessionTimer: json['hasSessionTimer'] as bool? ?? json['has_session_timer'] as bool? ?? false,
+      iconName: json['iconName'] as String? ?? json['icon_name'] as String? ?? 'star',
       weekdays: parsedWeekdays,
+      stateOfMind: som,
+      isUrgent: json['isUrgent'] as bool? ?? json['is_urgent'] as bool? ?? false,
+      priority: json['priority'] as String?,
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'] as String)
+          : (json['created_at'] != null ? DateTime.tryParse(json['created_at'] as String) : null),
     );
   }
 
@@ -145,15 +152,14 @@ class Task {
       'time': time,
       'durationMinutes': durationMinutes,
       'tip': tip,
-      'bonus': bonus,
-      'subtitle': subtitle,
-      'ring': ring.name,
       'isBreak': isBreak,
       'hasSessionTimer': hasSessionTimer,
-      'isFridayOnly': isFridayOnly,
-      'isFridaySpecial': isFridaySpecial,
       'iconName': iconName,
       'weekdays': weekdays.join(','), // stored as "1,2,3" — empty string = all days
+      if (stateOfMind != null) 'stateOfMind': stateOfMind!.name,
+      'isUrgent': isUrgent,
+      if (priority != null) 'priority': priority,
+      if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
     };
   }
 }
@@ -166,7 +172,6 @@ class Session {
     required this.timeRange,
     required this.accentColor,
     required this.tasks,
-    this.isFridayOnly = false,
     this.isWeekendOnly = false,
   });
 
@@ -175,7 +180,6 @@ class Session {
   final String timeRange;
   final Color accentColor;
   final List<Task> tasks;
-  final bool isFridayOnly;
-  /// True for Saturday/Sunday-only sessions
+  /// True for Saturday/Sunday-only sessions (kept for backward-compat with legacy data)
   final bool isWeekendOnly;
 }
