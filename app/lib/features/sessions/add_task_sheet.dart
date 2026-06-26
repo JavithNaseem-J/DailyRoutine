@@ -491,7 +491,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                     const SizedBox(height: 20),
 
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         // Break
                         Row(
@@ -511,7 +511,6 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                             ),
                           ],
                         ),
-                        const SizedBox(width: 24),
                         // Timer
                         Row(
                           mainAxisSize: MainAxisSize.min,

@@ -518,52 +518,62 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                 SizedBox(height: 16),
                 SizedBox(
                   height: 38,
-                  child: SingleChildScrollView(
-                    controller: _pillScrollController,
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: List.generate(sessions.length, (i) {
-                        final s = sessions[i];
-                        final validTasks = s.tasks
-                            .where((t) => !t.isBreak)
-                            .toList();
-                        final doneCount = validTasks
-                            .where((t) => taskStates[t.id] == true)
-                            .length;
-                        final skippedCount = validTasks
-                            .where((t) => taskStatus[t.id] == 'skipped')
-                            .length;
-                        final total = validTasks.length - skippedCount;
-                        final percent = total <= 0 ? 0.0 : doneCount / total;
-
-                        final now = TimeOfDay.now();
-                        final nowMin = now.hour * 60 + now.minute;
-                        bool isFuture = false;
-                        final range = s.timeRange
-                            .split(RegExp(r'\s*[-\u2013\u2014]\s*'))
-                            .map((p) => p.trim())
-                            .toList();
-                        if (range.isNotEmpty) {
-                          final startMin = _parseTime(range[0]);
-                          isFuture = nowMin < startMin;
-                        }
-
-                        return Padding(
-                          padding: EdgeInsets.only(
-                            right: i < sessions.length - 1 ? 8.0 : 0.0,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return SingleChildScrollView(
+                        controller: _pillScrollController,
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minWidth: constraints.maxWidth - 40,
                           ),
-                          child: _SessionPill(
-                            session: s,
-                            isSelected: i == safeIndex,
-                            percent: percent,
-                            isFuture: isFuture,
-                            onTap: () => _onPillTap(i),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: List.generate(sessions.length, (i) {
+                              final s = sessions[i];
+                              final validTasks = s.tasks
+                                  .where((t) => !t.isBreak)
+                                  .toList();
+                              final doneCount = validTasks
+                                  .where((t) => taskStates[t.id] == true)
+                                  .length;
+                              final skippedCount = validTasks
+                                  .where((t) => taskStatus[t.id] == 'skipped')
+                                  .length;
+                              final total = validTasks.length - skippedCount;
+                              final percent = total <= 0 ? 0.0 : doneCount / total;
+
+                              final now = TimeOfDay.now();
+                              final nowMin = now.hour * 60 + now.minute;
+                              bool isFuture = false;
+                              final range = s.timeRange
+                                  .split(RegExp(r'\s*[-\u2013\u2014]\s*'))
+                                  .map((p) => p.trim())
+                                  .toList();
+                              if (range.isNotEmpty) {
+                                final startMin = _parseTime(range[0]);
+                                isFuture = nowMin < startMin;
+                              }
+
+                              return Padding(
+                                padding: EdgeInsets.only(
+                                  right: i < sessions.length - 1 ? 8.0 : 0.0,
+                                ),
+                                child: _SessionPill(
+                                  session: s,
+                                  isSelected: i == safeIndex,
+                                  percent: percent,
+                                  isFuture: isFuture,
+                                  onTap: () => _onPillTap(i),
+                                ),
+                              );
+                            }),
                           ),
-                        );
-                      }),
-                    ),
+                        ),
+                      );
+                    },
                   ),
                 ),
 

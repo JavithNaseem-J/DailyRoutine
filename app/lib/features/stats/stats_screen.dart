@@ -625,7 +625,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                           },
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
+                              horizontal: 10,
                               vertical: 8,
                             ),
                             decoration: BoxDecoration(
@@ -643,7 +643,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                             child: Text(
                               tag,
                               style: AppTypography.body(
-                                size: 13,
+                                size: 11,
                                 weight: isSel ? FontWeight.bold : FontWeight.w500,
                                 color: isSel ? AppColors.primary : AppColors.textPrimary,
                               ),
@@ -1616,7 +1616,7 @@ class _HunterStatusCard extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          'DAILY CLEAR',
+                          'TASK COMPLETION',
                           style: AppTypography.mono(
                             size: 11,
                             weight: FontWeight.w700,
@@ -1646,14 +1646,6 @@ class _HunterStatusCard extends StatelessWidget {
                                 ),
                               ),
                             ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          '$totalTasks tasks scheduled',
-                          style: AppTypography.mono(
-                            size: 11,
-                            color: AppColors.textSecondary,
                           ),
                         ),
                       ],

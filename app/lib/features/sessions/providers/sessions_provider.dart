@@ -313,6 +313,25 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
   }
 
   int _compareTasks(Task a, Task b) {
+    int parseTimeForSort(String t) {
+      t = t.toLowerCase().replaceAll(' ', '');
+      if (t == 'allday' || t.isEmpty) return 99999;
+      final isPm = t.contains('pm');
+      final isAm = t.contains('am');
+      t = t.replaceAll('pm', '').replaceAll('am', '');
+      final p = t.split(':');
+      int h = int.tryParse(p[0]) ?? 0;
+      final m = p.length > 1 ? int.tryParse(p[1]) ?? 0 : 0;
+      if (isPm && h != 12) h += 12;
+      if (isAm && h == 12) h = 0;
+      return h * 60 + m;
+    }
+
+    final timeA = parseTimeForSort(a.time);
+    final timeB = parseTimeForSort(b.time);
+    if (timeA != timeB) {
+      return timeA.compareTo(timeB);
+    }
     if (a.isUrgent != b.isUrgent) {
       return a.isUrgent ? -1 : 1;
     }
@@ -327,13 +346,9 @@ class SessionsNotifier extends AsyncNotifier<SessionsState> {
     if (rankA != rankB) {
       return rankA.compareTo(rankB);
     }
-    final timeA = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-    final timeB = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-    final dateCompare = timeA.compareTo(timeB);
-    if (dateCompare != 0) {
-      return dateCompare;
-    }
-    return _parseTime(a.time).compareTo(_parseTime(b.time));
+    final createdA = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final createdB = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+    return createdA.compareTo(createdB);
   }
 
   Future<void> toggleTask(String taskId) async {
