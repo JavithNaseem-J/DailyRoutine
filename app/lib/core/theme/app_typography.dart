@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// AppTypography — two font families via Google Fonts.
+/// AppTypography — premium two-font system.
 ///
-/// body()    → Plus Jakarta Sans  (all headings, labels, body copy)
-/// display() → Outfit             (large numbers, stats, display figures)
+/// body()    → Urbanist     (headings, labels, body copy)   w100–w900
+/// mono()    → Space Grotesk (numbers, stats, timers, badges) w300–w700
 ///              Uses tabular figures so digits don't shift width — safe for timers.
 abstract final class AppTypography {
   static TextStyle body({
@@ -15,7 +15,7 @@ abstract final class AppTypography {
     double? height,
     double? letterSpacing,
   }) =>
-      GoogleFonts.plusJakartaSans(
+      GoogleFonts.urbanist(
         fontSize: size,
         fontWeight: weight,
         color: color,
@@ -24,15 +24,14 @@ abstract final class AppTypography {
         letterSpacing: letterSpacing,
       );
 
-  /// Display / number style — Outfit with tabular figures.
-  /// Replaces the old mono() JetBrains Mono style app-wide.
+  /// Display / number style — Space Grotesk with tabular figures.
   static TextStyle mono({
     double size = 14,
     FontWeight weight = FontWeight.w400,
     Color? color,
     double? height,
   }) =>
-      GoogleFonts.outfit(
+      GoogleFonts.spaceGrotesk(
         fontSize: size,
         fontWeight: weight,
         color: color,

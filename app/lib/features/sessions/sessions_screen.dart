@@ -56,7 +56,6 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     final now = TimeOfDay.now();
     final nowMin = now.hour * 60 + now.minute;
     for (int i = 0; i < sessions.length; i++) {
-      if (sessions[i].id == 'key_tasks') continue;
       final range = sessions[i].timeRange
           .split(RegExp(r'\s*[-–—]\s*'))
           .map((p) => p.trim())
@@ -419,7 +418,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
                                   Text(
-                                    'Sessions',
+                                    'Schedule',
                                     style: AppTypography.screenTitle(
                                       color: AppColors.textPrimary,
                                     ),
@@ -711,7 +710,7 @@ class _SessionPill extends StatelessWidget {
               Text(
                 displayName,
                 style: AppTypography.body(
-                  size: 12,
+                  size: 14,
                   weight: isSelected ? FontWeight.w700 : FontWeight.w500,
                   color: textColor,
                 ),

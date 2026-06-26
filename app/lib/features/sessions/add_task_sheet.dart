@@ -26,7 +26,6 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
   final _titleController = TextEditingController();
   bool _isBreak = false;
   bool _hasSessionTimer = false;
-  bool _isKeyTask = false;
   String _selectedIconName = 'star';
 
   /// Selected weekdays: 1=Mon … 7=Sun. Empty means every day.
@@ -70,9 +69,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
     super.initState();
     _titleController.text = widget.existingTask?.title ?? '';
     _selectedSession = widget.defaultSession;
-    _availableSessions = SessionData.sessionsForToday
-        .where((s) => s.id != 'key_tasks')
-        .toList();
+    _availableSessions = SessionData.sessionsForToday;
 
     // Default weekdays: all days (empty = every day)
     _selectedWeekdays = [];
@@ -117,7 +114,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
       _isBreak = widget.existingTask!.isBreak;
       _hasSessionTimer = widget.existingTask!.hasSessionTimer;
       _selectedIconName = widget.existingTask!.iconName;
-      _isKeyTask = widget.existingTask!.isKeyTask;
+      // Must Do removed
       _selectedWeekdays = List<int>.from(widget.existingTask!.weekdays);
       _selectedStateOfMind = widget.existingTask!.stateOfMind;
       _isUrgent = widget.existingTask!.isUrgent;
@@ -221,7 +218,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
         isBreak: _isBreak,
         hasSessionTimer: _hasSessionTimer,
         iconName: _selectedIconName,
-        tip: 'key_task:$_isKeyTask|Custom task',
+        tip: 'Custom task',
         weekdays: _selectedWeekdays,
         stateOfMind: _selectedStateOfMind,
         isUrgent: _isUrgent,
@@ -237,7 +234,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
         title: title,
         time: formattedTime,
         durationMinutes: _selectedDuration.inMinutes,
-        tip: 'key_task:$_isKeyTask|Custom task',
+        tip: 'Custom task',
         isBreak: _isBreak,
         hasSessionTimer: _hasSessionTimer,
         iconName: _selectedIconName,
@@ -347,7 +344,6 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                                         }
                                         _isBreak = t.isBreak;
                                         _hasSessionTimer = t.hasSessionTimer;
-                                        _isKeyTask = t.isKeyTask;
                                         _selectedDuration = Duration(minutes: t.durationMinutes);
                                         _selectedStateOfMind = t.stateOfMind;
                                         _isUrgent = t.isUrgent;
@@ -494,9 +490,8 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                     ),
                     const SizedBox(height: 20),
 
-                    // 6. Toggles Row (Break, Timer, Key Task on a single line)
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      mainAxisAlignment: MainAxisAlignment.start,
                       children: [
                         // Break
                         Row(
@@ -511,12 +506,12 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                                 activeTrackColor: AppColors.primary,
                                 onChanged: (val) => setState(() {
                                   _isBreak = val;
-                                  if (val) _isKeyTask = false;
                                 }),
                               ),
                             ),
                           ],
                         ),
+                        const SizedBox(width: 24),
                         // Timer
                         Row(
                           mainAxisSize: MainAxisSize.min,
@@ -529,22 +524,6 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                                 value: _hasSessionTimer,
                                 activeTrackColor: AppColors.primary,
                                 onChanged: (val) => setState(() => _hasSessionTimer = val),
-                              ),
-                            ),
-                          ],
-                        ),
-                        // Key Task
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text('Must Do', style: AppTypography.body(size: 13, color: AppColors.textPrimary)),
-                            const SizedBox(width: 4),
-                            Transform.scale(
-                              scale: 0.75,
-                              child: CupertinoSwitch(
-                                value: _isKeyTask,
-                                activeTrackColor: AppColors.primary,
-                                onChanged: _isBreak ? null : (val) => setState(() => _isKeyTask = val),
                               ),
                             ),
                           ],

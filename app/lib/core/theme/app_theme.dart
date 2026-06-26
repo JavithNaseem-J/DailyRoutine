@@ -20,7 +20,7 @@ abstract final class AppTheme {
         onSecondary: Colors.white,
         onSurface: AppColors.textPrimary,
       ),
-      textTheme: GoogleFonts.plusJakartaSansTextTheme(),
+      textTheme: GoogleFonts.urbanistTextTheme(),
       cardTheme: CardThemeData(
         color: AppColors.cardSurface,
         shadowColor: const Color(0x0A000000),
@@ -42,7 +42,7 @@ abstract final class AppTheme {
         scrolledUnderElevation: 0,
         centerTitle: false,
         systemOverlayStyle: SystemUiOverlayStyle.dark,
-        titleTextStyle: GoogleFonts.plusJakartaSans(
+        titleTextStyle: GoogleFonts.urbanist(
           fontSize: 18,
           fontWeight: FontWeight.w700,
           color: AppColors.primary,

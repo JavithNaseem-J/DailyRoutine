@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/services/streak_service.dart';
@@ -586,12 +587,12 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                           ),
                           decoration: BoxDecoration(
                             color: isSel
-                                ? const Color(0xFF4361EE)
+                                ? AppColors.primary
                                 : AppColors.surfaceRaised,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: isSel
-                                  ? const Color(0xFF4361EE)
+                                  ? AppColors.primary
                                   : AppColors.border,
                               width: 1.5,
                             ),
@@ -629,12 +630,12 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                             ),
                             decoration: BoxDecoration(
                               color: isSel
-                                  ? const Color(0xFF4361EE).withValues(alpha: 0.15)
+                                  ? AppColors.primaryFaint
                                   : AppColors.surfaceRaised,
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
                                 color: isSel
-                                    ? const Color(0xFF4361EE)
+                                    ? AppColors.primary
                                     : AppColors.border,
                                 width: 1.5,
                               ),
@@ -644,7 +645,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                               style: AppTypography.body(
                                 size: 13,
                                 weight: isSel ? FontWeight.bold : FontWeight.w500,
-                                color: isSel ? const Color(0xFF4361EE) : AppColors.textPrimary,
+                                color: isSel ? AppColors.primary : AppColors.textPrimary,
                               ),
                             ),
                           ),
@@ -666,7 +667,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                         _loadRealData();
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4361EE),
+                        backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -1287,6 +1288,258 @@ class _HunterStatusCard extends StatelessWidget {
     }
   }
 
+  void _showRankDetailsSheet(BuildContext context) {
+    final currentRank = _getRank(avg30DayDiscipline);
+    
+    final List<Map<String, dynamic>> rankThresholds = [
+      {
+        'rank': 'S-Rank',
+        'title': 'Ultimate Discipline',
+        'range': '91 - 100',
+        'color': _getRankColor('S-Rank'),
+      },
+      {
+        'rank': 'A-Rank',
+        'title': 'Elite Performer',
+        'range': '76 - 90',
+        'color': _getRankColor('A-Rank'),
+      },
+      {
+        'rank': 'B-Rank',
+        'title': 'High Focus',
+        'range': '61 - 75',
+        'color': _getRankColor('B-Rank'),
+      },
+      {
+        'rank': 'C-Rank',
+        'title': 'Consistent Builder',
+        'range': '41 - 60',
+        'color': _getRankColor('C-Rank'),
+      },
+      {
+        'rank': 'D-Rank',
+        'title': 'Getting Started',
+        'range': '21 - 40',
+        'color': _getRankColor('D-Rank'),
+      },
+      {
+        'rank': 'E-Rank',
+        'title': 'Novice',
+        'range': '0 - 20',
+        'color': _getRankColor('E-Rank'),
+      },
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          decoration: BoxDecoration(
+            color: AppColors.cardSurface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border(
+              top: BorderSide(color: AppColors.border, width: 1),
+            ),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'RANK SYSTEM',
+                style: AppTypography.mono(
+                  size: 11,
+                  weight: FontWeight.w800,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Discipline Level',
+                    style: AppTypography.body(
+                      size: 20,
+                      weight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _getRankColor(currentRank).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _getRankColor(currentRank),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Text(
+                      currentRank.toUpperCase(),
+                      style: AppTypography.mono(
+                        size: 14,
+                        weight: FontWeight.w900,
+                        color: _getRankColor(currentRank),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Your rank is calculated from your 30-day average discipline score. Complete daily tasks on time to maximize your rank.',
+                style: AppTypography.body(
+                  size: 13,
+                  color: AppColors.textSecondary,
+                ).copyWith(height: 1.4),
+              ),
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceRaised,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '30-DAY AVERAGE',
+                          style: AppTypography.mono(
+                            size: 10,
+                            weight: FontWeight.w700,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        Text(
+                          '${avg30DayDiscipline.toStringAsFixed(1)} / 100',
+                          style: AppTypography.mono(
+                            size: 12,
+                            weight: FontWeight.w800,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Stack(
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: AppColors.border,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        FractionallySizedBox(
+                          widthFactor: (avg30DayDiscipline / 100.0).clamp(0.0, 1.0),
+                          child: Container(
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: _getRankColor(currentRank),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 28),
+              Text(
+                'RANK THRESHOLDS',
+                style: AppTypography.mono(
+                  size: 11,
+                  weight: FontWeight.w800,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Column(
+                children: rankThresholds.map((item) {
+                  final isCurrent = item['rank'] == currentRank;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isCurrent ? AppColors.surfaceRaised : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                      border: isCurrent 
+                          ? Border.all(color: AppColors.border, width: 1.5)
+                          : null,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 65,
+                          alignment: Alignment.center,
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          decoration: BoxDecoration(
+                            color: item['color'].withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: item['color'], width: 1),
+                          ),
+                          child: Text(
+                            item['rank'].toUpperCase(),
+                            style: AppTypography.mono(
+                              size: 11,
+                              weight: FontWeight.w900,
+                              color: item['color'],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Text(
+                            item['title'],
+                            style: AppTypography.body(
+                              size: 13,
+                              weight: isCurrent ? FontWeight.w700 : FontWeight.w500,
+                              color: isCurrent ? AppColors.textPrimary : AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          item['range'],
+                          style: AppTypography.mono(
+                            size: 12,
+                            weight: isCurrent ? FontWeight.w800 : FontWeight.w600,
+                            color: isCurrent ? AppColors.textPrimary : AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final onTimeFraction = totalTasks == 0 ? 0.0 : onTimeCount / totalTasks;
@@ -1302,33 +1555,50 @@ class _HunterStatusCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Header: System / Level Info ────────────────────────
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'LEVEL',
-                      style: AppTypography.mono(
-                        size: 13,
-                        weight: FontWeight.w800,
-                        color: AppColors.textSecondary,
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _showRankDetailsSheet(context);
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'LEVEL',
+                            style: AppTypography.mono(
+                              size: 13,
+                              weight: FontWeight.w800,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Icon(
+                            Icons.info_outline_rounded,
+                            size: 14,
+                            color: AppColors.textMuted,
+                          ),
+                        ],
                       ),
-                    ),
-                    Text(
-                      rank,
-                      style: AppTypography.mono(
-                        size: 14,
-                        weight: FontWeight.w900,
-                        color: rankColor,
+                      Text(
+                        rank,
+                        style: AppTypography.mono(
+                          size: 14,
+                          weight: FontWeight.w900,
+                          color: rankColor,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -1685,24 +1955,41 @@ class _WeeklyJobApplicationsChartCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Row(
                 children: [
-                  Text(
-                    'Job Hunt',
-                    style: AppTypography.body(
-                      size: 16,
-                      weight: FontWeight.w700,
-                      color: AppColors.textPrimary,
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceRaised,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.work_outline_rounded,
+                      color: AppColors.primary,
+                      size: 20,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Weekly submission trend',
-                    style: AppTypography.body(
-                      size: 12,
-                      color: AppColors.textSecondary,
-                    ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Job Hunt',
+                        style: AppTypography.body(
+                          size: 16,
+                          weight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Weekly submission trend',
+                        style: AppTypography.body(
+                          size: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
