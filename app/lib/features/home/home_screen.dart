@@ -238,8 +238,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         final w = _weatherData!;
         IconData weatherIcon = Icons.cloud;
         final c = w.condition.toLowerCase();
+        final hour = DateTime.now().hour;
+        final isNight = hour >= 18 || hour < 6;
         if (c.contains('clear')) {
-          weatherIcon = Icons.wb_sunny;
+          weatherIcon = isNight ? Icons.nights_stay : Icons.wb_sunny;
         } else if (c.contains('rain') || c.contains('drizzle')) {
           weatherIcon = Icons.water_drop;
         } else if (c.contains('thunder')) {
@@ -361,7 +363,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${w.condition} later',
+                            isNight && c.contains('clear') ? 'Clear skies tonight' : w.condition,
                             style: AppTypography.body(size: 14, weight: FontWeight.w600),
                             overflow: TextOverflow.ellipsis,
                           ),
